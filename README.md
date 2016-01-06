@@ -9,6 +9,12 @@ The result is a .pcf file (PCF = PreCompressedFile) that contains more decompres
 
 Since version 0.4.3, Precomp is available for Linux, too. The Linux and Windows versions are completely compatible, PCF files are exchangeable between Windows and Linux systems.
 
+Binaries
+--------
+[Binary downloads](http://schnaader.info/precomp.php#d), of Precomp 0.4.3 for both Windows and Linux.
+
+Binaries for older version can be found at [this Google Drive folder](https://drive.google.com/open?id=0B-yOP4irObphSGtMMjJSV2tueEE).
+
 Contact
 -------
 Christian Schneider
