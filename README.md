@@ -17,6 +17,12 @@ schnaader@gmx.de
 
 http://schnaader.info
 
+Donations
+---------
+To donate, you can either use the donate button on [my homepage](http://schnaader.info) or send bitcoins to
+
+    1KvQxn6KHp4tv92Z5Fy8dTPLz4XdosQpbz
+
 Credits
 -------
 Thanks for support, help and comments:
