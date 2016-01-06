@@ -1,0 +1,80 @@
+How to compile packJPG (06/12/2009)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This document gives detailed instructions on compiling packJPG either as 
+an executable or a static/shared libary. 
+
+
+Compiling packJPG as an executable
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+
+Makefiles or provided for Microsoft Windows NT ('Makefile') and Unix 
+('Makefile.unix'). Both have been tested and verified to work in GCC 
+v3.4.5, but they should work with other compilers and newer/older 
+versions of the GCC as well. If you want to compile packJPG in Microsoft 
+Visual Studio for Microsoft Windows, just create a new project and add 
+all source files to it. 
+
+When compiling for Unix and not using the included makefile, 'UNIX' 
+(without the ') has to be defined either in 'packJPG.cpp' or in the 
+compilers command line options. I.e. you can either add this line at the 
+beginning of 'packJPG.cpp': 
+
+#define UNIX 
+
+... or you can give a command line option like this when compiling from 
+the command line: 
+
+-DUNIX 
+
+
+Compiling packJPG as a static or shared library 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+
+If you want to compile packJPG as a static or shared library, add all 
+the source files to a new static/shared library project. 'BUILD_LIB' 
+(without the ') has to be defined either at the beginning of 
+'packJPG.cpp' or from the compilers options. 'BUILD_DLL' has to be 
+defined in addition only if a shared library is to be compiled (don't 
+define this for a static library!). 'UNIX' has to be defined when 
+compiling a library for Unix. 
+
+The source file 'packJPGdll.h' contains all public function declarations 
+of the library and can be included in external projects which use the 
+packJPG shared library. 
+
+
+Compiling developer functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+
+If you want to include developer functions in the packJPG executable, 
+'DEV_BUILD' has to be defined. Developer functions are not available in 
+the packJPG library. They are not needed in any way for basic packJPG 
+functionality (i.e. compression and decompression) and can be left out 
+to compile a smaller executable. Read 'developer.txt' for more 
+information. 
+
+
+Defines overview / summary
+~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+
+This paragraph gives a short overview over preprocessor defines 
+mentioned in the above paragraphs. 
+
+UNIX
+Has to be defined when compiling an executable / a library for Unix or 
+Mac OS. 
+
+BUILD_LIB
+Has to be defined when compiling a static or shared library. 
+
+BUILD_DLL
+Has to defined when compiling a shared library only. 
+
+BUILD_DEV
+If this is defined, developer functions are included in the executable. 
+In library builds, developer functions are not available.
+
+
+____________________________________
+packJPG by Matthias Stirner, 06/2009 

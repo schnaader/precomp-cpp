@@ -1,0 +1,22 @@
+# Project: packJPG
+# Makefile created by Matthias Stirner 28.03.2007
+# Working with GCC v3.4.5
+
+CC      = gcc
+CPP     = g++
+RC      = windres
+CFLAGS  = -I. -O3 -DUNIX -DDEV_BUILD -Wall -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
+LDFLAGS = -s -static-libgcc
+DEPS    = bitops.h aricoder.h htables.h dct8x8.h
+OBJ     = bitops.o aricoder.o packjpg.o
+RES     = icon.res
+BIN     = packjpg
+
+%.o: %.cpp $(DEPS)
+	$(CPP) -c -o $@ $< $(CFLAGS)
+
+$(BIN): $(OBJ)
+	$(CPP) -o $@ $^ $(LDFLAGS)
+
+clean:
+	$(RM) $(OBJ)

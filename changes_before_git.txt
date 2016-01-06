@@ -1,0 +1,661 @@
+23.07.2013
+----------
+Switching windows version to MinGW g++ 4.8.1 for std::thread support. The make script had
+  to be changed (-static, -lpthread) to static link pthread (instead of depending on
+  libwinpthread-1.dll).
+
+26.09.2012
+----------
+Started version 0.4.4
+Fixed windowbits usage for ZIP, gZip and brute mode streams. Trying windowbits is
+  necessary when recompressing only, decompression can use the highest setting 15.
+  This speeds up Precomp for these stream types when decompression isn't successful,
+  especially brute mode that is 8 times faster for non-deflated data. Also helps
+  for rt.jar (2 min 34 s -> 22 s).
+
+01.09.2012
+----------
+Fixed memory leaks in GIF routines
+Major GIF rewrite, routines are now able to recompress most files completely
+
+19.05.2012
+----------
+Added conversion for PCF files (bZip2 <--> no compression).
+
+05.05.2012
+----------
+The Windows version links PackJPG without the need for a DLL.
+The Linux version links PackJPG and supports JPG streams, too.
+
+25.04.2012
+----------
+The Windows version can open files with locked access now and multiple Precomp
+  instances can operate on the same file, this already worked in the Linux
+  version. Function fileSize64 is using CreateFile different to enable this.
+
+20.04.2012
+----------
+Activity indicator updates every 32 KiB in fast_copy instead of once per call.
+
+12.04.2012
+----------
+Changed copyright year to 2006-2012.
+
+19.02.2012
+----------
+Base64 streams with more than two preceding CRLFs get recompressed now.
+
+18.12.2011
+----------
+Linking zLib 1.2.5 static again under Windows - hopefully correct this time.
+
+06.12.2011
+----------
+Updated to packJPG 2.5, this should fix most of the JPG crashes.
+When PackJPG returns an error, decompressed stream count is increased so JPG misdetections are visible in the statistics.
+
+15.11.2011
+----------
+Fixed a bug that led to unnecessary decompressed data in PCF files when recursion found a stream inside
+  another stream that could only be recompressed partially.
+
+28.10.2011
+----------
+Fixed a bug with GIF files at positions > 2 GB where detection failed and slowed down Precomp.
+
+19.10.2011
+----------
+Better time statistic to fit singulars.
+More exact timer on linux, activity indicator updated twice as often.
+
+16.10.2011
+----------
+Fixed bug in Base64 routines that made Precomp freeze.
+
+30.09.2011
+----------
+Filenames aren't stored in lower case anymore to improve platform compatibility.
+
+29.09.2011
+----------
+The function get_time_ms() was called once for every byte in the input file
+  which slowed down some things, especially "copying" (-t+) when not in
+  verbose mode.
+Linux version speed is doubled by enabling compiler optimization for zLib.
+Compression switch uses n instead of - now.
+
+28.09.2011
+----------
+Started version 0.4.3
+Calls of print_work_sign() in own_fread/own_fwrite.
+
+25.09.2011
+----------
+Added CTRL-C detection and temporary file cleanup.
+Added optional recursion level limit for intense and brute mode.
+Changed percentage display to 2 decimal places.
+Fixed -intense switch.
+Showing an error when -s switch is used without a number.
+Renamed -expert to -longhelp.
+Renamed -l (recursion level) to -d (recursion depth).
+
+24.09.2011
+----------
+First working version that can be compiled for both Linux and Windows.
+Several changes to improve platform compatibility, e.g. functions seek_64/tell_64, get_time_ms.
+Safe fclose operation to only close files once.
+Added activity indicator.
+Added percentage display in verbose mode.
+
+07.04.2011
+----------
+In function recursion_compress, tempfile3 was used, a shortened version of tempfile1.
+  Sometimes when a match was found with less identical bytes, tempfile3 was shorter than
+  the "best" (longest) tempfile3 and this led to incorrect recompression.
+
+06.04.2011
+----------
+When processing multi PNGs, tempfile0 was opened "w+b" and not deleted before. This may
+  cause bugs if new file smaller than previous.
+
+05.04.2011
+----------
+Added "expert" switch to show expert switches.
+Added unstable version message.
+Renamed slow mode to intense mode.
+
+04.04.2011
+----------
+The last recompression step can be skipped if final compression has been found, both for
+  try_recompress and try_recompress_bzip2. As compression is the slowest part, this increases
+  the speed for streams that can be completely recompressed (about 30% faster).
+
+03.04.2011
+----------
+Fixed a bug in def_part, def_part_skip and def_part_bzip2, in some rare cases pos_out wasn't increased
+  when it should've been, this led to incorrect recompression (additional bytes written).
+
+02.04.2011
+----------
+Started version 0.4.2
+Fixed "Penalty bytes were used:" output that showed 0 bytes in some places.
+Changed copyright year to 2006-2011.
+
+20.12.2010
+----------
+Fixed bug - penalty_bytes_len wasn't pushed to recursion stack so recompression
+  failed when the length was different at two recursion levels.
+Fixed recursion bug with -cb, otf_bz2_stream mustn't be pushed to the recursion stack
+  because we use it between recursion push and pop.
+Fixed bug with GIF precompression - when recompression was only partial possible,
+  a second recompress_gif attempt was made that sometimes returned a different block_size
+  which wasn't stored correctly.
+Changed copyright year to 2006-2010.
+
+27.11.2009
+----------
+Changed GIF recompression that still used ftell/fseek to fgetpos/fsetpos.
+
+23.11.2009
+----------
+Ignore list is only freed when denit is called at recursion level 0, this caused crashes before.
+
+22.11.2009
+----------
+Precompressing PNG multi streams now determines IDAT pairs count before writing the IDATs so that
+  no seeking in the output file is needed.
+Added compression-on-the-fly using bZip2.
+Compression method parameter -c added.
+Time output is more human-readable now.
+
+24.03.2009
+----------
+Switched back to using zlib1.dll as using .a files or even a self-compiled
+  zlib1.dll led to crashes (regardless which optimization level used).
+Sorted zlib levels that are prompted as speedup parameters.
+Fixed bug in multi PNG handling. Penalty bytes for chunks after the first one
+  where changed incorrect at recompression, in some cases one idat_lengths
+  that should've been saved wasn't saved.
+Fixed statistics bug - zLib levels sometimes weren't printed because
+  anything_was_used wasn't rescued after recursion.
+
+23.03.2009
+----------
+Removed debug message when disk full.
+Fixed bug in PCF filename creation. ..\test now works and doesn't
+  give ..pcf, but ..\test.pcf.
+Speedup parameters are more exact now. -c and -m merged to -zl.
+
+21.03.2009
+----------
+Started version 0.4.1
+Changed error routine to return batch errorlevels.
+Linked zLib static - now zlib1.dll isn't needed anymore.
+Fixed error with progress display for higher recursion levels.
+
+20.03.2009
+----------
+Speeded up Base64 detection.
+
+19.03.2009
+----------
+Fixed a bug with that enabled fast mode if the -mjpeg switch was used.
+Added bZip2 support.
+
+28.02.2009
+----------
+Removed stored ZIP detection as some valid ZIP streams were skipped with it.
+
+24.02.2009
+----------
+Added progress update while in recursion.
+Added MJPG DHT recompression,
+Added -mjpg switch.
+
+20.02.2009
+----------
+Finished recursion.
+Added GIF partial match support.
+Added workaround for PackJPG bug where recompression output file sometimes
+  couldn't be accessed by PackJPG.
+Changed version messages to print 0.4 instead of 0.4.0.
+Changed copyright year to 2006-2009.
+
+19.02.2009
+----------
+Added recursion level settings.
+Added numerical value checks for switches.
+
+12.02.2009
+----------
+Added recursion for ZIP streams.
+Fixed compiler warnings.
+
+04.09.2008
+----------
+Fixed error in statistics - if a PDF image streams failed, too much
+  recompressed PDF streams were shown.
+
+14.08.2008
+----------
+Fixed ZIP streams without compression (stored), they are skipped and not
+  de-/recompressed anymore.
+  This speeds up stored ZIP archives.
+    Java rt.jar: ~3,3 times faster (515 s -> 153 s)
+
+07.08.2008
+----------
+Changed in_buf_pos from unsigned int to unsigned long (caused slowdown for
+  files bigger than 4 GB).
+
+24.07.2008
+----------
+Fixed: JPG recompression used ~temp0.dat instead of tempfile0.
+Adding Motion JPG DHT if JPG huffman table is missing. This adds support
+  for MJPEG files.
+
+21.07.2008
+----------
+Started version 0.4
+Added MIME Base64 decoding.
+
+20.07.2008
+----------
+Updated to packJPG 2.4WIP4 that fixes a JPG crash and has better compression.
+Updated decompressed/recompressed streams statistics.
+Splitted recompressed streams count message for PNG and PNG multi.
+Added switch -progonly (useful for PAQ).
+
+19.06.2008
+----------
+Fixed temporary files not being deleted after decompression.
+
+17.06.2008
+----------
+Big speedup for recompression. For PDF, gZip, ZIP, PNG (except multi), SWF,
+  slow and brute mode, temporary files were unnecessary.
+    FlashMX.pdf: ~1,5 times faster (5638 ms -> 3646 ms)
+    PDF Test 1:  ~2,7 times faster (4746 ms -> 1752 ms)
+    PDF Test 2:  ~2,6 times faster (1903 ms -> 721 ms)
+    FlashMX.pdf
+     -pdfbmp+:   ~1,4 times faster (5397 ms -> 3946 ms)
+    PNG Test 1:  ~1,3 times faster (17735 ms -> 14094 ms)
+
+06.06.2008
+----------
+Uncompressed streams longer than 2 GB are now restored correctly when
+  recompressing.
+
+27.05.2008
+----------
+Added error message for unsupported stream type when recompressing.
+Added SWF support without slow mode.
+
+26.05.2008
+----------
+Fixed a bug with penalty bytes that introduced with large file support.
+Changed temporary filenames to be unique so it is possible to run Precomp
+  several times in the same directory at the same time now. For this, meta
+  temporary files named "~tempXXXXXXXX.dat" are created, XXXXXXXX being a
+  8 digit consecutive counter. The counter is increased until the meta file
+  does not exist.
+Slow mode and brute mode now check if decompressed length is greater than
+  32 bytes and skip if not, this speeds them up a lot. 10 MB random took
+  293 s before and reported 75/1010 streams, now 65 s and 0/79. 1024 random
+  bytes took 56 s with 8/172, now 19 s and 0/15.
+
+23.05.2008
+----------
+Minimal identical bytes size is 4 for normal streams, 64 for slow or
+  brute mode streams.
+"None of the given ... could be used" message also appeared if only GIF
+  and JPG streams were recompressed, now flag non_zlib_was_used was added
+  to check this.
+Added support for files larger than 2 GB.
+
+29.02.2008
+----------
+Added statistics for PDF image streams (if -pdfbmp is enabled).
+
+17.01.2008
+----------
+Added own_fwrite method that gives an error if there is not enough space
+  left on disk.
+
+15.01.2008
+----------
+Added switch -pdfbmp.
+Updated to packJPG 2.3b that fixes unfreed temporary files.
+
+19.12.2007
+----------
+Images in PDF are now preceded by a BMP header to get better results when
+  compressing PCF files with PAQ.
+
+28.11.2007
+----------
+Started version 0.3.8
+Updated to packJPG 2.3a. JPG fixes are removed because packJPG handles this
+  properly now.
+
+07.11.2007
+----------
+Another JPG fix: Checking for _exactly one_ SOF before SOS.
+
+05.11.2007
+----------
+Set default for minimal identical byte size to 64 in slow mode.
+Added additional checks for DHT and DQT in JPG detection routines to avoid
+  passing invalid JPGs without DHT/DQT tables to packJPG 2.3 which led
+  to a crash.
+
+01.11.2007
+----------
+Changed global *_penalty_bytes variables. If PRECOMPDLL is set, they must be
+  initialized in (p)recompress_file function, if not, calling one these
+  functions multiple times results in a crash.
+
+31.10.2007
+----------
+Function compare_files_penalty changed. This could speed up Precomp sometimes
+  when many penalty bytes are used.
+Fixed: Sometimes files couldn't be opened because access was denied, this led
+  to a crash. Now, the new function tryOpen prevents this. After 2-3 seconds,
+  files can be opened, after 15 seconds there is a timeout and an error
+  message is shown.
+Added: Precomp version is shown if file was made with a different version.
+Fixed: Appending .pcf only if precompressing, not when recompressing.
+Added progressive JPG detection.
+Updated to packJPG 2.3.
+
+29.09.2007
+----------
+Fixed brute mode parameter parsing.
+
+27.09.2007
+----------
+Started version 0.3.7
+Fixed crashes occuring in lprepaq. The reason was using "new char" with
+  strlen of an existing string before strcpy instead of strlen+1.
+
+22.08.2007
+----------
+Started version 0.3.6
+Improved JPG detection. It now detects additional SOI markers and looks for
+  additional matching EOI markers.
+
+20.08.2007
+----------
+Released lprepaq v1.0 (combination of lpaq1 and Precomp).
+Fixed a bug in GIF handling that often crashed Precomp with textfiles that
+  contained "GIF87a" or "GIF89a".
+
+17.08.2007
+----------
+Fixed Windows XP crash by replacing packJPG 2.2 with a recompiled version.
+
+14.08.2007
+----------
+Started version 0.3.5
+Updated to packJPG 2.2.
+
+10.08.2007
+----------
+Bugfix in GIF precompression: cb wasn't adjusted after success.
+
+27.07.2007
+----------
+Summary of recompressed stream types is shown at denitialization.
+
+26.07.2007
+----------
+Started version 0.3.4
+Added type switches to disable/enable compression types.
+
+16.07.2007
+----------
+Fixed: PackJPG DLL didn't release file handles.
+
+08.07.2007
+----------
+Using packJPG DLL instead of EXE.
+
+25.06.2007
+----------
+Added packJPG support.
+Fixed: Ignore positions work again.
+
+21.06.2007
+----------
+Started version 0.3.3
+FDICT must not be set because dictionary mode can't be supported yet. This
+  improves detections, especially in slow mode:
+    FlashMX.pdf slow mode
+      before: 654 decompressable, 233 recompressed streams, 199 s
+              26.958.219 Bytes, UHARC: 2.401.119 Bytes
+      after:  298 decompressable, 214 recompressed streams, 47 s
+              26.955.223 Bytes, UHARC: 2.401.147 Bytes
+Brute mode added.
+
+20.06.2007
+----------
+Added slow mode to Precomp Comfort
+Renamed precomp.ini to precomf.ini
+Added GIF compression
+Fixed: PNG error fixed
+Fixed: ignore_list is freed
+Fixed: Output file name from a PCF was sometimes read incorrectly
+
+18.06.2007
+----------
+Added slow mode to support raw zLib headers like in old versions.
+Changed date to 2006,2007.
+Fixed: Changed some chars to unsigned, needed for raw zLib type (255).
+
+29.05.2007
+----------
+Fixed: Penalty bytes that were used were not shown correctly in verbose mode.
+Fixed: Best identical decompressed bytes were sometimes saved incorrect. This
+       led to subtle differences when processing big files.
+Fixed: Comfort version didn't wait for a key if some of the errors occured.
+Fixed: ZIP files didn't work because saved_cb wasn't set correctly.
+
+26.05.2007
+----------
+Added support for PNGs with multiple IDATs.
+
+22.05.2007
+----------
+Removed checkbuf and optimized file I/O once again.
+  Random file 1 MB: ~150 ms precompress, ~20 ms recompress
+  Random file 10 MB: ~1800 ms precompress, ~600 ms recompress
+  => speed is now at ~5,5 MB/s for precompression
+Improved GZ detection by checking reserved bytes for being zero.
+
+03.05.2007
+----------
+Filename is now stored in lower case.
+
+23.04.2007
+----------
+Improved file input speed -> very fast for random data (~2,5 MB/s),
+  FlashMX.pdf before: 19 s, after: 16 s
+
+18.04.2007
+----------
+Fixed a bug in def_compare, have == 0 wasn't handled correctly.
+
+09.01.2007
+----------
+Enlarged max. PDF header size to 127 bytes instead of 30 bytes.
+
+05.01.2007
+----------
+Started version 0.3.2
+Added more reliable header detection.
+  This speeds up Precomp a lot because there are no more false detected
+  headers caused by the 2 byte zLib header.
+
+16.11.2006
+----------
+Added fast mode. In this mode, the first found compression is used for all
+  streams. When only one level combination was used in non-fast mode, a
+  message recommends using fast mode.
+
+09.11.2006
+----------
+Typos corrected.
+Switch -d changed to -r (it is restoring/recompressing, not decompressing).
+  Using -d is still valid.
+Default values in <> instead of ().
+Temporary files renamed to ~tempX.dat instead of tempX.dat.
+
+06.11.2006
+----------
+Finished INI file parsing and comfort version.
+
+31.10.2006
+----------
+Added INI file parsing.
+
+09.10.2006
+----------
+Beginning split to normal/comfort version (compiler switch COMFORT)
+  Normal version used with command-line and parameters.
+  Comfort version used with drag-and-drop and INI file.
+
+26.09.2006
+----------
+Function def_compare readjusted for use with penalty bytes. Results keep
+  good, Precomp is faster again.
+Penalty bytes use fixed memory now. This is faster and more reliable.
+Version number is now stored in header. Decompression isn't done if version
+  differs.
+
+20.09.2006
+----------
+Function def_compare can't be used with penalty bytes and was removed. This
+  slows down Precomp again, but results are much better (FlashMX.pcf size is
+  now 26,9 MB instead of 21,8 MB).
+Identical bytes and penalty bytes are now shown in verbose mode.
+Penalty byte compare now stops if too much penalty bytes.
+Bugfix: fident wasn't used anymore, but it still needed.
+
+15.09.2006
+----------
+Removed ESTIMATION code and define, and other unnecessary code.
+Fixed some small memory leaks in input/output file parameter code.
+Fixed 0 byte uncompressed data writes.
+Added penalty bytes if recompressed stream is almost identical. This often
+  leads to better compression.
+Added GZip support
+Added ignore list parameter -i. Can be used to ignore input file streams.
+Added minimal identical bytes parameter -s. Can be used to ignore small file
+  streams.
+
+14.09.2006
+----------
+Path was stored in header which could lead to problems. Now only filename
+  is stored.
+zLib header is now skipped and stored in output file (increased by 1)
+  like the ZIP header is. This leads to better compression and better
+  speed up parameters often.
+Bug in ZIP implementation fixed. Now windowbits != 15 should work, too, and
+  no 0-Byte-decompression is tried.
+Decompressed size of streams is shown in verbose mode.
+fident is not needed anymore because of deflate/compare_files merge.
+Changed version number to v0.3.1
+
+11.09.2006
+----------
+Much more speed by merging deflate and compare_files to def_compare and
+  using a new compare_file_mem function in def_compare. This saves much
+  recompressing time, most notably in big compressed streams as in
+  FlashMX.pdf (before: 410 s without params, 60 s with params, now: 127 s
+  without params, 45 s with params).
+Asking about overwrite if output file exists.
+Changed version number to v0.3
+Released version v0.3
+
+06.09.2006
+----------
+Gained a little speed by removing unnecessary input_byte[1] and unnecessary
+  reading checkbuf from file twice. This doubles speed for files that can't
+  be precompressed well.
+Removed inflate and deflate asserts.
+Added function fast_copy to clean the code and speed up decompression a bit.
+Added verbose mode switch instead of compiler switch DEBUG.
+Changed version number to v0.2
+
+04.09.2006
+----------
+Added decompressable and recompressed streams statistics.
+Output file is now given by switch, if none is given, input filename is used
+  with extension .pcf. If input file has extension .pcf, new output file name
+  is "[...]_pcf.pcf".
+Drag and drop works with single files.
+Header for PCF files is now "PCF"+input filename+0
+
+01.09.2006
+----------
+ZIP header is now stored without first 4 bytes ('PK',03,04) in PCF file to
+  avoid misleading ZIP detection when precompressing the PCF file again.
+Removed compression level 0. It is STORE, which is not useful to decompress
+  because the data remains the same.
+precompd is now available through the '-d' switch in precomp and no longer
+  needed.
+Added switches '-c' and '-m' to fasten up compression with files that were
+  compressed earlier (because it is known which compression and memory levels
+  were used).
+Version number is now v0.1
+
+31.08.2006
+----------
+Faster version of compare_files.
+Decompressed data smaller than the compressed data is no longer a match.
+  This improves compression of data that is wrongly considered compressed.
+
+18.08.2006
+----------
+Added progress display.
+
+11.08.2006
+----------
+precompd written to recompress the output files. Program is now ready to use.
+Memory level brute forcing stops when all decompressed data is recompressed.
+
+08.08.2006
+----------
+Output data is now written.
+Good results so far, but of no use at the moment, because de-recompressor
+  is missing and the process is irreversible.
+Speed is better: ~20 KB/s (without ESTIMATION).
+Name changed to precomp.
+Added memory level brute forcing. Now 9*9 variations are recompressed, speed
+  is very slow, but most PDF-data with different window sizes and memory
+  levels can be processed.
+
+07.08.2006
+----------
+Defined ESTIMATION to control saved bytes estimation.
+Speed so far: ~8 KB/s (without ESTIMATION).
+PNG crash doesn't seem to come from corrupt data, but from much zLib-use.
+  Starting at position 352122 where the crash appeared, it works and crashes
+  later on (Position 610951). Setting CHUNK to 16 KB doesn't change anything.
+PNG crash solved: missing fclose in compare_files() led to too much
+  open files.
+
+03.08.2006
+----------
+First version of recomp
+Tries to find zLib streams by checking fcheck to be multiple of 31.
+  Once found a stream, it tries to decompress it, then recompresses it.
+  If recompression succeeded, identical bytes are shown to the user.
+Tested files so far:
+  PDF files - works
+  PNG files - works
+  ZIP files - doesn't work, because there's no zLib header
+  CAB files - doesn't work
+  GIF files - doesn't work
+Added saved bytes estimation by calling PAQ with the decompressed data that
+  can be recompressed.
