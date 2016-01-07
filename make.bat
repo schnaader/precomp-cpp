@@ -16,9 +16,9 @@ move bitops.o ..\..\
 move packjpg.o ..\..\
 popd
 g++ -static -static-libgcc -static-libstdc++ -lpthread -Wall precomp.cpp %JPG% %GIF% %BZIP% %ZLIB_O% -O2 -march=pentiumpro -fomit-frame-pointer -s -oprecomp.exe
-if not %ERRORLEVEL% == 0 echo FEHLER!!!
+if not %ERRORLEVEL% == 0 echo ERROR!!!
 if %ERRORLEVEL% == 0 echo.
-if %ERRORLEVEL% == 0 echo Kompilierung erfolgreich.
+if %ERRORLEVEL% == 0 echo Build successful.
 set ZLIB_O=
 set ZLIB=
 set BZIP=
