@@ -12,7 +12,7 @@ Since version 0.4.3, Precomp is available for Linux, too. The Linux and Windows 
 How can I contribute?
 ---------------------
 * You can have a look at the [Issue list](https://github.com/schnaader/precomp-cpp/issues)
-  * If you are looking for easy issues that don't require deeper understanding of the whole project, look for issues with the `low hanging fruits` tag.
+  * If you are looking for easy issues that don't require deeper understanding of the whole project, look for [issues with the `low hanging fruits` tag](https://github.com/schnaader/precomp-cpp/labels/low%20hanging%20fruits)
 * You can build the project or download the binaries (see below), run it on your system and report bugs or make enhancement proposals.
 
 Binaries
