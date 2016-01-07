@@ -63,7 +63,7 @@
 #define PATH_DELIM '/'
 #endif
 
-#include "bzlib.h"
+#include "contrib/bzip2/bzlib.h"
 
 //GIF things
 
@@ -72,7 +72,7 @@ const short InterlacedJumps[] = { 8, 8, 4, 2 };    /* be read - offsets and jump
 
 extern "C"
 {
-    #include "gif_lib.h"
+    #include "contrib/giflib/gif_lib.h"
 }
 
 //PackJPG things
@@ -120,7 +120,7 @@ void pjglib_version_info( char* msg );
 
 using namespace std;
 
-#include "zlib.h"
+#include "contrib/zlib/zlib.h"
 
 #define CHUNK 262144 //256 KB buffersize
 #define DIV3CHUNK 262143 //DIV3CHUNK is a bit smaller/larger than CHUNK, so that DIV3CHUNK mod 3 = 0
