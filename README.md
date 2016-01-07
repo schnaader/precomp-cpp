@@ -33,12 +33,12 @@ Credits
 -------
 Thanks for support, help and comments:
 
-- Stephan Busch (Squeeze Chart Author, http://www.squeezechart.de)
+- Stephan Busch (Squeeze Chart Author, http://www.squeezechart.com)
 - Werner Bergmans (Maximum Compression Benchmark Author, http://www.maximumcompression.com)
-- Matthias Stirner (PackJPG, http://www.elektronik.htw-aalen.de/packjpg/index.htm)
+- Matthias Stirner (PackJPG, http://www.elektronik.htw-aalen.de/packjpg/index.htm, http://www.matthiasstirner.com)
 - Mark Adler (http://www.zlib.net)
-- Matt Mahoney (http://www.mattmahoney.net, http://www.cs.fit.edu/~mmahoney/compression)
-- Malcolm Taylor (http://www.msoftware.co.nz/WinRK_about.php)
+- Matt Mahoney (http://www.mattmahoney.net)
+- Malcolm Taylor (http://www.msoftware.co.nz)
 - Simon Berger (helped to fix many bugs)
 - The whole ENCODE.RU forum (http://encode.ru/forum)
 
@@ -47,7 +47,7 @@ Legal stuff
 - PackJPG v2.5 (http://www.elektronik.htw-aalen.de/packjpg/index.htm) by Matthias Stirner is used for compression/decompression of JPG files.
 - bZip2 1.05 (http://www.bzip.org) by Julian Seward is used for compression/decompression of bZip2 streams.
 - zLib 1.2.5 (http://www.zlib.net) by Jean-loup Gailly and Mark Adler is used for compression/decompression of zLib streams.
-- GifLib 4.1.4 (http://sourceforge.net/projects/libungif) is used for compression/decompression of GIF files. The GIFLIB distribution is Copyright (c) 1997 Eric S. Raymond
+- GifLib 4.1.4 (http://sourceforge.net/projects/giflib) is used for compression/decompression of GIF files. The GIFLIB distribution is Copyright (c) 1997 Eric S. Raymond
 
 License
 -------
