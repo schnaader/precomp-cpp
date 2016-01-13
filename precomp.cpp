@@ -50,7 +50,12 @@
 #include <sstream>
 #include <string>
 #include <signal.h>
+#ifdef _MSC_VER
+#include <io.h>
+#define ftruncate _chsize
+#else
 #include <unistd.h>
+#endif
 
 #ifndef LINUX
 #include <conio.h>
@@ -8698,12 +8703,25 @@ FILE* tryOpen(const char* filename, const char* mode) {
   return fptr;
 }
 
+#ifdef _MSC_VER
+wchar_t* convertCharArrayToLPCWSTR(const char* charArray)
+{
+    wchar_t* wString=new wchar_t[4096];
+    MultiByteToWideChar(CP_ACP, 0, charArray, -1, wString, 4096);
+    return wString;
+}
+#endif
+
 long long fileSize64(char* filename) {
   #ifndef LINUX
     unsigned long s1 = 0, s2 = 0;
 
     //HANDLE h = CreateFile(filename, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    #ifdef _MSC_VER
+    HANDLE h = CreateFile(convertCharArrayToLPCWSTR(filename), 0, (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    #else
     HANDLE h = CreateFile(filename, 0, (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    #endif
 
     s2 = GetFileSize(h, &s1);
 

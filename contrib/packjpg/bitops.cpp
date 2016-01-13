@@ -7,6 +7,10 @@ reading and writing of arrays
 #include <string.h>
 #include <fcntl.h>
 #include "bitops.h"
+#ifdef _MSC_VER // Change by schnaader to enable compilation by MSVC
+#include <io.h>
+#define setmode _setmode
+#endif
 
 #define BUFFER_SIZE 1024 * 1024
 

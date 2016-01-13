@@ -19,3 +19,11 @@
 *.exe
 *.out
 *.app
+
+# Visual C++ cache files
+*.opensdf
+*.sdf
+
+# Visual Studio user-specific files
+*.suo
+*.user
