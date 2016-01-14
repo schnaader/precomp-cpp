@@ -225,8 +225,8 @@ Thanks for support, help and comments:
 8. Legal stuff
 --------------
 PackJPG v2.5 (http://www.elektronik.htw-aalen.de/packjpg/index.htm) by Matthias Stirner is used for compression/decompression of JPG files.
-bZip2 1.05 (http://www.bzip.org) by Julian Seward is used for compression/decompression of bZip2 streams.
-zLib 1.2.5 (http://www.zlib.net) by Jean-loup Gailly and Mark Adler is used for compression/decompression of zLib streams.
+bZip2 1.0.6 (http://www.bzip.org) by Julian Seward is used for compression/decompression of bZip2 streams.
+zLib 1.2.8 (http://www.zlib.net) by Jean-loup Gailly and Mark Adler is used for compression/decompression of zLib streams.
 GifLib 4.1.4 (http://sourceforge.net/projects/giflib) is used for compression/decompression of GIF files.
   The GIFLIB distribution is Copyright (c) 1997 Eric S. Raymond
 
