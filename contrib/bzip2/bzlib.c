@@ -8,8 +8,9 @@
    This file is part of bzip2/libbzip2, a program and library for
    lossless, block-sorting data compression.
 
-   bzip2/libbzip2 version 1.0.5 of 10 December 2007
-   Copyright (C) 1996-2007 Julian Seward <jseward@bzip.org>
+   bzip2/libbzip2 version 1.0.6 of 6 September 2010
+   Copyright (C) 1996-2010 Julian Seward <jseward@bzip.org>
+   Changes made by schnaader for Precomp to avoid compiler errors
 
    Please read the WARNING, DISCLAIMER and PATENTS sections in the 
    README file.
@@ -165,7 +166,7 @@ int BZ_API(BZ2_bzCompressInit)
    if (strm->bzalloc == NULL) strm->bzalloc = default_bzalloc;
    if (strm->bzfree == NULL) strm->bzfree = default_bzfree;
 
-   s = (EState*)BZALLOC( sizeof(EState) );
+   s = (EState*)BZALLOC( sizeof(EState) ); // schnaader: changed to avoid -fpermissive
    if (s == NULL) return BZ_MEM_ERROR;
    s->strm = strm;
 
@@ -174,6 +175,7 @@ int BZ_API(BZ2_bzCompressInit)
    s->ftab = NULL;
 
    n       = 100000 * blockSize100k;
+   // schnaader: changed to avoid -fpermissive
    s->arr1 = (UInt32*)BZALLOC( n                  * sizeof(UInt32) );
    s->arr2 = (UInt32*)BZALLOC( (n+BZ_N_OVERSHOOT) * sizeof(UInt32) );
    s->ftab = (UInt32*)BZALLOC( 65537              * sizeof(UInt32) );
@@ -362,7 +364,7 @@ Bool handle_compress ( bz_stream* strm )
 {
    Bool progress_in  = False;
    Bool progress_out = False;
-   EState* s = (EState*)strm->state;
+   EState* s = (EState*)strm->state; // schnaader: changed to avoid -fpermissive
    
    while (True) {
 
@@ -409,7 +411,7 @@ int BZ_API(BZ2_bzCompress) ( bz_stream *strm, int action )
    Bool progress;
    EState* s;
    if (strm == NULL) return BZ_PARAM_ERROR;
-   s = (EState*)strm->state;
+   s = (EState*)strm->state; // schnaader: changed to avoid -fpermissive
    if (s == NULL) return BZ_PARAM_ERROR;
    if (s->strm != strm) return BZ_PARAM_ERROR;
 
@@ -469,7 +471,7 @@ int BZ_API(BZ2_bzCompressEnd)  ( bz_stream *strm )
 {
    EState* s;
    if (strm == NULL) return BZ_PARAM_ERROR;
-   s = (EState*)strm->state;
+   s = (EState*)strm->state; // schnaader: changed to avoid -fpermissive
    if (s == NULL) return BZ_PARAM_ERROR;
    if (s->strm != strm) return BZ_PARAM_ERROR;
 
@@ -505,7 +507,7 @@ int BZ_API(BZ2_bzDecompressInit)
    if (strm->bzalloc == NULL) strm->bzalloc = default_bzalloc;
    if (strm->bzfree == NULL) strm->bzfree = default_bzfree;
 
-   s = (DState*)BZALLOC( sizeof(DState) );
+   s = (DState*)BZALLOC( sizeof(DState) ); // schnaader: changed to avoid -fpermissive
    if (s == NULL) return BZ_MEM_ERROR;
    s->strm                  = strm;
    strm->state              = s;
@@ -684,7 +686,7 @@ Bool unRLE_obuf_to_output_FAST ( DState* s )
 
 
 /*---------------------------------------------------*/
-Int32 BZ2_indexIntoF ( Int32 indx, Int32 *cftab )
+Int32 BZ2_indexIntoF ( Int32 indx, Int32 *cftab ) // schnaader: changed to satisfy the linker
 {
    Int32 nb, na, mid;
    nb = 0;
@@ -810,7 +812,7 @@ int BZ_API(BZ2_bzDecompress) ( bz_stream *strm )
    Bool    corrupt;
    DState* s;
    if (strm == NULL) return BZ_PARAM_ERROR;
-   s = (DState*)strm->state;
+   s = (DState*)strm->state; // schnaader: changed to avoid -fpermissive
    if (s == NULL) return BZ_PARAM_ERROR;
    if (s->strm != strm) return BZ_PARAM_ERROR;
 
@@ -863,7 +865,7 @@ int BZ_API(BZ2_bzDecompressEnd)  ( bz_stream *strm )
 {
    DState* s;
    if (strm == NULL) return BZ_PARAM_ERROR;
-   s = (DState*)strm->state;
+   s = (DState*)strm->state; // schnaader: changed to avoid -fpermissive
    if (s == NULL) return BZ_PARAM_ERROR;
    if (s->strm != strm) return BZ_PARAM_ERROR;
 
@@ -934,7 +936,7 @@ BZFILE* BZ_API(BZ2_bzWriteOpen)
    if (ferror(f))
       { BZ_SETERR(BZ_IO_ERROR); return NULL; };
 
-   bzf = (bzFile*)malloc ( sizeof(bzFile) );
+   bzf = (bzFile*)malloc ( sizeof(bzFile) ); // schnaader: changed to avoid -fpermissive
    if (bzf == NULL)
       { BZ_SETERR(BZ_MEM_ERROR); return NULL; };
 
@@ -982,7 +984,7 @@ void BZ_API(BZ2_bzWrite)
       { BZ_SETERR(BZ_OK); return; };
 
    bzf->strm.avail_in = len;
-   bzf->strm.next_in  = (char*)buf;
+   bzf->strm.next_in  = (char*)buf; // schnaader: changed to avoid -fpermissive
 
    while (True) {
       bzf->strm.avail_out = BZ_MAX_UNUSED;
@@ -1107,7 +1109,7 @@ BZFILE* BZ_API(BZ2_bzReadOpen)
    if (ferror(f))
       { BZ_SETERR(BZ_IO_ERROR); return NULL; };
 
-   bzf = (bzFile*)malloc ( sizeof(bzFile) );
+   bzf = (bzFile*)malloc ( sizeof(bzFile) ); // schnaader: changed to avoid -fpermissive
    if (bzf == NULL) 
       { BZ_SETERR(BZ_MEM_ERROR); return NULL; };
 
@@ -1179,7 +1181,7 @@ int BZ_API(BZ2_bzRead)
       { BZ_SETERR(BZ_OK); return 0; };
 
    bzf->strm.avail_out = len;
-   bzf->strm.next_out = (char*)buf;
+   bzf->strm.next_out = (char*)buf; // schnaader: changed to avoid -fpermissive
 
    while (True) {
 
