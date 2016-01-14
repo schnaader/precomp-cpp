@@ -2060,7 +2060,13 @@ void denit_convert() {
    printf(" instead of ");
    print64(fin_length);
    printf("\n");
-   }
+   } else {
+   printf("New size: ");
+   print64(fout_length);
+   printf(" instead of ");
+   print64(fin_length);
+   printf("\n");
+   }   
    printf("\nDone.\n");
    printf_time(get_time_ms() - start_time);
   #else
