@@ -421,9 +421,9 @@ DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches swit
 // msg = Buffer for error messages (256 bytes buffer size are enough)
 DLL void get_copyright_msg(char* msg) {
   if (V_MINOR2 == 0) {
-    sprintf(msg, "Precomp DLL v%i.%i (c) 2006-2012 by Christian Schneider",V_MAJOR,V_MINOR);
+    sprintf(msg, "Precomp DLL v%i.%i (c) 2006-2016 by Christian Schneider",V_MAJOR,V_MINOR);
   } else {
-    sprintf(msg, "Precomp DLL v%i.%i.%i (c) 2006-2012 by Christian Schneider",V_MAJOR,V_MINOR,V_MINOR2);
+    sprintf(msg, "Precomp DLL v%i.%i.%i (c) 2006-2016 by Christian Schneider",V_MAJOR,V_MINOR,V_MINOR2);
   }
 }
 
@@ -638,7 +638,7 @@ int init(int argc, char* argv[]) {
     printf("Precomp v%i.%i.%i - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_STATE);
   }
   printf(" - %s\n",V_MSG);
-  printf("Free for non-commercial use - Copyright 2006-2012 by Christian Schneider\n\n");
+  printf("Free for non-commercial use - Copyright 2006-2016 by Christian Schneider\n\n");
 
   //Init compression and memory level count
   bool use_zlib_level[81];
@@ -1241,7 +1241,7 @@ int init_comfort(int argc, char* argv[]) {
     printf("Precomp Comfort v%i.%i.%i - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_STATE);
   }
   printf(" - %s\n",V_MSG);
-  printf("Free for non-commercial use - Copyright 2006-2012 by Christian Schneider\n\n");
+  printf("Free for non-commercial use - Copyright 2006-2016 by Christian Schneider\n\n");
 
   //Init compression and memory level count
   bool use_zlib_level[81];
