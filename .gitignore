@@ -20,10 +20,12 @@
 *.out
 *.app
 
-# Visual C++ cache files
+# Visual Studio specific files
 *.opensdf
 *.sdf
-
-# Visual Studio user-specific files
 *.suo
 *.user
+*.log
+*.tlog
+*.pdb
+*.lastbuildstate
