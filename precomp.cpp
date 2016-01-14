@@ -2048,17 +2048,29 @@ void denit_decompress() {
 }
 
 void denit_convert() {
+  safe_fclose(&fin);
+  safe_fclose(&fout);
+
+  long long fout_length = fileSize64(output_file_name);
   #ifndef PRECOMPDLL
    if (!DEBUG_MODE) {
    printf("\b\b\b\b\b\b\b\b\b");
-   printf("100.00%%\n");
+   printf("100.00%% - New size: ");
+   print64(fout_length);
+   printf(" instead of ");
+   print64(fin_length);
+   printf("\n");
    }
    printf("\nDone.\n");
    printf_time(get_time_ms() - start_time);
   #else
    if (!DEBUG_MODE) {
    printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-   printf("Converting: 100.00%% - ");
+   printf("Converting: 100.00%% - New size: ");
+   print64(fout_length);
+   printf(" instead of ");
+   print64(fin_length);
+   printf("\n");
    printf_time(get_time_ms() - start_time);
    }
   #endif
