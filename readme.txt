@@ -1,4 +1,4 @@
-Precomp v0.4.3
+Precomp v0.4.4
 --------------
 1. What is Precomp?
 2. What is Precomp Comfort?
