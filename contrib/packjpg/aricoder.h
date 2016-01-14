@@ -6,8 +6,6 @@
 #define CODER_LIMIT075		( ( CODER_LIMIT100 / 4 ) * 3 )
 #define CODER_MAXSCALE		CODER_LIMIT025 - 1
 #define ESCAPE_SYMBOL		CODER_LIMIT025
-// defines for statistical models
-#define MAX_COUNT			255
 
 
 // symbol struct, used in arithmetic coding
@@ -52,14 +50,14 @@ struct table_s {
 	
 class aricoder
 {
-public:
+	public:
 	aricoder( iostream* stream, int iomode );
 	~aricoder( void );
 	void encode( symbol* s );
 	unsigned int decode_count( symbol* s );
 	void decode( symbol* s );
 	
-private:
+	private:
 	// bitwise operations
 	void write_bit( unsigned char bit );
 	unsigned char read_bit( void );
@@ -87,7 +85,7 @@ class model_s
 {	
 	public:
 	
-	model_s( int max_s, int max_c, int max_o );
+	model_s( int max_s, int max_c, int max_o, int c_lim );
 	~model_s( void );
 	
 	void update_model( int symbol );
@@ -104,7 +102,8 @@ class model_s
 	
 	private:
 	
-	unsigned short* totals;
+	// unsigned short* totals;
+	unsigned int* totals;
 	char* scoreboard;
 	int sb0_count;
 	table_s **contexts;
@@ -131,7 +130,7 @@ class model_b
 {	
 	public:
 	
-	model_b( int max_c, int max_o );
+	model_b( int max_c, int max_o, int c_lim );
 	~model_b( void );
 	
 	void update_model( int symbol );

@@ -1,7 +1,4 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <math.h>
 #include "bitops.h"
 #include "aricoder.h"
 
@@ -218,12 +215,13 @@ unsigned char aricoder::read_bit( void )
 	universal statistical model for arithmetic coding
 	----------------------------------------------- */
 	
-model_s::model_s( int max_s, int max_c, int max_o )
+model_s::model_s( int max_s, int max_c, int max_o, int c_lim )
 {
 	// boundaries of this model:
 	// max_s (maximum symbol) -> 1 <= max_s <= 1024 (???)
 	// max_c (maximum context) -> 1 <= max_c <= 1024 (???)
 	// max_o (maximum order) -> -1 <= max_o <= 4
+	// c_lim (maximum count) -> 2 <= c_lim <= 4096 (???)
 	// WARNING: this can be memory intensive, so don't overdo it
 	// max_s == 256; max_c == 256; max_o == 4 would be way too much
 
@@ -239,10 +237,12 @@ model_s::model_s( int max_s, int max_c, int max_o )
 	max_symbol  = max_s;
 	max_context = max_c;
 	max_order   = max_o;
+	max_count   = c_lim;
 	
 	
 	// alloc memory for totals table
-	totals = ( unsigned short* ) calloc( max_symbol + 2, sizeof( short ) );
+	// totals = ( unsigned short* ) calloc( max_symbol + 2, sizeof( short ) );
+	totals = ( unsigned int* ) calloc( max_symbol + 2, sizeof( int ) );
 	
 	// alloc memory for scoreboard, set sb0_count
 	scoreboard = ( char* ) calloc( max_symbol, sizeof( char ) );
@@ -280,7 +280,7 @@ model_s::model_s( int max_s, int max_c, int max_o )
 		null_table->links[ i ] = start_table;
 	
 	// alloc memory for storage & contexts
-	storage = ( table_s** ) calloc( max_order + 2, sizeof( table_s* ) );
+	storage = ( table_s** ) calloc( max_order + 3, sizeof( table_s* ) );
 	if ( storage == NULL ) ERROR_EXIT;
 	contexts = storage + 1;
 	
@@ -364,7 +364,7 @@ void model_s::update_model( int symbol )
 			if ( symbol >= context->max_symbol ) context->max_symbol = symbol+1;
 			// if counts for that symbol have gone above the maximum count
 			// the table has to be resized (scale factor 2)
-			if ( (*counts) >= MAX_COUNT )
+			if ( (*counts) >= max_count )
 				rescale_table( context, 1 );
 		}
 	}
@@ -547,7 +547,7 @@ int model_s::convert_symbol_to_int( int count, symbol *s )
 	int c;
 	
 	// go through the totals table, search the symbol that matches the count
-	for ( c = 1; count < totals[ c ]; c++ );	
+	for ( c = 1; count < (signed) totals[ c ]; c++ );	
 	// set up the current symbol
 	s->low_count  = totals[ c ];
 	s->high_count = totals[ c - 1 ];
@@ -575,9 +575,9 @@ void model_s::totalize_table( table_s *context )
 	// as CODER_MAXSCALE is big enough, though, (2^29), this shouldn't happen and is not checked
 
 	unsigned short* counts;
-	unsigned short  local_symb;
-	unsigned short  curr_total;
-	unsigned short  curr_count;
+	signed int      local_symb;
+	unsigned int    curr_total;
+	unsigned int    curr_count;
 	unsigned int    esc_prob;
 	int i;
 	
@@ -712,7 +712,7 @@ inline void model_s::recursive_cleanup( table_s *context )
 	special version of model_s for binary coding
 	----------------------------------------------- */
 
-model_b::model_b( int max_c, int max_o )
+model_b::model_b( int max_c, int max_o, int c_lim )
 {
 	// boundaries of this model:
 	// ... (maximum symbol) -> 2 (0 or 1 )
@@ -730,6 +730,7 @@ model_b::model_b( int max_c, int max_o )
 	// copy settings into model
 	max_context = max_c;
 	max_order   = max_o;
+	max_count   = c_lim;
 	
 	
 	// set up null table
@@ -757,7 +758,7 @@ model_b::model_b( int max_c, int max_o )
 		null_table->links[ i ] = start_table;
 	
 	// alloc memory for storage & contexts
-	storage = ( table** ) calloc( max_order + 2, sizeof( table* ) );
+	storage = ( table** ) calloc( max_order + 3, sizeof( table* ) );
 	if ( storage == NULL ) ERROR_EXIT;
 	contexts = storage + 1;
 	
@@ -828,7 +829,7 @@ void model_b::update_model( int symbol )
 		context->scale++;
 		// if counts for that symbol have gone above the maximum count
 		// the table has to be resized (scale factor 2)
-		if ( context->counts[ symbol ] >= MAX_COUNT )
+		if ( context->counts[ symbol ] >= max_count )
 			rescale_table( context, 1 );
 	}
 }

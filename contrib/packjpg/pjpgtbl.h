@@ -1,10 +1,30 @@
 /* -----------------------------------------------
+	defines for use in packJPG processing
+	----------------------------------------------- */
+
+// action defines
+#define A_COMPRESS			1
+#define A_SPLIT_DUMP		2
+#define A_COLL_DUMP			3
+#define A_FCOLL_DUMP		4
+#define A_ZDST_DUMP			5
+#define A_TXT_INFO			6
+#define A_DIST_INFO			7
+#define A_PGM_DUMP			8
+
+// file type defines
+#define F_JPG				1
+#define F_PJG				2
+#define F_UNK				3
+
+
+/* -----------------------------------------------
 	compression helper tables
 	----------------------------------------------- */
 
 // maxima for each frequency in zigzag order
 // dc maximum is fixed by offset (+4/QUANT)
-const unsigned short int freqmax[] =
+static const unsigned short int freqmax[] =
 {
 	1024,  931,  932,  985,  858,  985,  968,  884, 
 	 884,  967, 1020,  841,  871,  840, 1020,  968, 
@@ -18,7 +38,7 @@ const unsigned short int freqmax[] =
 
 /*
 // maxima for each frequency - IJG DCT float (not used)
-const unsigned short int freqmax_float[] =
+static const unsigned short int freqmax_float[] =
 {
 	1024,  924,  942,  924, 1020,  924,  942,  924,
 	 924,  837,  854,  837,  924,  837,  854,  837,
@@ -33,7 +53,7 @@ const unsigned short int freqmax_float[] =
 
 /*
 // maxima for each frequency - IJG DCT int (not used)
-const unsigned short int freqmax_int[] =
+static const unsigned short int freqmax_int[] =
 {
 	1024,  924,  942,  924, 1020,  924,  942,  924,
 	 924,  838,  854,  838,  924,  838,  854,  838,
@@ -48,7 +68,7 @@ const unsigned short int freqmax_int[] =
 
 /*
 // maxima for each frequency - IJG DCT fast (not used)
-const unsigned short int freqmax_fast[] =
+static const unsigned short int freqmax_fast[] =
 {
 	1024,  931,  985,  968, 1020,  968, 1020, 1020,
 	 932,  858,  884,  840,  932,  812,  854,  854,
@@ -63,7 +83,7 @@ const unsigned short int freqmax_fast[] =
 
 /*
 // maxima for each frequency - IJG DCT max (not used)
-const unsigned short int freqmax_ijg[] =
+static const unsigned short int freqmax_ijg[] =
 {
 	1024,  931,  985,  968, 1020,  968, 1020, 1020,
 	 932,  858,  884,  840,  932,  838,  854,  854,
@@ -117,7 +137,7 @@ int vdqu[ 3 ][ 64 ] =
 */
 
 // standard scan = zigzag scan
-const unsigned char stdscan[] =
+static const unsigned char stdscan[] =
 {
 	 0,  1,  2,  3,  4,  5,  6,  7,
 	 8,  9, 10, 11, 12, 13, 14, 15,
@@ -130,7 +150,7 @@ const unsigned char stdscan[] =
 };
 
 // zigzag scan conversion table
-const unsigned char zigzag[] =
+static const unsigned char zigzag[] =
 {
 	 0,  1,  5,  6, 14, 15, 27, 28,
 	 2,  4,  7, 13, 16, 26, 29, 42,
@@ -143,7 +163,7 @@ const unsigned char zigzag[] =
 };
 
 // zigzag scan reverse conversion table
-const unsigned char unzigzag[] =
+static const unsigned char unzigzag[] =
 {
 	 0,  1,  8, 16,  9,  2,  3, 10,
 	17, 24, 32, 25, 18, 11,  4,  5,
@@ -156,7 +176,7 @@ const unsigned char unzigzag[] =
 };
 
 // even/uneven zigzag scan conversion table
-const unsigned char even_zigzag[] =
+static const unsigned char even_zigzag[] =
 {
 
 	 0,  5, 14, 27,  1,  6, 15, 28, 
@@ -170,7 +190,7 @@ const unsigned char even_zigzag[] =
 };
 
 // context weighting for each band (luminance) (from POTY 2006/2007)
-const signed int abs_ctx_weights_lum[ 64 ][ 3 ][ 5 ] =
+static const signed int abs_ctx_weights_lum[ 64 ][ 3 ][ 5 ] =
 {
 	{ // DCT(0/0)
 		{  0,  0,  7,  0,  0, },
@@ -496,7 +516,7 @@ const signed int abs_ctx_weights_lum[ 64 ][ 3 ][ 5 ] =
 
 /*
 // context weighting for each band (chrominance) (from POTY 2006/2007)
-const signed int abs_ctx_weights_chr[ 64 ][ 3 ][ 5 ] =
+static const signed int abs_ctx_weights_chr[ 64 ][ 3 ][ 5 ] =
 {
 	{ // DCT(0/0)
 		{  0,  0,  7,  0,  0, },
@@ -822,7 +842,7 @@ const signed int abs_ctx_weights_chr[ 64 ][ 3 ][ 5 ] =
 */
 
 // tresholds (size of component) for configuration sets
-const unsigned int conf_sets[][3] =
+static const unsigned int conf_sets[][3] =
 {
 	{ 76800, 19200, 19200 }, // 2480x1920
 	{ 19200,  4800,  4800 }, // 1280x960
@@ -833,7 +853,7 @@ const unsigned int conf_sets[][3] =
 };
 
 // configuration sets for number of segments
-const unsigned char conf_segm[][3] =
+static const unsigned char conf_segm[][3] =
 {
 	{ 10, 10, 10 },
 	{ 10, 10, 10 },
@@ -844,7 +864,7 @@ const unsigned char conf_segm[][3] =
 };
 
 // configuration sets for noise thresholds
-const unsigned char conf_ntrs[][3] =
+static const unsigned char conf_ntrs[][3] =
 {
 	{  7,  7,  7 },
 	{  6,  6,  6 },
@@ -856,7 +876,7 @@ const unsigned char conf_ntrs[][3] =
 
 
 // standard huffman tables, found in JPEG specification, Chapter K.3
-const unsigned char std_huff_tables[4][272] =
+static const unsigned char std_huff_tables[4][272] =
 {
 	{	// standard luma dc table (0/0)
 		0x00,0x01,0x05,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -897,7 +917,7 @@ const unsigned char std_huff_tables[4][272] =
 };
 
 // lengths of standard huffmann tables
-const unsigned char std_huff_lengths[ 4 ] =	{ 28, 28, 178, 178 };
+static const unsigned char std_huff_lengths[ 4 ] =	{ 28, 28, 178, 178 };
 
 
 // precalculated bit lengths for values 0...1024
@@ -1180,7 +1200,7 @@ unsigned char segm_tables[ 49 ][ 50 ] =
 // old stuff starting here - no more used, therefore commented out
 
 // zagzig scan, can be used instead of zigzag scan
-const unsigned char zagscan[] =
+static const unsigned char zagscan[] =
 {
 	 0,  2,  1,  5,  4,  3,  9,  8,
 	 7,  6, 14, 13, 12, 11, 10, 20,
@@ -1193,7 +1213,7 @@ const unsigned char zagscan[] =
 };
 
 // distance scan, can be used instead of zigzag scan
-const unsigned char distscan[] =
+static const unsigned char distscan[] =
 {
 	 0,  2,  1,  4,  3,  5,  7,  8,
 	12,  6,  9, 11, 13, 17, 18, 10,
@@ -1206,7 +1226,7 @@ const unsigned char distscan[] =
 };
 
 // diagonal / horizontal / vertical scan, don't use this unless you want bad results
-const unsigned char dhvscan[] =
+static const unsigned char dhvscan[] =
 {
 	 0,  4, 12, 24, 39, 51, 59, 63,
 	 1,  5,  6,  7, 13, 14, 15, 16,
@@ -1220,7 +1240,7 @@ const unsigned char dhvscan[] =
 };
 
 // sign relevancy scan
-const unsigned char sgnscan[] =
+static const unsigned char sgnscan[] =
 {
 	 0,  1,  2,  3,  5,  6,  9, 10,
 	14, 15, 20, 21, 27, 28, 35,  4,
@@ -1233,7 +1253,7 @@ const unsigned char sgnscan[] =
 };
 
 // even/uneven zigzag scan reverse conversion table
-const int even_natural_order[] =
+static const int even_natural_order[] =
 {
 
 	 0,  8,  9,  3,  1, 16,  2, 10, 
@@ -1247,7 +1267,7 @@ const int even_natural_order[] =
 };
 
 // scans for each frequency 
-const char freqalign[] =
+static const char freqalign[] =
 {
 	'm', 'v', 'v', 'v', 'v', 'v', 'v', 'v',
 	'h', 'm', 'v', 'v', 'v', 'v', 'v', 'v',
@@ -1260,7 +1280,7 @@ const char freqalign[] =
 };
 
 // chengjie tu subband classification
-const unsigned char ctxclass[] =
+static const unsigned char ctxclass[] =
 {
 	0, 1, 3, 3, 3, 6, 6, 6, // 0 -> DC (DC subband)
 	2, 5, 5, 5, 6, 6, 6, 6, // 1 -> PV (principal vertical)
@@ -1273,7 +1293,7 @@ const unsigned char ctxclass[] =
 };
 
 // context weighting for subband classification
-const signed int ctx_weights[ 7 ][ 3 ][ 5 ] =
+static const signed int ctx_weights[ 7 ][ 3 ][ 5 ] =
 {
 	{ // 0 -> DC (DC subband)
 		{  0,  0,  2,  0,  0 },
@@ -1313,7 +1333,7 @@ const signed int ctx_weights[ 7 ][ 3 ][ 5 ] =
 };
 
 // context weighting for each band (from mixedlum27 set)
-const signed int abs_ctx_weights[ 64 ][ 3 ][ 5 ] =
+static const signed int abs_ctx_weights[ 64 ][ 3 ][ 5 ] =
 {
 	{ // DCT(0/0)
 		{  0,  0,  7,  0,  0, },

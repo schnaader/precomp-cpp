@@ -121,7 +121,7 @@ bool pjglib_convert_file2file( char* in, char* out, char* msg );
 
 // this function writes versioninfo for the packJPG
 // DLL to a string
-void pjglib_version_info( char* msg );
+const char* pjglib_version_info( void );
 
 using namespace std;
 
@@ -7451,10 +7451,8 @@ void try_decompression_gif(unsigned char version[5]) {
 
 void packjpg_dll_msg() {
 
-  printf("Using packjpg25.dll for JPG recompression.\n");
-  char msg[256];
-  pjglib_version_info(msg);
-  printf("%s\n", msg);
+  printf("Using PackJPG for JPG recompression.\n");
+  printf("%s\n", pjglib_version_info());
   printf("More about PackJPG here: http://www.elektronik.htw-aalen.de/packjpg\n\n");
 
 }

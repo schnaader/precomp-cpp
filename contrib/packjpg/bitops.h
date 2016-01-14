@@ -1,7 +1,3 @@
-#include <stdio.h>
-#define BTST_BUFF ( 1024 * 1024 )
-
-// bitwise operations - utility macros
 #define RBITS( c, n )		( c & ( 0xFF >> (8 - n) ) )
 #define LBITS( c, n )		( c >> (8 - n) )
 #define MBITS( c, l, r )	( RBITS( c,l ) >> r )
@@ -15,7 +11,17 @@
 #define BITLEN( l, v )		for ( l = 0; ( v >> l ) > 0; l++ )
 #define FDIV2( v, p )		( ( v < 0 ) ? -( (-v) >> p ) : ( v >> p ) )
 
+#define TYPE_FILE			0
+#define TYPE_MEMORY			1
+#define TYPE_STREAM			2
+#define MODE_READ			0
+#define MODE_WRITE			1
 
+#define BTST_BUFF			1024 * 1024
+
+#include <stdio.h>	
+
+	
 /* -----------------------------------------------
 	class to read arrays bitwise
 	----------------------------------------------- */
@@ -26,9 +32,14 @@ public:
 	abitreader( unsigned char* array, int size );
 	~abitreader( void );	
 	unsigned int read( int nbits );
+	unsigned char read_bit( void );
 	unsigned char unpad( unsigned char fillbit );
-	int getpos( void );	
+	int getpos( void );
+	int getbitp( void );
+	void setpos( int pbyte, int pbit );
+	void rewind_bits( int nbits );
 	bool eof;
+	int peof;
 	
 private:
 	unsigned char* data;
@@ -48,9 +59,11 @@ public:
 	abitwriter( int size );
 	~abitwriter( void );	
 	void write( unsigned int val, int nbits );
+	void write_bit( unsigned char bit );
 	void pad ( unsigned char fillbit );
 	unsigned char* getptr( void );
 	int getpos( void );
+	int getbitp( void );
 	bool error;	
 	unsigned char fillbit;
 	
@@ -58,36 +71,8 @@ private:
 	unsigned char* data;
 	int dsize;
 	int adds;
-	int lbyte;
 	int cbyte;
 	int cbit;
-	bool fmem;
-};
-
-
-/* -----------------------------------------------
-	class to write arrays bytewise
-	----------------------------------------------- */
-
-class abytewriter
-{
-public:
-	abytewriter( int size );
-	~abytewriter( void );	
-	void write( unsigned char byte );
-	void write_n( unsigned char* byte, int n );
-	unsigned char* getptr( void );
-	unsigned char* peekptr( void );
-	int getpos( void );
-	void reset( void );
-	bool error;	
-	
-private:
-	unsigned char* data;
-	int dsize;
-	int adds;
-	int lbyte;
-	int cbyte;
 	bool fmem;
 };
 
@@ -112,6 +97,32 @@ private:
 	unsigned char* data;
 	int lbyte;
 	int cbyte;
+};
+
+
+/* -----------------------------------------------
+	class to write arrays bytewise
+	----------------------------------------------- */
+
+class abytewriter
+{
+public:
+	abytewriter( int size );
+	~abytewriter( void );	
+	void write( unsigned char byte );
+	void write_n( unsigned char* byte, int n );
+	unsigned char* getptr( void );
+	unsigned char* peekptr( void );
+	int getpos( void );
+	void reset( void );
+	bool error;	
+	
+private:
+	unsigned char* data;
+	int dsize;
+	int adds;
+	int cbyte;
+	bool fmem;
 };
 
 
