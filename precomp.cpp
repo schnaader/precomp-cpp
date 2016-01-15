@@ -19,11 +19,11 @@
 //Version information
 #define V_MAJOR 0
 #define V_MINOR 4
-#define V_MINOR2 4
-#define V_STATE "ALPHA"
-//#define V_STATE "UNSTABLE (06 Jan 2016)"
-#define V_MSG "USE FOR TESTING ONLY"
-//#define V_MSG "USE AT YOUR OWN RISK!"
+#define V_MINOR2 5
+//#define V_STATE "ALPHA"
+#define V_STATE "DEVELOPMENT"
+//#define V_MSG "USE FOR TESTING ONLY"
+#define V_MSG "USE AT YOUR OWN RISK!"
 //#define DEBUG_FILE
 
 // batch error levels
