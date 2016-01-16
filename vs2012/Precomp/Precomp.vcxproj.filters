@@ -84,6 +84,12 @@
     <ClCompile Include="..\..\contrib\zlib\zutil.c">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\contrib\packmp3\huffmp3.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\packmp3\packmp3.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\contrib\bzip2\bzlib.h">
@@ -108,9 +114,6 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="..\..\contrib\packjpg\htables.h">
-      <Filter>Headerdateien</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\contrib\packjpg\packJPGdll.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="..\..\contrib\packjpg\packJPGlib.h">
@@ -144,6 +147,21 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="..\..\contrib\zlib\zutil.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\huffmp3.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\huffmp3tbl.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\packmp3lib.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\pmp3bitlen.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\pmp3tbl.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

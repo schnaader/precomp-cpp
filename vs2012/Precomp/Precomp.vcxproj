@@ -90,6 +90,8 @@
     <ClCompile Include="..\..\contrib\packjpg\aricoder.cpp" />
     <ClCompile Include="..\..\contrib\packjpg\bitops.cpp" />
     <ClCompile Include="..\..\contrib\packjpg\packjpg.cpp" />
+    <ClCompile Include="..\..\contrib\packmp3\huffmp3.cpp" />
+    <ClCompile Include="..\..\contrib\packmp3\packmp3.cpp" />
     <ClCompile Include="..\..\contrib\zlib\adler32.c" />
     <ClCompile Include="..\..\contrib\zlib\crc32.c" />
     <ClCompile Include="..\..\contrib\zlib\deflate.c" />
@@ -109,8 +111,12 @@
     <ClInclude Include="..\..\contrib\packjpg\bitops.h" />
     <ClInclude Include="..\..\contrib\packjpg\dct8x8.h" />
     <ClInclude Include="..\..\contrib\packjpg\htables.h" />
-    <ClInclude Include="..\..\contrib\packjpg\packJPGdll.h" />
     <ClInclude Include="..\..\contrib\packjpg\packJPGlib.h" />
+    <ClInclude Include="..\..\contrib\packmp3\huffmp3.h" />
+    <ClInclude Include="..\..\contrib\packmp3\huffmp3tbl.h" />
+    <ClInclude Include="..\..\contrib\packmp3\packmp3lib.h" />
+    <ClInclude Include="..\..\contrib\packmp3\pmp3bitlen.h" />
+    <ClInclude Include="..\..\contrib\packmp3\pmp3tbl.h" />
     <ClInclude Include="..\..\contrib\zlib\crc32.h" />
     <ClInclude Include="..\..\contrib\zlib\deflate.h" />
     <ClInclude Include="..\..\contrib\zlib\inffast.h" />
