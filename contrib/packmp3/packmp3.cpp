@@ -4,8 +4,8 @@
 
 #include "pmp3tbl.h"
 #include "pmp3bitlen.h"
-#include "bitops.h"
-#include "aricoder.h"
+#include "../packjpg/bitops.h"
+#include "../packjpg/aricoder.h"
 #include "huffmp3.h"
 #include "huffmp3tbl.h"
 

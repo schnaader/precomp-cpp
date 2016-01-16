@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bitops.h"
+#include "../packjpg/bitops.h"
 #include "huffmp3.h"
 
 // bit buffer size - careful changing this!
