@@ -335,6 +335,7 @@ unsigned int recompressed_png_multi_count = 0;
 unsigned int recompressed_gif_count = 0;
 unsigned int recompressed_jpg_count = 0;
 unsigned int recompressed_jpg_prog_count = 0;
+unsigned int recompressed_mp3_count = 0;
 unsigned int recompressed_swf_count = 0;
 unsigned int recompressed_base64_count = 0;
 unsigned int recompressed_bzip2_count = 0;
@@ -352,6 +353,7 @@ unsigned int decompressed_png_multi_count = 0;
 unsigned int decompressed_gif_count = 0;
 unsigned int decompressed_jpg_count = 0;
 unsigned int decompressed_jpg_prog_count = 0;
+unsigned int decompressed_mp3_count = 0;
 unsigned int decompressed_swf_count = 0;
 unsigned int decompressed_base64_count = 0;
 unsigned int decompressed_bzip2_count = 0;
@@ -410,6 +412,7 @@ bool use_gzip = true;
 bool use_png = true;
 bool use_gif = true;
 bool use_jpg = true;
+bool use_mp3 = true;
 bool use_swf = true;
 bool use_base64 = true;
 bool use_bzip2 = true;
@@ -450,6 +453,7 @@ void setSwitches(Switches switches) {
   use_png = switches.use_png;
   use_gif = switches.use_gif;
   use_jpg = switches.use_jpg;
+  use_mp3 = switches.use_mp3;
   use_swf = switches.use_swf;
   use_base64 = switches.use_base64;
   use_bzip2 = switches.use_bzip2;
@@ -856,6 +860,7 @@ int init(int argc, char* argv[]) {
                 use_png = false;
                 use_gif = false;
                 use_jpg = false;
+                use_mp3 = false;
                 use_swf = false;
                 use_base64 = false;
                 use_bzip2 = false;
@@ -868,6 +873,7 @@ int init(int argc, char* argv[]) {
                 use_png = true;
                 use_gif = true;
                 use_jpg = true;
+                use_mp3 = true;
                 use_swf = true;
                 use_base64 = true;
                 use_bzip2 = true;
@@ -897,6 +903,9 @@ int init(int argc, char* argv[]) {
                   break;
                 case 'J': //JPG
                   use_jpg = set_to;
+                  break;
+                case '3': //MP3
+                  use_mp3 = set_to;
                   break;
                 case 'S': //SWF
                   use_swf = set_to;
@@ -1124,10 +1133,10 @@ int init(int argc, char* argv[]) {
     if (long_help) {
       printf("  brute        Brute force zLib detection. VERY Slow and most sensitive <off>\n");
     }
-    printf("  t[+-][pzgnfjsmb] Compression type switch <all enabled>\n");
+    printf("  t[+-][pzgnfjsmb3] Compression type switch <all enabled>\n");
     printf("              t+ = enable these types only, t- = enable all types except these\n");
     printf("              P = PDF, Z = ZIP, G = GZip, N = PNG, F = GIF, J = JPG\n");
-    printf("              S = SWF, M = MIME Base64, B = bZip2\n");
+    printf("              S = SWF, M = MIME Base64, B = bZip2, 3 = MP3\n");
     if (!long_help) {
       printf("  longhelp     Show long help\n");
     } else {
@@ -1344,7 +1353,7 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,"Verbose=off\n\n");
       fprintf(fnewini,";; Compression types to use\n");
       fprintf(fnewini,";; P = PDF, Z = ZIP, G = GZip, N = PNG, F = GIF, J = JPG, S = SWF\n");
-      fprintf(fnewini,";; M = MIME Base64, B = bZip2\n");
+      fprintf(fnewini,";; M = MIME Base64, B = bZip2, 3 = MP3\n");
       fprintf(fnewini,"; Compression_Types=PZGNFJSMB\n\n");
       fprintf(fnewini,";; zLib levels to use\n");
       fprintf(fnewini,"; zLib_Levels=\n");
@@ -1635,6 +1644,7 @@ int init_comfort(int argc, char* argv[]) {
           use_png = false;
           use_gif = false;
           use_jpg = false;
+          use_mp3 = false;
           use_swf = false;
           use_base64 = false;
           use_bzip2 = false;
@@ -1658,6 +1668,9 @@ int init_comfort(int argc, char* argv[]) {
                   break;
                 case 'J': //JPG
                   use_jpg = true;
+                  break;
+                case '3': //MP3
+                  use_mp3 = true;
                   break;
                 case 'S': //SWF
                   use_swf = true;
@@ -1709,6 +1722,12 @@ int init_comfort(int argc, char* argv[]) {
             printf("INI: JPG compression enabled\n");
           } else {
             printf("INI: JPG compression disabled\n");
+          } 
+
+          if (use_mp3) {
+            printf("INI: MP3 compression enabled\n");
+          } else {
+            printf("INI: MP3 compression disabled\n");
           } 
 
           if (use_swf) {
@@ -1985,6 +2004,7 @@ void denit_compress() {
       if ((use_gif) && ((recompressed_gif_count > 0) || (decompressed_gif_count > 0))) printf("GIF streams: %i/%i\n", recompressed_gif_count, decompressed_gif_count);
       if ((use_jpg) && ((recompressed_jpg_count > 0) || (decompressed_jpg_count > 0))) printf("JPG streams: %i/%i\n", recompressed_jpg_count, decompressed_jpg_count);
       if ((use_jpg) && ((recompressed_jpg_prog_count > 0) || (decompressed_jpg_prog_count > 0))) printf("JPG streams (progressive): %i/%i\n", recompressed_jpg_prog_count, decompressed_jpg_prog_count);
+      if ((use_mp3) && ((recompressed_mp3_count > 0) || (decompressed_mp3_count > 0))) printf("MP3 streams: %i/%i\n", recompressed_mp3_count, decompressed_mp3_count);
       if ((use_swf) && ((recompressed_swf_count > 0) || (decompressed_swf_count > 0))) printf("SWF streams: %i/%i\n", recompressed_swf_count, decompressed_swf_count);
       if ((use_base64) && ((recompressed_base64_count > 0) || (decompressed_base64_count > 0))) printf("Base64 streams: %i/%i\n", recompressed_base64_count, decompressed_base64_count);
       if ((use_bzip2) && ((recompressed_bzip2_count > 0) || (decompressed_bzip2_count > 0))) printf("bZip2 streams: %i/%i\n", recompressed_bzip2_count, decompressed_bzip2_count);
