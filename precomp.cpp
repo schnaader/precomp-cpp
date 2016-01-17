@@ -123,6 +123,12 @@ bool pjglib_convert_file2file( char* in, char* out, char* msg );
 // DLL to a string
 const char* pjglib_version_info( void );
 
+//PackMP3 things
+
+// this function writes versioninfo for the packJPG
+// DLL to a string
+const char* pmplib_version_info( void );
+
 using namespace std;
 
 #include "contrib/zlib/zlib.h"
@@ -196,7 +202,7 @@ unsigned char base64_char_decode(unsigned char c);
 void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_count = 0x7FFFFFFF, int max_byte_count = 0x7FFFFFFF);
 void try_decompression_base64(int gzip_header_length);
 
-void packjpg_dll_msg();
+void packjpg_mp3_dll_msg();
 bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifCodeStruct* g, GifDiffStruct* gd);
 bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_length, int& decomp_length, unsigned char& block_size, GifCodeStruct* g);
 void sort_comp_mem_levels();
@@ -1216,7 +1222,7 @@ int init(int argc, char* argv[]) {
 
   sort_comp_mem_levels();
 
-  packjpg_dll_msg();
+  packjpg_mp3_dll_msg();
 
   return operation;
 }
@@ -1914,7 +1920,7 @@ int init_comfort(int argc, char* argv[]) {
 
   sort_comp_mem_levels();
 
-  packjpg_dll_msg();
+  packjpg_mp3_dll_msg();
 
   return operation;
 }
@@ -7449,11 +7455,12 @@ void try_decompression_gif(unsigned char version[5]) {
 
 //JPEG routines
 
-void packjpg_dll_msg() {
+void packjpg_mp3_dll_msg() {
 
-  printf("Using PackJPG for JPG recompression.\n");
+  printf("Using PackJPG for JPG recompression, PackMP3 for MP3 recompression.\n");
   printf("%s\n", pjglib_version_info());
-  printf("More about PackJPG here: http://www.elektronik.htw-aalen.de/packjpg\n\n");
+  printf("%s\n", pmplib_version_info());
+  printf("More about PackJPG and PackMP3 here: http://www.matthiasstirner.com\n\n");
 
 }
 
