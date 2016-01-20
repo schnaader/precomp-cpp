@@ -17,7 +17,8 @@ reading and writing of arrays
 // special realloc with guaranteed free() of previous memory
 static inline void* frealloc( void* ptr, size_t size ) {
 	void* n_ptr = realloc( ptr, size );
-	if ( n_ptr == NULL ) free( ptr );
+	// changed by schnaader to fix a bug: if size == 0, realloc will free the memory and n_ptr == NULL, in this case don't call free
+	if (( n_ptr == NULL ) && (size != 0)) free( ptr );
 	return n_ptr;
 }
 
