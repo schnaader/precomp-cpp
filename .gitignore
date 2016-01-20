@@ -29,3 +29,7 @@
 *.tlog
 *.pdb
 *.lastbuildstate
+
+# Visual Studio output directories
+vs2012/Precomp/Debug
+vs2012/Precomp/Release
