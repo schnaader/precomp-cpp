@@ -125,6 +125,11 @@ const char* pjglib_version_info( void );
 
 //PackMP3 things
 
+#include "contrib/packmp3/pmp3tbl.h"
+
+// function to convert MP3 to PMP and vice versa
+bool pmplib_convert_file2file( char* in, char* out, char* msg );
+
 // this function writes versioninfo for the packJPG
 // DLL to a string
 const char* pmplib_version_info( void );
@@ -193,6 +198,7 @@ void try_decompression_png(int windowbits);
 void try_decompression_png_multi(int windowbits);
 void try_decompression_gif(unsigned char version[5]);
 void try_decompression_jpg(long long jpg_length, bool progressive_jpg);
+void try_decompression_mp3(long long mp3_length);
 void try_decompression_zlib(int windowbits);
 void try_decompression_brute();
 void try_decompression_swf(int windowbits, char swf_version);
@@ -298,6 +304,7 @@ FILE* fdecomp = NULL;
 FILE* fpack = NULL;
 FILE* fpng = NULL;
 FILE* fjpg = NULL;
+FILE* fmp3 = NULL;
 
 int retval;
 long long input_file_pos;
@@ -4013,7 +4020,73 @@ bool compress_file(float min_percent, float max_percent) {
       }
     }
 
-    if ((!compressed_data_found) && (use_swf)) { // No JPG header -> SWF header?
+    if ((!compressed_data_found) && (use_mp3)) { // No JPG header -> MP3 header?
+      if ((in_buf[cb] == 0xFF) && ((in_buf[cb + 1] & 0xE0) == 0xE0)) { // frame start
+        int mpeg = -1;
+        int layer = -1;
+        int samples = -1;
+        int channels = -1;
+        int protection = -1;
+
+        int bits;
+        int padding;
+        int frame_size;
+        int n = 0;
+
+        long long mp3_length = 0;
+
+        saved_input_file_pos = input_file_pos;
+        saved_cb = cb;
+
+        long long act_pos = input_file_pos;
+
+        // parse frames until first invalid frame is found or end-of-file
+        seek_64(fin, act_pos);
+        while (fread(in, 1, 3, fin) == 3) {
+          // check syncword
+          if ((in[0] != 0xFF) || ((in[1] & 0xE0) != 0xE0)) break;
+          // compare data from header
+          if (n == 0) {
+            mpeg        = (in[1] >> 3) & 0x3;
+            layer       = (in[1] >> 1) & 0x3;
+            protection  = (in[1] >> 0) & 0x1;
+            samples     = (in[2] >> 2) & 0x3;
+            channels    = (in[3] >> 6) & 0x3;
+          } else if (
+            (mpeg       != ((in[1] >> 3) & 0x3)) ||
+            (layer      != ((in[1] >> 1) & 0x3)) ||
+            (protection != ((in[1] >> 0) & 0x1)) ||
+            (samples    != ((in[2] >> 2) & 0x3)) ||
+            (channels   != ((in[3] >> 6) & 0x3))) break;
+
+		  bits     = (in[2] >> 4) & 0xF;
+          padding  = (in[2] >> 1) & 0x1;
+          // check for problems
+          if ((mpeg == 0x1) || (layer == 0x0) ||
+              (bits == 0x0) || (bits == 0xF) || (samples == 0x3)) break;
+          // find out frame size
+          frame_size = frame_size_table[mpeg][layer][samples][bits];
+          if (padding) frame_size += (layer == LAYER_I) ? 4 : 1;
+
+  		  n++;
+          mp3_length += frame_size;
+          act_pos += frame_size;
+          seek_64(fin, act_pos);
+        }
+
+        // conditions for proper first frame: 5 consecutive frames,
+		if (n >= 5) {
+          try_decompression_mp3(mp3_length);
+		}
+
+        if (!compressed_data_found) {
+          input_file_pos = saved_input_file_pos;
+          cb = saved_cb;
+        }
+      }
+    }
+
+    if ((!compressed_data_found) && (use_swf)) { // No MP3 header -> SWF header?
       // CWS = Compressed SWF file
       if ((in_buf[cb] == 'C') && (in_buf[cb + 1] == 'W') && (in_buf[cb + 2] == 'S')) {
         char swf_version = in_buf[cb + 3];
@@ -5341,8 +5414,60 @@ while (fin_pos < fin_length) {
 
         seek_64(fout, fsave_fout_pos);
       }
+    } else if (headertype == 10) { // Mp3 recompression
 
+      if (DEBUG_MODE) {
+      printf("Decompressed data - MP3\n");
+      }
 
+      int recompressed_data_length;
+      recompressed_data_length = (fin_fgetc() << 24);
+      recompressed_data_length += (fin_fgetc() << 16);
+      recompressed_data_length += (fin_fgetc() << 8);
+      recompressed_data_length += fin_fgetc();
+
+      int decompressed_data_length;
+      decompressed_data_length = (fin_fgetc() << 24);
+      decompressed_data_length += (fin_fgetc() << 16);
+      decompressed_data_length += (fin_fgetc() << 8);
+      decompressed_data_length += fin_fgetc();
+
+      if (DEBUG_MODE) {
+      printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+      }
+
+      remove(tempfile1);
+      ftempout = tryOpen(tempfile1,"wb");
+
+      fast_copy(fin, ftempout, decompressed_data_length);
+
+      safe_fclose(&ftempout);
+
+      remove(tempfile2);
+
+      bool recompress_success = false;
+
+      {
+        char msg[256];
+        recompress_success = pmplib_convert_file2file(tempfile1, tempfile2, msg);
+        if ((!recompress_success) && (DEBUG_MODE)) {
+          printf ("packMP3 error: %s\n", msg);
+        }
+      }
+
+      if (!recompress_success) {
+        printf("Error recompressing data!");
+        exit(1);
+      }
+
+      frecomp = tryOpen(tempfile2,"rb");
+
+      fast_copy(frecomp, fout, recompressed_data_length);
+
+      safe_fclose(&frecomp);
+
+      remove(tempfile2);
+      remove(tempfile1);
     } else if (headertype == 254) { // brute mode recompression
 
       if (DEBUG_MODE) {
@@ -7641,6 +7766,104 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 
 }
 
+void try_decompression_mp3 (long long mp3_length) {
+
+        if (DEBUG_MODE) {
+          print_debug_percent();
+          printf ("Possible MP3 found at position ");
+          print64(saved_input_file_pos);
+          printf (", length ");
+          print64(mp3_length);
+          printf ("\n");
+        }
+
+        bool mp3_success = false;
+
+        // Try to decompress at current position
+        fmp3 = tryOpen(tempfile0,"wb");
+        seek_64(fin, input_file_pos);
+        fast_copy(fin, fmp3, mp3_length);
+        safe_fclose(&fmp3);
+        remove(tempfile1);
+
+        // Workaround for bugs, similar to packJPG.
+        FILE* fworkaround = tryOpen(tempfile1,"wb");
+        safe_fclose(&fworkaround);
+
+        bool recompress_success = false;
+        {
+          char msg[256];
+          recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, msg);
+          
+          decompressed_streams_count++;
+          decompressed_mp3_count++;
+
+          if (!recompress_success) {
+            if (DEBUG_MODE) printf ("packMP3 error: %s\n", msg);
+          }
+
+          remove(tempfile0);
+        }
+
+        if (recompress_success) {
+          ftempout = tryOpen(tempfile1,"rb");
+          fseek(ftempout, 0, SEEK_END);
+          int mp3_new_length = ftell(ftempout);
+          safe_fclose(&ftempout);
+          if (mp3_new_length > 0) {
+            recompressed_streams_count++;
+            recompressed_mp3_count++;
+            non_zlib_was_used = true;
+
+            best_identical_bytes = mp3_length;
+            best_identical_bytes_decomp = mp3_new_length;
+            mp3_success = true;
+          }
+        }
+
+        if (mp3_success) {
+
+          if (DEBUG_MODE) {
+          printf("Best match: %i bytes, recompressed to %i bytes\n", best_identical_bytes, best_identical_bytes_decomp);
+          }
+
+          //End uncompressed data
+
+          compressed_data_found = true;
+          end_uncompressed_data();
+
+          //Write compressed data header (MP3)
+
+          fout_fputc(1); //No penalty bytes
+          fout_fputc(10); //MP3
+
+          fout_fputc((best_identical_bytes >> 24) % 256);
+          fout_fputc((best_identical_bytes >> 16) % 256);
+          fout_fputc((best_identical_bytes >> 8) % 256);
+          fout_fputc(best_identical_bytes % 256);
+
+          fout_fputc((best_identical_bytes_decomp >> 24) % 256);
+          fout_fputc((best_identical_bytes_decomp >> 16) % 256);
+          fout_fputc((best_identical_bytes_decomp >> 8) % 256);
+          fout_fputc(best_identical_bytes_decomp % 256);
+
+          //Write compressed MP3
+          write_decompressed_data(best_identical_bytes_decomp);
+
+          //Start new uncompressed data
+
+          //Set input file pointer after recompressed data
+          input_file_pos += best_identical_bytes - 1;
+          cb += best_identical_bytes - 1;
+
+        } else {
+          if (DEBUG_MODE) {
+          printf("No matches\n");
+          }
+        }
+
+}
+
 void try_decompression_zlib(int windowbits) {
   identical_bytes = -1;
   best_identical_bytes = -1;
@@ -8893,6 +9116,7 @@ void recursion_push() {
   recursion_stack_push(&fpack, sizeof(fpack));
   recursion_stack_push(&fpng, sizeof(fpng));
   recursion_stack_push(&fjpg, sizeof(fjpg));
+  recursion_stack_push(&fmp3, sizeof(fmp3));
   recursion_stack_push(&in_buf[0], sizeof(in_buf[0]) * IN_BUF_SIZE);
   recursion_stack_push(&metatempfile[0], sizeof(metatempfile[0]) * 18);
   recursion_stack_push(&tempfile0[0], sizeof(tempfile0[0]) * 19);
@@ -8960,6 +9184,7 @@ void recursion_pop() {
   recursion_stack_pop(&tempfile0[0], sizeof(tempfile0[0]) * 19);
   recursion_stack_pop(&metatempfile[0], sizeof(metatempfile[0]) * 18);
   recursion_stack_pop(&in_buf[0], sizeof(in_buf[0]) * IN_BUF_SIZE);
+  recursion_stack_pop(&fmp3, sizeof(fmp3));
   recursion_stack_pop(&fjpg, sizeof(fjpg));
   recursion_stack_pop(&fpng, sizeof(fpng));
   recursion_stack_pop(&fpack, sizeof(fpack));
