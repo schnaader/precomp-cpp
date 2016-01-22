@@ -125,6 +125,7 @@ const char* pjglib_version_info( void );
 
 //PackMP3 things
 
+#include "contrib/packjpg/bitops.h" // for MBITS
 #include "contrib/packmp3/pmp3tbl.h"
 
 // function to convert MP3 to PMP and vice versa
@@ -4052,7 +4053,10 @@ bool compress_file(float min_percent, float max_percent) {
             protection  = (in[1] >> 0) & 0x1;
             samples     = (in[2] >> 2) & 0x3;
             channels    = (in[3] >> 6) & 0x3;
-          } else if (
+			// type must be MPEG-1, Layer III, packMP3 won't process any other files
+			int type = MBITS( in[1], 5, 1 );
+            if ( type != MPEG1_LAYER_III ) break;
+		  } else if (
             (mpeg       != ((in[1] >> 3) & 0x3)) ||
             (layer      != ((in[1] >> 1) & 0x3)) ||
             (protection != ((in[1] >> 0) & 0x1)) ||
