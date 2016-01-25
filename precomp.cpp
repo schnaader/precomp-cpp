@@ -79,7 +79,7 @@ extern "C"
     #include "contrib/giflib/gif_lib.h"
 }
 
-//PackJPG things
+// packJPG things
 
 // Motion JPEG DHT header
 // JPEG DHT Segment for YCrCb omitted from MJPEG data
@@ -122,7 +122,7 @@ bool pjglib_convert_file2file( char* in, char* out, char* msg );
 // DLL to a string
 const char* pjglib_version_info( void );
 
-//PackMP3 things
+// packMP3 things
 
 #include "contrib/packjpg/bitops.h" // for MBITS
 #include "contrib/packmp3/pmp3tbl.h"
@@ -7510,10 +7510,10 @@ void try_decompression_gif(unsigned char version[5]) {
 
 void packjpg_mp3_dll_msg() {
 
-  printf("Using PackJPG for JPG recompression, PackMP3 for MP3 recompression.\n");
+  printf("Using packJPG for JPG recompression, packMP3 for MP3 recompression.\n");
   printf("%s\n", pjglib_version_info());
   printf("%s\n", pmplib_version_info());
-  printf("More about PackJPG and PackMP3 here: http://www.matthiasstirner.com\n\n");
+  printf("More about packJPG and packMP3 here: http://www.matthiasstirner.com\n\n");
 
 }
 
