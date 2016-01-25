@@ -24,7 +24,6 @@
 #define V_STATE "DEVELOPMENT"
 //#define V_MSG "USE FOR TESTING ONLY"
 #define V_MSG "USE AT YOUR OWN RISK!"
-//#define DEBUG_FILE
 
 // batch error levels
 #define RETURN_NOTHING_DECOMPRESSED 2
@@ -292,9 +291,6 @@ void denit_compress_otf();
 void init_decompress_otf();
 void denit_decompress_otf();
 
-#ifdef DEBUG_FILE
-FILE* fdebug = NULL;
-#endif
 FILE* fin = NULL;
 FILE* fout = NULL;
 FILE* ftempout = NULL;
@@ -643,11 +639,6 @@ int main(int argc, char* argv[])
 int init(int argc, char* argv[]) {
   int i, j;
   bool appended_pcf = false;
-
-  #ifdef DEBUG_FILE
-  remove("debug.txt");
-  fdebug = fopen("debug.txt","wb");
-  #endif
 
   printf("\n");
   if (V_MINOR2 == 0) {
@@ -1198,11 +1189,6 @@ int init(int argc, char* argv[]) {
 
     printf("Input file: %s\n",input_file_name);
     printf("Output file: %s\n\n",output_file_name);
-    #ifdef DEBUG_FILE
-      fprintf(fdebug,"Input file: %s\n",input_file_name);
-      fprintf(fdebug,"Output file: %s\n\n",output_file_name);
-      fflush(fdebug);
-    #endif
     if (DEBUG_MODE) {
       if (min_ident_size_set) {
         printf("\n");
@@ -1251,11 +1237,6 @@ int init_comfort(int argc, char* argv[]) {
   bool min_ident_size_set = false;
   bool recursion_depth_set = false;
   bool level_switch = false;
-
-  #ifdef DEBUG_FILE
-  remove("debug.txt");
-  fdebug = fopen("debug.txt","wb");
-  #endif
 
   printf("\n");
   if (V_MINOR2 == 0) {
@@ -1909,11 +1890,6 @@ int init_comfort(int argc, char* argv[]) {
 
   printf("Input file: %s\n",input_file_name);
   printf("Output file: %s\n\n",output_file_name);
-  #ifdef DEBUG_FILE
-    fprintf(fdebug,"Input file: %s\n",input_file_name);
-    fprintf(fdebug,"Output file: %s\n\n",output_file_name);
-    fflush(fdebug);
-  #endif
   if (DEBUG_MODE) {
     if (min_ident_size_set) {
       printf("\n");
@@ -2119,10 +2095,6 @@ void denit_convert() {
 }
 
 void denit() {
-  #ifdef DEBUG_FILE
-  safe_fclose(&fdebug);
-  #endif
-
   safe_fclose(&fin);
   safe_fclose(&fout);
 
@@ -2862,16 +2834,10 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -2923,17 +2889,11 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
@@ -3153,17 +3113,11 @@ void try_decompression_zip(int zip_header_length) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = 0; index < 81; index++) {
               if (levels_sorted[index] == -1) break;
               int comp_level = (levels_sorted[index] % 9) + 1;
               int mem_level = (levels_sorted[index] / 9) + 1;
-              #ifdef DEBUG_FILE
-              fprintf(fdebug,"Trying comp_level %i, mem_level %i, windowbits %i\n", comp_level, mem_level, -windowbits);
-              #endif
 
               try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -3192,17 +3146,11 @@ void try_decompression_zip(int zip_header_length) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
@@ -5822,10 +5770,6 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
 
               if (identical_bytes > best_identical_bytes) {
 
-                #ifdef DEBUG_FILE
-                  fprintf(fdebug, "Identical recompressed bytes: %i\n", identical_bytes);
-                #endif
-
                 //if (identical_bytes > 4) {
                 if (identical_bytes > min_ident_size) {
 
@@ -5932,10 +5876,6 @@ void try_recompress_bzip2(FILE* origfile, int level) {
             if (identical_bytes > -1) { //Successfully recompressed?
 
               if (identical_bytes > best_identical_bytes) {
-
-                #ifdef DEBUG_FILE
-                  fprintf(fdebug, "Identical recompressed bytes: %i\n", identical_bytes);
-                #endif
 
                 //if (identical_bytes > 4) {
                 if (identical_bytes > min_ident_size) {
@@ -6478,17 +6418,11 @@ void try_decompression_gzip(int gzip_header_length) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = 0; index < 81; index++) {
               if (levels_sorted[index] == -1) break;
               int comp_level = (levels_sorted[index] % 9) + 1;
               int mem_level = (levels_sorted[index] / 9) + 1;
-              #ifdef DEBUG_FILE
-              fprintf(fdebug,"Trying comp_level %i, mem_level %i, windowbits %i\n", comp_level, mem_level, -windowbits);
-              #endif
 
               try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -6517,17 +6451,11 @@ void try_decompression_gzip(int gzip_header_length) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
@@ -6652,16 +6580,10 @@ void try_decompression_png (int windowbits) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -6688,17 +6610,11 @@ void try_decompression_png (int windowbits) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
@@ -6799,16 +6715,10 @@ void try_decompression_png_multi(int windowbits) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fpng, comp_level, mem_level, windowbits);
 
@@ -6835,17 +6745,11 @@ void try_decompression_png_multi(int windowbits) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
@@ -7911,16 +7815,10 @@ void try_decompression_zlib(int windowbits) {
             return;
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -7947,17 +7845,11 @@ void try_decompression_zlib(int windowbits) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
@@ -8094,17 +7986,11 @@ void try_decompression_brute() {
             return;
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
-	  for (windowbits = -15; windowbits < -7; windowbits++) {
+          for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = 0; index < 81; index++) {
               if (levels_sorted[index] == -1) break;
               int comp_level = (levels_sorted[index] % 9) + 1;
               int mem_level = (levels_sorted[index] / 9) + 1;
-              #ifdef DEBUG_FILE
-              fprintf(fdebug,"Trying comp_level %i, mem_level %i, windowbits %i\n", comp_level, mem_level, -windowbits);
-              #endif
 
               try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -8133,17 +8019,11 @@ void try_decompression_brute() {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
@@ -8260,16 +8140,10 @@ void try_decompression_swf(int windowbits, char swf_version) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -8296,17 +8170,11 @@ void try_decompression_swf(int windowbits, char swf_version) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
@@ -8435,10 +8303,6 @@ void try_decompression_bzip2(int compression_level) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
-          
           try_recompress_bzip2(fin, compression_level);
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < identical_bytes_decomp)) {
