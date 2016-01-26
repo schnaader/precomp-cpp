@@ -203,10 +203,13 @@ void try_decompression_zlib(int windowbits);
 void try_decompression_brute();
 void try_decompression_swf(int windowbits, char swf_version);
 void try_decompression_bzip2(int compression_level);
+void try_decompression_base64(int gzip_header_length);
 
+// helpers for try_decompression functions
+
+void init_decompression_variables();
 unsigned char base64_char_decode(unsigned char c);
 void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_count = 0x7FFFFFFF, int max_byte_count = 0x7FFFFFFF);
-void try_decompression_base64(int gzip_header_length);
 
 void packjpg_mp3_dll_msg();
 bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifCodeStruct* g, GifDiffStruct* gd);
@@ -2766,7 +2769,7 @@ int identical_bytes_decomp = -1;
 int real_identical_bytes = -1;
 bool final_compression_found = false;
 
-void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc) {
+void init_decompression_variables() {
   identical_bytes = -1;
   best_identical_bytes = -1;
   best_compression = -1;
@@ -2776,6 +2779,11 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
   identical_bytes_decomp = -1;
   real_identical_bytes = -1;
   final_compression_found = false;
+}
+
+void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc) {
+  init_decompression_variables();
+
   int bmp_header_type = 0; // 0 = none, 1 = 8-bit, 2 = 24-bit
 
         // try to decompress at current position
@@ -3049,14 +3057,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 }
 
 void try_decompression_zip(int zip_header_length) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
+  init_decompression_variables();
   final_compression_found = false;
 
         int windowbits;
@@ -6250,15 +6251,7 @@ long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long l
 }
 
 void try_decompression_gzip(int gzip_header_length) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         int windowbits;
 
@@ -6413,15 +6406,7 @@ void try_decompression_gzip(int gzip_header_length) {
 }
 
 void try_decompression_png (int windowbits) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         // try to decompress at current position
         retval = try_to_decompress(fin, windowbits);
@@ -6547,15 +6532,7 @@ void try_decompression_png (int windowbits) {
 }
 
 void try_decompression_png_multi(int windowbits) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         // try to decompress at current position
         retval = try_to_decompress(fpng, windowbits);
@@ -7627,15 +7604,7 @@ void try_decompression_mp3 (long long mp3_length) {
 }
 
 void try_decompression_zlib(int windowbits) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         // try to decompress at current position
         retval = try_to_decompress(fin, windowbits);
@@ -7795,15 +7764,7 @@ void try_decompression_zlib(int windowbits) {
 }
 
 void try_decompression_brute() {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         int windowbits;
 
@@ -7960,15 +7921,7 @@ void try_decompression_brute() {
 }
 
 void try_decompression_swf(int windowbits, char swf_version) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         // try to decompress at current position
         retval = try_to_decompress(fin, windowbits);
@@ -8122,15 +8075,7 @@ void try_decompression_swf(int windowbits, char swf_version) {
 }
 
 void try_decompression_bzip2(int compression_level) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         // try to decompress at current position
         retval = try_to_decompress_bzip2(fin, compression_level);
@@ -8350,15 +8295,7 @@ void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_c
 }
 
 void try_decompression_base64(int base64_header_length) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         // try to decode at current position
         remove(tempfile1);
