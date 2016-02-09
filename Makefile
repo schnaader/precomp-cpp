@@ -33,7 +33,7 @@ packmp3:
 zlib:
 	make -C contrib/zlib
 
-contrib: bzip2 giflib packjpg zlib
+contrib: bzip2 giflib packjpg packmp3 zlib
 
 $(PROGNAME): contrib
 	g++ $(CFLAGS) $(GIFLIB_OBJ) $(PACKJPG_OBJ) $(PACKMP3_OBJ) $(BZIP2_OBJ) $(ZLIB_OBJ) precomp.cpp -s -oprecomp

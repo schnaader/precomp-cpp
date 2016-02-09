@@ -1,4 +1,4 @@
-OBJECTS = bitops.o aricoder.o huffmp3.o packmp3.o
+OBJECTS = huffmp3.o packmp3.o
 CFLAGS  = -O3 -DUNIX -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
 
 .PHONY: all
