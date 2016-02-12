@@ -1,29 +1,38 @@
 PROGNAME      = precomp
+BZIP2_OBJ     = contrib/bzip2/blocksort.o contrib/bzip2/compress.o contrib/bzip2/decompress.o contrib/bzip2/randtable.o contrib/bzip2/bzlib.o contrib/bzip2/crctable.o contrib/bzip2/huffman.o
+GIFLIB_OBJ    = contrib/giflib/dgif_lib_gcc.o contrib/giflib/egif_lib_gcc.o contrib/giflib/gifalloc.o contrib/giflib/gif_err.o
+PACKJPG_OBJ   = contrib/packjpg/aricoder.o contrib/packjpg/bitops.o contrib/packjpg/packjpg.o
+PACKMP3_OBJ   = contrib/packmp3/huffmp3.o contrib/packmp3/packmp3.o
+ZLIB_OBJ      = contrib/zlib/adler32.o contrib/zlib/crc32.o contrib/zlib/zutil.o contrib/zlib/trees.o contrib/zlib/inftrees.o contrib/zlib/inffast.o contrib/zlib/inflate.o contrib/zlib/deflate.o
 CFLAGS        = -DLINUX -D_FILE_OFFSET_BITS=64 -O2 -Wall
-SRC_PACKJPG   = contrib/packjpg/aricoder.cpp contrib/packjpg/bitops.cpp contrib/packjpg/packjpg.cpp
-SRC_PACKMP3   = contrib/packmp3/huffmp3.cpp contrib/packmp3/packmp3.cpp
-FLAGS_PACKJPG = -O3 -DUNIX -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer
-OBJ_ZLIB      = contrib/zlib/adler32.o contrib/zlib/crc32.o contrib/zlib/zutil.o contrib/zlib/trees.o contrib/zlib/inftrees.o contrib/zlib/inffast.o contrib/zlib/inflate.o contrib/zlib/deflate.o
-OBJ_BZIP2     = contrib/bzip2/bzlib.o contrib/bzip2/blocksort.o contrib/bzip2/crctable.o contrib/bzip2/compress.o contrib/bzip2/decompress.o contrib/bzip2/huffman.o contrib/bzip2/randtable.o
-OBJ_GIFLIB    = contrib/giflib/gifalloc.o contrib/giflib/gif_err.o contrib/giflib/dgif_lib_gcc.o contrib/giflib/egif_lib_gcc.o
-OBJECTS       = aricoder.o bitops.o packjpg.o huffmp3.o packmp3.o adler32.o crc32.o zutil.o trees.o inftrees.o inffast.o inflate.o deflate.o bzlib.o blocksort.o crctable.o compress.o decompress.o huffman.o randtable.o gifalloc.o gif_err.o dgif_lib_gcc.o egif_lib_gcc.o
 
 .PHONY: all
-all: packjpg packmp3 $(PROGNAME)
+all: contrib $(PROGNAME)
 
 .PHONY: clean
 clean:
+	make -C contrib/bzip2 clean
+	make -C contrib/giflib clean
+	make -C contrib/packjpg clean
+	make -C contrib/zlib clean
 	rm -f *.o
-	rm -f $(PROGNAME)
 
-$(PROGNAME): $(OBJ_ZLIB) $(OBJ_BZIP2) $(OBJ_GIFLIB)
-	g++ $(CFLAGS) $(OBJECTS) precomp.cpp -s -oprecomp
+bzip2:
+	make -C contrib/bzip2
 
-packjpg: $(SRC_PACKJPG)
-	g++ -c $(FLAGS_PACKJPG) $(SRC_PACKJPG)
+giflib:
+	make -C contrib/giflib
 
-packmp3: $(SRC_PACKMP3)
-	g++ -c $(FLAGS_PACKJPG) $(SRC_PACKMP3)
+packmp3:
+	make -C contrib/packmp3
 
-%.o: %.c
-	gcc -g -c $(CFLAGS) $<
+packjpg:
+	make -C contrib/packjpg
+
+zlib:
+	make -C contrib/zlib
+
+contrib: bzip2 giflib packjpg packmp3 zlib
+
+$(PROGNAME): contrib
+	g++ $(CFLAGS) $(GIFLIB_OBJ) $(PACKJPG_OBJ) $(PACKMP3_OBJ) $(BZIP2_OBJ) $(ZLIB_OBJ) precomp.cpp -s -oprecomp
