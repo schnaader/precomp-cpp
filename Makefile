@@ -3,7 +3,7 @@ BZIP2_OBJ     = contrib/bzip2/blocksort.o contrib/bzip2/compress.o contrib/bzip2
 GIFLIB_OBJ    = contrib/giflib/dgif_lib_gcc.o contrib/giflib/egif_lib_gcc.o contrib/giflib/gifalloc.o contrib/giflib/gif_err.o
 PACKJPG_OBJ   = contrib/packjpg/aricoder.o contrib/packjpg/bitops.o contrib/packjpg/packjpg.o
 ZLIB_OBJ      = contrib/zlib/adler32.o contrib/zlib/crc32.o contrib/zlib/zutil.o contrib/zlib/trees.o contrib/zlib/inftrees.o contrib/zlib/inffast.o contrib/zlib/inflate.o contrib/zlib/deflate.o
-CFLAGS        = -DLINUX -D_FILE_OFFSET_BITS=64 -O2 -Wall
+CFLAGS        = -DUNIX -D_FILE_OFFSET_BITS=64 -O2 -Wall
 
 .PHONY: all
 all: contrib $(PROGNAME)
