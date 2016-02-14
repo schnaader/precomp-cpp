@@ -4,7 +4,7 @@ GIFLIB_OBJ    = contrib/giflib/dgif_lib_gcc.o contrib/giflib/egif_lib_gcc.o cont
 PACKJPG_OBJ   = contrib/packjpg/aricoder.o contrib/packjpg/bitops.o contrib/packjpg/packjpg.o
 PACKMP3_OBJ   = contrib/packmp3/huffmp3.o contrib/packmp3/packmp3.o
 ZLIB_OBJ      = contrib/zlib/adler32.o contrib/zlib/crc32.o contrib/zlib/zutil.o contrib/zlib/trees.o contrib/zlib/inftrees.o contrib/zlib/inffast.o contrib/zlib/inflate.o contrib/zlib/deflate.o
-CFLAGS        = -DLINUX -D_FILE_OFFSET_BITS=64 -O2 -Wall
+CFLAGS        = -DUNIX -D_FILE_OFFSET_BITS=64 -O2 -Wall
 
 .PHONY: all
 all: contrib $(PROGNAME)
