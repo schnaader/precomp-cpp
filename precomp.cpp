@@ -289,6 +289,13 @@ bz_stream otf_bz2_stream_c, otf_bz2_stream_d;
 void own_fputc(char c, FILE* f);
 unsigned char fin_fgetc();
 void fout_fputc(char c);
+void fout_fput16(int v);
+void fout_fput24(int v);
+void fout_fput32_little_endian(int v);
+void fout_fput32(int v);
+void fout_fput32(unsigned int v);
+void fout_fput64(long long v);
+void fout_fput64(unsigned long long v);
 void init_compress_otf();
 void denit_compress_otf();
 void init_decompress_otf();
@@ -2740,14 +2747,7 @@ void end_uncompressed_data() {
 
   if (!uncompressed_data_in_work) return;
 
-  fout_fputc((uncompressed_length >> 56) % 256);
-  fout_fputc((uncompressed_length >> 48) % 256);
-  fout_fputc((uncompressed_length >> 40) % 256);
-  fout_fputc((uncompressed_length >> 32) % 256);
-  fout_fputc((uncompressed_length >> 24) % 256);
-  fout_fputc((uncompressed_length >> 16) % 256);
-  fout_fputc((uncompressed_length >> 8) % 256);
-  fout_fputc(uncompressed_length % 256);
+  fout_fput64(uncompressed_length);
 
   // fast copy of uncompressed data
   seek_64(fin, uncompressed_pos);
@@ -2901,9 +2901,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 
             pdf_header_length -= 12;
 
-            fout_fputc((pdf_header_length >> 16) % 256);
-            fout_fputc((pdf_header_length >> 8) % 256);
-            fout_fputc(pdf_header_length % 256);
+			fout_fput24(pdf_header_length);
 
             own_fwrite(in_buf + cb + 12, 1, pdf_header_length, fout);
 
@@ -2912,24 +2910,14 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             // eventually write BMP header
 
@@ -2947,10 +2935,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               } else {
                 bmp_size += 54;
               }
-              fout_fputc(bmp_size % 256);
-              fout_fputc((bmp_size >> 8) % 256);
-              fout_fputc((bmp_size >> 16) % 256);
-              fout_fputc((bmp_size >> 24) % 256);
+			  fout_fput32_little_endian(bmp_size);
 
               for (i = 0; i < 4; i++) {
                 fout_fputc(0);
@@ -2968,15 +2953,8 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               fout_fputc(0);
               fout_fputc(0);
 
-              fout_fputc(img_width % 256);
-              fout_fputc((img_width >> 8) % 256);
-              fout_fputc((img_width >> 16) % 256);
-              fout_fputc((img_width >> 24) % 256);
-
-              fout_fputc(img_height % 256);
-              fout_fputc((img_height >> 8) % 256);
-              fout_fputc((img_height >> 16) % 256);
-              fout_fputc((img_height >> 24) % 256);
+			  fout_fput32_little_endian(img_width);
+			  fout_fput32_little_endian(img_height);
 
               fout_fputc(1);
               fout_fputc(0);
@@ -2996,10 +2974,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 
               int datasize = ((img_width+3) & -4) * img_height;
               if (bmp_header_type == 2) datasize *= 3;
-              fout_fputc(datasize % 256);
-              fout_fputc((datasize >> 8) % 256);
-              fout_fputc((datasize >> 16) % 256);
-              fout_fputc((datasize >> 24) % 256);
+			  fout_fput32_little_endian(datasize);
 
               for (i = 0; i < 16; i++) {
                 fout_fputc(0);
@@ -3145,9 +3120,7 @@ void try_decompression_zip(int zip_header_length) {
 
             zip_header_length -= 4;
 
-            fout_fputc((zip_header_length >> 16) % 256);
-            fout_fputc((zip_header_length >> 8) % 256);
-            fout_fputc(zip_header_length % 256);
+			fout_fput24(zip_header_length);
 
             own_fwrite(in_buf + cb + 4, 1, zip_header_length, fout);
 
@@ -3156,34 +3129,17 @@ void try_decompression_zip(int zip_header_length) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -6338,9 +6294,7 @@ void try_decompression_gzip(int gzip_header_length) {
 
             gzip_header_length -= 2;
 
-            fout_fputc((gzip_header_length >> 16) % 256);
-            fout_fputc((gzip_header_length >> 8) % 256);
-            fout_fputc(gzip_header_length % 256);
+			fout_fput24(gzip_header_length);
 
             own_fwrite(in_buf + cb + 2, 1, gzip_header_length, fout);
 
@@ -6349,34 +6303,17 @@ void try_decompression_gzip(int gzip_header_length) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -6491,24 +6428,14 @@ void try_decompression_png (int windowbits) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             // write decompressed data
 
@@ -6627,14 +6554,10 @@ void try_decompression_png_multi(int windowbits) {
               } while (i < idat_count);
             }
             // store IDAT pairs count
-            fout_fputc((idat_pairs_written_count >> 8) % 256);
-            fout_fputc(idat_pairs_written_count % 256);
+			fout_fput16(idat_pairs_written_count);
 
             // store IDAT CRCs and lengths
-            fout_fputc((idat_lengths[0] >> 24) % 256);
-            fout_fputc((idat_lengths[0] >> 16) % 256);
-            fout_fputc((idat_lengths[0] >> 8) % 256);
-            fout_fputc(idat_lengths[0] % 256);
+			fout_fput32(idat_lengths[0]);
 
             // store IDAT CRCs and lengths
             i = 1;
@@ -6642,15 +6565,8 @@ void try_decompression_png_multi(int windowbits) {
             idat_pairs_written_count = 0;
             if (idat_pos <= best_identical_bytes) {
               do {
-                fout_fputc((idat_crcs[i] >> 24) % 256);
-                fout_fputc((idat_crcs[i] >> 16) % 256);
-                fout_fputc((idat_crcs[i] >> 8) % 256);
-                fout_fputc(idat_crcs[i] % 256);
-
-                fout_fputc((idat_lengths[i] >> 24) % 256);
-                fout_fputc((idat_lengths[i] >> 16) % 256);
-                fout_fputc((idat_lengths[i] >> 8) % 256);
-                fout_fputc(idat_lengths[i] % 256);
+				fout_fput32(idat_crcs[i]);
+				fout_fput32(idat_lengths[i]);
 
                 idat_pairs_written_count++;
 
@@ -6666,24 +6582,14 @@ void try_decompression_png_multi(int windowbits) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             // write decompressed data
 
@@ -7268,10 +7174,7 @@ void try_decompression_gif(unsigned char version[5]) {
       fout_fputc(5); // GIF
 
       // store diff bytes
-      fout_fputc((gDiff.GIFDiffIndex >> 24) % 256);
-      fout_fputc((gDiff.GIFDiffIndex >> 16) % 256);
-      fout_fputc((gDiff.GIFDiffIndex >> 8) % 256);
-      fout_fputc(gDiff.GIFDiffIndex % 256);
+	  fout_fput32(gDiff.GIFDiffIndex);
       if(DEBUG_MODE) {
         if (gDiff.GIFDiffIndex > 0)
           printf("Diff bytes were used: %i bytes\n", gDiff.GIFDiffIndex);
@@ -7286,25 +7189,15 @@ void try_decompression_gif(unsigned char version[5]) {
           printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
         }
 
-        fout_fputc((best_penalty_bytes_len >> 24) % 256);
-        fout_fputc((best_penalty_bytes_len >> 16) % 256);
-        fout_fputc((best_penalty_bytes_len >> 8) % 256);
-        fout_fputc(best_penalty_bytes_len % 256);
+		fout_fput32(best_penalty_bytes_len);
 
         for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
           fout_fputc(best_penalty_bytes[pbc]);
         }
       }
 
-      fout_fputc((best_identical_bytes >> 24) % 256);
-      fout_fputc((best_identical_bytes >> 16) % 256);
-      fout_fputc((best_identical_bytes >> 8) % 256);
-      fout_fputc(best_identical_bytes % 256);
-
-      fout_fputc((decomp_length >> 24) % 256);
-      fout_fputc((decomp_length >> 16) % 256);
-      fout_fputc((decomp_length >> 8) % 256);
-      fout_fputc(decomp_length % 256);
+	  fout_fput32(best_identical_bytes);
+	  fout_fput32(decomp_length);
 
       // write decompressed data
 
@@ -7478,15 +7371,8 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           }
           fout_fputc(6); // JPG
 
-          fout_fputc((best_identical_bytes >> 24) % 256);
-          fout_fputc((best_identical_bytes >> 16) % 256);
-          fout_fputc((best_identical_bytes >> 8) % 256);
-          fout_fputc(best_identical_bytes % 256);
-
-          fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-          fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-          fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-          fout_fputc(best_identical_bytes_decomp % 256);
+		  fout_fput32(best_identical_bytes);
+		  fout_fput32(best_identical_bytes_decomp);
 
           // write compressed JPG
           write_decompressed_data(best_identical_bytes_decomp);
@@ -7576,15 +7462,8 @@ void try_decompression_mp3 (long long mp3_length) {
           fout_fputc(1); // no penalty bytes
           fout_fputc(10); // MP3
 
-          fout_fputc((best_identical_bytes >> 24) % 256);
-          fout_fputc((best_identical_bytes >> 16) % 256);
-          fout_fputc((best_identical_bytes >> 8) % 256);
-          fout_fputc(best_identical_bytes % 256);
-
-          fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-          fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-          fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-          fout_fputc(best_identical_bytes_decomp % 256);
+		  fout_fputc(best_identical_bytes);
+		  fout_fputc(best_identical_bytes_decomp);
 
           // write compressed MP3
           write_decompressed_data(best_identical_bytes_decomp);
@@ -7707,34 +7586,17 @@ void try_decompression_zlib(int windowbits) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fputc(best_identical_bytes);
+			fout_fputc(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -7866,34 +7728,17 @@ void try_decompression_brute() {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -8019,34 +7864,17 @@ void try_decompression_swf(int windowbits, char swf_version) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -8137,34 +7965,17 @@ void try_decompression_bzip2(int compression_level) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -8473,15 +8284,13 @@ void try_decompression_base64(int base64_header_length) {
             fout_fputc(header_byte);
             fout_fputc(8); // Base64
 
-            fout_fputc((base64_header_length >> 8) % 256);
-            fout_fputc(base64_header_length % 256);
+			fout_fput16(base64_header_length);
 
             // write "header", but change first char to prevent re-detection
             fout_fputc(in_buf[cb] - 1);
             own_fwrite(in_buf + cb + 1, 1, base64_header_length - 1, fout);
 
-            fout_fputc((line_count >> 8) % 256);
-            fout_fputc(line_count % 256);
+			fout_fput16(line_count);
             if (line_case == 2) {
               for (i = 0; i < line_count; i++) {
                 fout_fputc(base64_line_len[i]);
@@ -8491,25 +8300,11 @@ void try_decompression_base64(int base64_header_length) {
               if (line_case == 1) fout_fputc(base64_line_len[line_count - 1]);
             }
 
-            fout_fputc((identical_bytes >> 24) % 256);
-            fout_fputc((identical_bytes >> 16) % 256);
-            fout_fputc((identical_bytes >> 8) % 256);
-            fout_fputc(identical_bytes % 256);
-
-            fout_fputc((identical_bytes_decomp >> 24) % 256);
-            fout_fputc((identical_bytes_decomp >> 16) % 256);
-            fout_fputc((identical_bytes_decomp >> 8) % 256);
-            fout_fputc(identical_bytes_decomp % 256);
+			fout_fput32(identical_bytes);
+			fout_fput32(identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -9050,6 +8845,60 @@ void fout_fputc(char c) {
       break;
     }
   }
+}
+
+void fout_fput16(int v) {
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput24(int v) {
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput32_little_endian(int v) {
+  fout_fputc(v % 256);	
+  fout_fputc((v >> 8) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 24) % 256);
+}
+
+void fout_fput32(int v) {
+  fout_fputc((v >> 24) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput32(unsigned int v) {
+  fout_fputc((v >> 24) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput64(long long v) {
+  fout_fputc((v >> 56) % 256);
+  fout_fputc((v >> 48) % 256);
+  fout_fputc((v >> 40) % 256);
+  fout_fputc((v >> 32) % 256);
+  fout_fputc((v >> 24) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput64(unsigned long long v) {
+  fout_fputc((v >> 56) % 256);
+  fout_fputc((v >> 48) % 256);
+  fout_fputc((v >> 40) % 256);
+  fout_fputc((v >> 32) % 256);
+  fout_fputc((v >> 24) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
 }
 
 unsigned char fin_fgetc() {
