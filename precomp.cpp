@@ -56,7 +56,7 @@
 #include <unistd.h>
 #endif
 
-#ifndef LINUX
+#ifndef UNIX
 #include <conio.h>
 #include <windows.h>
 #define PATH_DELIM '\\'
@@ -1167,7 +1167,7 @@ int init(int argc, char* argv[]) {
         printf("\n");
         exit(0);
       } else {
-        #ifndef LINUX
+        #ifndef UNIX
         printf("\n\n");
         #else
         printf("\n");
@@ -6133,7 +6133,7 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
 }
 
 void seek_64(FILE* f, unsigned long long pos) {
-  #ifndef LINUX
+  #ifndef UNIX
     fpos_t fpt_pos = pos;
     fsetpos(f, &fpt_pos);
   #else
@@ -6142,7 +6142,7 @@ void seek_64(FILE* f, unsigned long long pos) {
 }
 
 unsigned long long tell_64(FILE* f) {
-  #ifndef LINUX
+  #ifndef UNIX
     fpos_t fpt_pos;
     fgetpos(f, &fpt_pos);
     return fpt_pos;
@@ -8635,7 +8635,7 @@ wchar_t* convertCharArrayToLPCWSTR(const char* charArray)
 #endif
 
 long long fileSize64(char* filename) {
-  #ifndef LINUX
+  #ifndef UNIX
     unsigned long s1 = 0, s2 = 0;
 
     #ifdef _MSC_VER
@@ -8663,7 +8663,7 @@ long long fileSize64(char* filename) {
     long long result=ftello(f);
     safe_fclose(&f);
     return result;
-  #endif // LINUX
+  #endif // UNIX
 }
 
 void print64(long long i64) {
@@ -9141,7 +9141,7 @@ void denit_decompress_otf() {
 
 // get current time in ms
 long long get_time_ms() {
-  #ifndef LINUX
+  #ifndef UNIX
     return GetTickCount();
   #else
     timeval t;
@@ -9168,7 +9168,7 @@ void printf_time(long long t) {
 }
 
 char get_char_with_echo() {
-  #ifndef LINUX
+  #ifndef UNIX
     return getche();
   #else
     return fgetc(stdin);
