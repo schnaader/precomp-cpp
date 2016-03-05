@@ -32,7 +32,7 @@ Adobe's PDF files often use zLib compression to compress their documents.
 Check: "FlateDecode" appears in the file, but not paired with "ASCII85Decode".
 
 JPG
-Precomp uses packJPG by Matthias Stirner (http://www.elektronik.htw-aalen.de/packjpg/index.htm) to losslessy compress JPG images.
+Precomp uses packJPG by Matthias Stirner (https://github.com/packjpg/packJPG) to losslessy compress JPG images.
 
 MP3
 Precomp uses packMP3 by Matthias Stirner (http://packjpg.encode.ru/?page_id=19) to losslessy compress MP3 audio files.
@@ -212,13 +212,14 @@ A: The decompression of those files is well-defined, but there are many ways to 
 Christian Schneider
 schnaader@gmx.de
 http://schnaader.info
+https://github.com/schnaader/precomp-cpp
 
 7. Credits
 ----------
 Thanks for support, help and comments:
   Stephan Busch (Squeeze Chart Author, http://www.squeezechart.com))
   Werner Bergmans (Maximum Compression Benchmark Author, http://www.maximumcompression.com)
-  Matthias Stirner (packJPG, packMP3, http://www.elektronik.htw-aalen.de/packjpg/index.htm, http://packjpg.encode.ru/?page_id=19, http://www.matthiasstirner.com)
+  Matthias Stirner (packJPG, packMP3, https://github.com/packjpg, http://packjpg.encode.ru, http://www.matthiasstirner.com)
   Mark Adler (http://www.zlib.net)
   Matt Mahoney (http://www.mattmahoney.net)
   Malcolm Taylor (http://www.msoftware.co.nz)
@@ -227,7 +228,7 @@ Thanks for support, help and comments:
 
 8. Legal stuff
 --------------
-packJPG v2.5j (http://www.elektronik.htw-aalen.de/packjpg/index.htm) by Matthias Stirner is used for compression/decompression of JPG files.
+packJPG v2.5j (https://github.com/packjpg/packJPG) by Matthias Stirner is used for compression/decompression of JPG files.
 packMP3 v1.0f by Matthias Stirner (http://packjpg.encode.ru/?page_id=19) by Matthias Stirner is used for compression/decompression of MP3 files.
 bZip2 1.0.6 (http://www.bzip.org) by Julian Seward is used for compression/decompression of bZip2 streams.
 zLib 1.2.8 (http://www.zlib.net) by Jean-loup Gailly and Mark Adler is used for compression/decompression of zLib streams.
