@@ -67,75 +67,12 @@
 #define PATH_DELIM '/'
 #endif
 
-#include "contrib/bzip2/bzlib.h"
-
-// GIF things
-
-const short InterlacedOffset[] = { 0, 4, 2, 1 }; /* The way Interlaced image should. */
-const short InterlacedJumps[] = { 8, 8, 4, 2 };    /* be read - offsets and jumps... */
-
-extern "C"
-{
-    #include "contrib/giflib/gif_lib.h"
-}
-
-// packJPG things
-
-// Motion JPEG DHT header
-// JPEG DHT Segment for YCrCb omitted from MJPEG data
-
-#define MJPGDHT_LEN 420
-unsigned char MJPGDHT[MJPGDHT_LEN] = {
-0xFF,0xC4,0x01,0xA2,
-0x00,0x00,0x01,0x05,0x01,0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x01,0x00,0x03,0x01,0x01,0x01,0x01,
-0x01,0x01,0x01,0x01,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
-0x08,0x09,0x0A,0x0B,0x10,0x00,0x02,0x01,0x03,0x03,0x02,0x04,0x03,0x05,0x05,0x04,0x04,0x00,
-0x00,0x01,0x7D,0x01,0x02,0x03,0x00,0x04,0x11,0x05,0x12,0x21,0x31,0x41,0x06,0x13,0x51,0x61,
-0x07,0x22,0x71,0x14,0x32,0x81,0x91,0xA1,0x08,0x23,0x42,0xB1,0xC1,0x15,0x52,0xD1,0xF0,0x24,
-0x33,0x62,0x72,0x82,0x09,0x0A,0x16,0x17,0x18,0x19,0x1A,0x25,0x26,0x27,0x28,0x29,0x2A,0x34,
-0x35,0x36,0x37,0x38,0x39,0x3A,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x53,0x54,0x55,0x56,
-0x57,0x58,0x59,0x5A,0x63,0x64,0x65,0x66,0x67,0x68,0x69,0x6A,0x73,0x74,0x75,0x76,0x77,0x78,
-0x79,0x7A,0x83,0x84,0x85,0x86,0x87,0x88,0x89,0x8A,0x92,0x93,0x94,0x95,0x96,0x97,0x98,0x99,
-0x9A,0xA2,0xA3,0xA4,0xA5,0xA6,0xA7,0xA8,0xA9,0xAA,0xB2,0xB3,0xB4,0xB5,0xB6,0xB7,0xB8,0xB9,
-0xBA,0xC2,0xC3,0xC4,0xC5,0xC6,0xC7,0xC8,0xC9,0xCA,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,0xD9,
-0xDA,0xE1,0xE2,0xE3,0xE4,0xE5,0xE6,0xE7,0xE8,0xE9,0xEA,0xF1,0xF2,0xF3,0xF4,0xF5,0xF6,0xF7,
-0xF8,0xF9,0xFA,0x11,0x00,0x02,0x01,0x02,0x04,0x04,0x03,0x04,0x07,0x05,0x04,0x04,0x00,0x01,
-0x02,0x77,0x00,0x01,0x02,0x03,0x11,0x04,0x05,0x21,0x31,0x06,0x12,0x41,0x51,0x07,0x61,0x71,
-0x13,0x22,0x32,0x81,0x08,0x14,0x42,0x91,0xA1,0xB1,0xC1,0x09,0x23,0x33,0x52,0xF0,0x15,0x62,
-0x72,0xD1,0x0A,0x16,0x24,0x34,0xE1,0x25,0xF1,0x17,0x18,0x19,0x1A,0x26,0x27,0x28,0x29,0x2A,
-0x35,0x36,0x37,0x38,0x39,0x3A,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x53,0x54,0x55,0x56,
-0x57,0x58,0x59,0x5A,0x63,0x64,0x65,0x66,0x67,0x68,0x69,0x6A,0x73,0x74,0x75,0x76,0x77,0x78,
-0x79,0x7A,0x82,0x83,0x84,0x85,0x86,0x87,0x88,0x89,0x8A,0x92,0x93,0x94,0x95,0x96,0x97,0x98,
-0x99,0x9A,0xA2,0xA3,0xA4,0xA5,0xA6,0xA7,0xA8,0xA9,0xAA,0xB2,0xB3,0xB4,0xB5,0xB6,0xB7,0xB8,
-0xB9,0xBA,0xC2,0xC3,0xC4,0xC5,0xC6,0xC7,0xC8,0xC9,0xCA,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,
-0xD9,0xDA,0xE2,0xE3,0xE4,0xE5,0xE6,0xE7,0xE8,0xE9,0xEA,0xF2,0xF3,0xF4,0xF5,0xF6,0xF7,0xF8,
-0xF9,0xFA
-};
-
-// this function converts JPG to PJG and vice versa
-// it returns false if an error happened during conversion
-// errormessage is returned via the string 'msg'
-bool pjglib_convert_file2file( char* in, char* out, char* msg );
-
-// this function writes versioninfo for the packJPG
-// DLL to a string
-const char* pjglib_version_info( void );
-
-// packMP3 things
-
-#include "contrib/packjpg/bitops.h" // for MBITS
-#include "contrib/packmp3/pmp3tbl.h"
-
-// function to convert MP3 to PMP and vice versa
-bool pmplib_convert_file2file( char* in, char* out, char* msg );
-
-// this function writes versioninfo for the packJPG
-// DLL to a string
-const char* pmplib_version_info( void );
-
 using namespace std;
 
+#include "contrib/bzip2/bzlib.h"
+#include "contrib/giflib/precomp_gif.h"
+#include "contrib/packjpg/precomp_jpg.h"
+#include "contrib/packmp3/precomp_mp3.h"
 #include "contrib/zlib/zlib.h"
 
 #define CHUNK 262144 // 256 KB buffersize
@@ -166,88 +103,7 @@ char tempfile4[19] = "~temp000000004.dat";
 char* tempfilelist;
 int tempfilelist_count = 0;
 
-int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel);
-int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowbits, int memlevel);
-int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out);
-int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out, int bmp_width);
-int inf(FILE *source, FILE *dest, int windowbits);
-void zerr(int ret);
-#ifndef PRECOMPDLL
-#ifndef COMFORT
-int init(int argc, char* argv[]);
-#else
-int init_comfort(int argc, char* argv[]);
-#endif
-#endif
-void denit_compress();
-void denit_decompress();
-void denit();
-int inf_bzip2(FILE *source, FILE *dest);
-int def_bzip2(FILE *source, FILE *dest, int level);
-int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel);
-int file_recompress_bzip2(FILE* origfile, int level);
-void write_decompressed_data(int byte_count, char* decompressed_file_name = tempfile1);
-unsigned int compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2);
-long long compare_file_mem(FILE* file1, unsigned char* input_bytes2, long long pos1, long long bytecount);
-void start_uncompressed_data();
-void end_uncompressed_data();
-void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc);
-void try_decompression_zip(int zip_header_length);
-void try_decompression_gzip(int gzip_header_length);
-void try_decompression_png(int windowbits);
-void try_decompression_png_multi(int windowbits);
-void try_decompression_gif(unsigned char version[5]);
-void try_decompression_jpg(long long jpg_length, bool progressive_jpg);
-void try_decompression_mp3(long long mp3_length);
-void try_decompression_zlib(int windowbits);
-void try_decompression_brute();
-void try_decompression_swf(int windowbits, char swf_version);
-void try_decompression_bzip2(int compression_level);
-void try_decompression_base64(int gzip_header_length);
-
-// helpers for try_decompression functions
-
-void init_decompression_variables();
-unsigned char base64_char_decode(unsigned char c);
-void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_count = 0x7FFFFFFF, int max_byte_count = 0x7FFFFFFF);
-
-void packjpg_mp3_dll_msg();
-bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifCodeStruct* g, GifDiffStruct* gd);
-bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_length, int& decomp_length, unsigned char& block_size, GifCodeStruct* g);
-void sort_comp_mem_levels();
-void show_used_levels();
-bool compress_file(float min_percent = 0, float max_percent = 100);
-void decompress_file();
-void convert_file();
-int try_to_decompress(FILE* file, int windowbits);
-int try_to_decompress_bzip2(FILE* file, int compression_level);
-void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits);
-void try_recompress_bzip2(FILE* origfile, int level);
-void write_header();
-void read_header();
-void convert_header();
-void fast_copy(FILE* file1, FILE* file2, long long bytecount);
-size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int final_byte = 0);
-size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream);
-void seek_64(FILE* f, unsigned long long pos);
-unsigned long long tell_64(FILE* f);
-bool file_exists(char* filename);
-#ifdef COMFORT
-  bool check_for_pcf_file();
-  void wait_for_key();
-#endif
-void error(int error_nr);
-FILE* tryOpen(const char* filename, const char* mode);
-long long fileSize64(char* filename);
-void print64(long long i64);
-void init_temp_files();
-long long get_time_ms();
-void printf_time(long long t);
-char get_char_with_echo();
-void safe_fclose(FILE** f);
-void print_work_sign(bool with_backspace);
-void print_debug_percent();
-void ctrl_c_handler(int sig);
+#include "precomp.h"
 
 static char work_signs[5] = "|/-\\";
 int work_sign_var = 0;
@@ -268,16 +124,6 @@ void recursion_pop();
 float global_min_percent = 0;
 float global_max_percent = 100;
 
-struct recursion_result {
-  bool success;
-  char* file_name;
-  long long file_length;
-  FILE* frecurse;
-};
-
-recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes);
-recursion_result recursion_decompress(long long recursion_data_length);
-
 // compression-on-the-fly
 unsigned char bz2_in[CHUNK];
 unsigned char bz2_out[CHUNK];
@@ -286,20 +132,6 @@ int conversion_from_method;     // 0 = uncompressed, 1 = bZip2
 int conversion_to_method;       // 0 = uncompressed, 1 = bZip2
 bool decompress_otf_end = false;
 bz_stream otf_bz2_stream_c, otf_bz2_stream_d;
-void own_fputc(char c, FILE* f);
-unsigned char fin_fgetc();
-void fout_fputc(char c);
-void fout_fput16(int v);
-void fout_fput24(int v);
-void fout_fput32_little_endian(int v);
-void fout_fput32(int v);
-void fout_fput32(unsigned int v);
-void fout_fput64(long long v);
-void fout_fput64(unsigned long long v);
-void init_compress_otf();
-void denit_compress_otf();
-void init_decompress_otf();
-void denit_decompress_otf();
 
 FILE* fin = NULL;
 FILE* fout = NULL;
@@ -434,11 +266,7 @@ bool use_bzip2 = true;
 // Precomp DLL things
 #ifdef PRECOMPDLL
 
-#include "precomp.h"
-
-DLL void get_copyright_msg(char* msg);
-DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches switches);
-DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches switches);
+#include "precomp_dll.h"
 
 // get copyright message
 // msg = Buffer for error messages (256 bytes buffer size are enough)

@@ -1,65 +1,109 @@
-// Switches class
-class Switches {
-  public:
-    Switches();
+int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel);
+int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowbits, int memlevel);
+int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out);
+int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out, int bmp_width);
+int inf(FILE *source, FILE *dest, int windowbits);
+void zerr(int ret);
+#ifndef PRECOMPDLL
+#ifndef COMFORT
+int init(int argc, char* argv[]);
+#else
+int init_comfort(int argc, char* argv[]);
+#endif
+#endif
+void denit_compress();
+void denit_decompress();
+void denit();
+int inf_bzip2(FILE *source, FILE *dest);
+int def_bzip2(FILE *source, FILE *dest, int level);
+int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel);
+int file_recompress_bzip2(FILE* origfile, int level);
+void write_decompressed_data(int byte_count, char* decompressed_file_name = tempfile1);
+unsigned int compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2);
+long long compare_file_mem(FILE* file1, unsigned char* input_bytes2, long long pos1, long long bytecount);
+void start_uncompressed_data();
+void end_uncompressed_data();
+void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc);
+void try_decompression_zip(int zip_header_length);
+void try_decompression_gzip(int gzip_header_length);
+void try_decompression_png(int windowbits);
+void try_decompression_png_multi(int windowbits);
+void try_decompression_gif(unsigned char version[5]);
+void try_decompression_jpg(long long jpg_length, bool progressive_jpg);
+void try_decompression_mp3(long long mp3_length);
+void try_decompression_zlib(int windowbits);
+void try_decompression_brute();
+void try_decompression_swf(int windowbits, char swf_version);
+void try_decompression_bzip2(int compression_level);
+void try_decompression_base64(int gzip_header_length);
 
-    int compression_method;        //compression method to use (default: none)
-    //byte positions to ignore (default: none)
-    long long* ignore_list;
-    int ignore_list_len;
+// helpers for try_decompression functions
 
-    bool slow_mode;                //slow mode (default: off)
-    bool fast_mode;                //fast mode (default: off)
-    bool brute_mode;               //brute mode (default: off)
-    bool pdf_bmp_mode;             //wrap BMP header around PDF images
-                                   //  (default: off);
-    bool prog_only;                //recompress progressive JPGs only
-                                   //  (default: off);
-    bool use_mjpeg;                //insert huffman table for MJPEG recompression
-                                   //  (default: on);
-    bool debug_mode;               //debug mode (default: off)
+void init_decompression_variables();
+unsigned char base64_char_decode(unsigned char c);
+void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_count = 0x7FFFFFFF, int max_byte_count = 0x7FFFFFFF);
 
-    unsigned int min_ident_size;   //minimal identical bytes (default: 4)
+void packjpg_mp3_dll_msg();
+bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifCodeStruct* g, GifDiffStruct* gd);
+bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_length, int& decomp_length, unsigned char& block_size, GifCodeStruct* g);
+void sort_comp_mem_levels();
+void show_used_levels();
+bool compress_file(float min_percent = 0, float max_percent = 100);
+void decompress_file();
+void convert_file();
+int try_to_decompress(FILE* file, int windowbits);
+int try_to_decompress_bzip2(FILE* file, int compression_level);
+void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits);
+void try_recompress_bzip2(FILE* origfile, int level);
+void write_header();
+void read_header();
+void convert_header();
+void fast_copy(FILE* file1, FILE* file2, long long bytecount);
+size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int final_byte = 0);
+size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream);
+void seek_64(FILE* f, unsigned long long pos);
+unsigned long long tell_64(FILE* f);
+bool file_exists(char* filename);
+#ifdef COMFORT
+  bool check_for_pcf_file();
+  void wait_for_key();
+#endif
+void error(int error_nr);
+FILE* tryOpen(const char* filename, const char* mode);
+long long fileSize64(char* filename);
+void print64(long long i64);
+void init_temp_files();
+long long get_time_ms();
+void printf_time(long long t);
+char get_char_with_echo();
+void safe_fclose(FILE** f);
+void print_work_sign(bool with_backspace);
+void print_debug_percent();
+void ctrl_c_handler(int sig);
 
-    //(p)recompression types to use (default: all)
-    bool use_pdf;
-    bool use_zip;
-    bool use_gzip;
-    bool use_png;
-    bool use_gif;
-    bool use_jpg;
-    bool use_swf;
-    bool use_base64;
-    bool use_bzip2;
-
-    bool level_switch;            //level switch used? (default: no)
-    bool use_zlib_level[81];      //compression levels to use (default: all)
+struct recursion_result {
+  bool success;
+  char* file_name;
+  long long file_length;
+  FILE* frecurse;
 };
 
-//Switches constructor
-Switches::Switches() {
-  compression_method = 0;
-  ignore_list = NULL;
-  ignore_list_len = 0;
-  slow_mode = false;
-  fast_mode = false;
-  brute_mode = false;
-  pdf_bmp_mode = false;
-  prog_only = false;
-  use_mjpeg = true;
-  debug_mode = false;
-  min_ident_size = 4;
-  use_pdf = true;
-  use_zip = true;
-  use_gzip = true;
-  use_png = true;
-  use_gif = true;
-  use_jpg = true;
-  use_swf = true;
-  use_base64 = true;
-  use_bzip2 = true;
-  level_switch = false;
-  for (int i = 0; i < 81; i++) {
-    use_zlib_level[i] = true;
-  }
-}
+recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes);
+recursion_result recursion_decompress(long long recursion_data_length);
+
+// compression-on-the-fly
+
+void own_fputc(char c, FILE* f);
+unsigned char fin_fgetc();
+void fout_fputc(char c);
+void fout_fput16(int v);
+void fout_fput24(int v);
+void fout_fput32_little_endian(int v);
+void fout_fput32(int v);
+void fout_fput32(unsigned int v);
+void fout_fput64(long long v);
+void fout_fput64(unsigned long long v);
+void init_compress_otf();
+void denit_compress_otf();
+void init_decompress_otf();
+void denit_decompress_otf();
