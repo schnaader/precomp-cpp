@@ -43,7 +43,7 @@ Thanks for support, help and comments:
 
 - Stephan Busch (Squeeze Chart Author, http://www.squeezechart.com)
 - Werner Bergmans (Maximum Compression Benchmark Author, http://www.maximumcompression.com)
-- Matthias Stirner (packJPG, packMP3, http://www.elektronik.htw-aalen.de/packjpg/index.htm, http://packjpg.encode.ru/?page_id=19, http://www.matthiasstirner.com)
+- Matthias Stirner (packJPG, packMP3, https://github.com/packjpg, http://packjpg.encode.ru, http://www.matthiasstirner.com)
 - Mark Adler (http://www.zlib.net)
 - Matt Mahoney (http://www.mattmahoney.net)
 - Malcolm Taylor (http://www.msoftware.co.nz)
