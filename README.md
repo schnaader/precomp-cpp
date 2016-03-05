@@ -15,9 +15,11 @@ How can I contribute?
   * If you are looking for easy issues that don't require deeper understanding of the whole project, look for [issues with the `low hanging fruits` tag](https://github.com/schnaader/precomp-cpp/labels/low%20hanging%20fruits)
 * You can build the project or download the binaries (see below), run it on your system and report bugs or make enhancement proposals.
 
-Binaries
---------
-[Binary downloads](http://schnaader.info/precomp.php#d) of the latest official release for both Windows and Linux.
+Releases/Binaries
+-----------------
+[Official GitHub releases](https://github.com/schnaader/precomp-cpp/releases) for both Windows and Linux.
+
+[Alternative binary download](http://schnaader.info/precomp.php#d) of the latest official release for both Windows and Linux.
 
 Binaries for older version can be found at [this Google Drive folder](https://drive.google.com/open?id=0B-yOP4irObphSGtMMjJSV2tueEE).
 
