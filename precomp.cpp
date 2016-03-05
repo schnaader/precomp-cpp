@@ -16,15 +16,14 @@
 #define DLL __declspec(dllexport)
 #endif
 
-//Version information
+// version information
 #define V_MAJOR 0
 #define V_MINOR 4
-#define V_MINOR2 4
-#define V_STATE "ALPHA"
-//#define V_STATE "UNSTABLE (06 Jan 2016)"
-#define V_MSG "USE FOR TESTING ONLY"
-//#define V_MSG "USE AT YOUR OWN RISK!"
-//#define DEBUG_FILE
+#define V_MINOR2 5
+//#define V_STATE "ALPHA"
+#define V_STATE "DEVELOPMENT"
+//#define V_MSG "USE FOR TESTING ONLY"
+#define V_MSG "USE AT YOUR OWN RISK!"
 
 // batch error levels
 #define RETURN_NOTHING_DECOMPRESSED 2
@@ -70,7 +69,7 @@
 
 #include "contrib/bzip2/bzlib.h"
 
-//GIF things
+// GIF things
 
 const short InterlacedOffset[] = { 0, 4, 2, 1 }; /* The way Interlaced image should. */
 const short InterlacedJumps[] = { 8, 8, 4, 2 };    /* be read - offsets and jumps... */
@@ -80,7 +79,7 @@ extern "C"
     #include "contrib/giflib/gif_lib.h"
 }
 
-//PackJPG things
+// packJPG things
 
 // Motion JPEG DHT header
 // JPEG DHT Segment for YCrCb omitted from MJPEG data
@@ -123,12 +122,24 @@ bool pjglib_convert_file2file( char* in, char* out, char* msg );
 // DLL to a string
 const char* pjglib_version_info( void );
 
+// packMP3 things
+
+#include "contrib/packjpg/bitops.h" // for MBITS
+#include "contrib/packmp3/pmp3tbl.h"
+
+// function to convert MP3 to PMP and vice versa
+bool pmplib_convert_file2file( char* in, char* out, char* msg );
+
+// this function writes versioninfo for the packJPG
+// DLL to a string
+const char* pmplib_version_info( void );
+
 using namespace std;
 
 #include "contrib/zlib/zlib.h"
 
-#define CHUNK 262144 //256 KB buffersize
-#define DIV3CHUNK 262143 //DIV3CHUNK is a bit smaller/larger than CHUNK, so that DIV3CHUNK mod 3 = 0
+#define CHUNK 262144 // 256 KB buffersize
+#define DIV3CHUNK 262143 // DIV3CHUNK is a bit smaller/larger than CHUNK, so that DIV3CHUNK mod 3 = 0
 #define CHECKBUF_SIZE 4096
 #define COPY_BUF_SIZE 512
 #define FAST_COPY_WORK_SIGN_DIST 64 // update work sign after (FAST_COPY_WORK_SIGN_DIST * COPY_BUF_SIZE) bytes
@@ -139,12 +150,12 @@ unsigned char copybuf[COPY_BUF_SIZE];
 
 unsigned char in_buf[IN_BUF_SIZE];
 long long in_buf_pos;
-int cb; //"checkbuf"
+int cb; // "checkbuf"
 
 unsigned char in[CHUNK];
 unsigned char out[CHUNK];
 
-// Name of temporary files
+// name of temporary files
 char metatempfile[18] = "~temp00000000.dat";
 char tempfile0[19] = "~temp000000000.dat";
 char tempfile1[19] = "~temp000000001.dat";
@@ -187,16 +198,20 @@ void try_decompression_png(int windowbits);
 void try_decompression_png_multi(int windowbits);
 void try_decompression_gif(unsigned char version[5]);
 void try_decompression_jpg(long long jpg_length, bool progressive_jpg);
+void try_decompression_mp3(long long mp3_length);
 void try_decompression_zlib(int windowbits);
 void try_decompression_brute();
 void try_decompression_swf(int windowbits, char swf_version);
 void try_decompression_bzip2(int compression_level);
-
-unsigned char base64_char_decode(unsigned char c);
-void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_count = 0x7FFFFFFF, int max_byte_count = 0x7FFFFFFF);
 void try_decompression_base64(int gzip_header_length);
 
-void packjpg_dll_msg();
+// helpers for try_decompression functions
+
+void init_decompression_variables();
+unsigned char base64_char_decode(unsigned char c);
+void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_count = 0x7FFFFFFF, int max_byte_count = 0x7FFFFFFF);
+
+void packjpg_mp3_dll_msg();
 bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifCodeStruct* g, GifDiffStruct* gd);
 bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_length, int& decomp_length, unsigned char& block_size, GifCodeStruct* g);
 void sort_comp_mem_levels();
@@ -238,7 +253,7 @@ static char work_signs[5] = "|/-\\";
 int work_sign_var = 0;
 long long work_sign_start_time = get_time_ms();
 
-// Recursion
+// recursion
 int recursion_stack_size = 0;
 int recursion_depth = 0;
 int max_recursion_depth = 10;
@@ -263,25 +278,29 @@ struct recursion_result {
 recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes);
 recursion_result recursion_decompress(long long recursion_data_length);
 
-// Compression-on-the-fly
+// compression-on-the-fly
 unsigned char bz2_in[CHUNK];
 unsigned char bz2_out[CHUNK];
-int compression_otf_method = 1; //0 = uncompressed, 1 = bZip2
-int conversion_from_method;     //0 = uncompressed, 1 = bZip2
-int conversion_to_method;       //0 = uncompressed, 1 = bZip2
+int compression_otf_method = 1; // 0 = uncompressed, 1 = bZip2
+int conversion_from_method;     // 0 = uncompressed, 1 = bZip2
+int conversion_to_method;       // 0 = uncompressed, 1 = bZip2
 bool decompress_otf_end = false;
 bz_stream otf_bz2_stream_c, otf_bz2_stream_d;
 void own_fputc(char c, FILE* f);
 unsigned char fin_fgetc();
 void fout_fputc(char c);
+void fout_fput16(int v);
+void fout_fput24(int v);
+void fout_fput32_little_endian(int v);
+void fout_fput32(int v);
+void fout_fput32(unsigned int v);
+void fout_fput64(long long v);
+void fout_fput64(unsigned long long v);
 void init_compress_otf();
 void denit_compress_otf();
 void init_decompress_otf();
 void denit_decompress_otf();
 
-#ifdef DEBUG_FILE
-FILE* fdebug = NULL;
-#endif
 FILE* fin = NULL;
 FILE* fout = NULL;
 FILE* ftempout = NULL;
@@ -292,6 +311,7 @@ FILE* fdecomp = NULL;
 FILE* fpack = NULL;
 FILE* fpng = NULL;
 FILE* fjpg = NULL;
+FILE* fmp3 = NULL;
 
 int retval;
 long long input_file_pos;
@@ -317,7 +337,7 @@ bool anything_was_used;
 bool level_switch_used = false;
 bool non_zlib_was_used;
 
-//Statistics
+// statistics
 unsigned int recompressed_streams_count = 0;
 unsigned int recompressed_pdf_count = 0;
 unsigned int recompressed_pdf_count_8_bit = 0;
@@ -329,11 +349,12 @@ unsigned int recompressed_png_multi_count = 0;
 unsigned int recompressed_gif_count = 0;
 unsigned int recompressed_jpg_count = 0;
 unsigned int recompressed_jpg_prog_count = 0;
+unsigned int recompressed_mp3_count = 0;
 unsigned int recompressed_swf_count = 0;
 unsigned int recompressed_base64_count = 0;
 unsigned int recompressed_bzip2_count = 0;
-unsigned int recompressed_zlib_count = 0;    //Intense mode
-unsigned int recompressed_brute_count = 0;   //Brute mode
+unsigned int recompressed_zlib_count = 0;    // intense mode
+unsigned int recompressed_brute_count = 0;   // brute mode
 
 unsigned int decompressed_streams_count = 0;
 unsigned int decompressed_pdf_count = 0;
@@ -346,11 +367,12 @@ unsigned int decompressed_png_multi_count = 0;
 unsigned int decompressed_gif_count = 0;
 unsigned int decompressed_jpg_count = 0;
 unsigned int decompressed_jpg_prog_count = 0;
+unsigned int decompressed_mp3_count = 0;
 unsigned int decompressed_swf_count = 0;
 unsigned int decompressed_base64_count = 0;
 unsigned int decompressed_bzip2_count = 0;
-unsigned int decompressed_zlib_count = 0;    //Intense mode
-unsigned int decompressed_brute_count = 0;   //Brute mode
+unsigned int decompressed_zlib_count = 0;    // intense mode
+unsigned int decompressed_brute_count = 0;   // brute mode
 
 #define P_NONE 0
 #define P_COMPRESS 1
@@ -358,7 +380,7 @@ unsigned int decompressed_brute_count = 0;   //Brute mode
 #define P_CONVERT 3
 int comp_decomp_state = P_NONE;
 
-//Penalty bytes
+// penalty bytes
 #define MAX_PENALTY_BYTES 16384
 long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long long pos2);
 #ifndef PRECOMPDLL
@@ -372,7 +394,7 @@ char* best_penalty_bytes;
 #endif
 int penalty_bytes_len = 0;
 
-long long* ignore_list = NULL; //Positions to ignore
+long long* ignore_list = NULL; // positions to ignore
 int ignore_list_len = 0;
 
 // Base64 line length list
@@ -397,18 +419,19 @@ bool use_mjpeg = true;
 int slow_mode_depth_limit = -1;
 int brute_mode_depth_limit = -1;
 
-//Compression type bools
+// compression type bools
 bool use_pdf = true;
 bool use_zip = true;
 bool use_gzip = true;
 bool use_png = true;
 bool use_gif = true;
 bool use_jpg = true;
+bool use_mp3 = true;
 bool use_swf = true;
 bool use_base64 = true;
 bool use_bzip2 = true;
 
-//Precomp DLL things
+// Precomp DLL things
 #ifdef PRECOMPDLL
 
 #include "precomp.h"
@@ -417,7 +440,7 @@ DLL void get_copyright_msg(char* msg);
 DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches switches);
 DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches switches);
 
-//Get copyright message
+// get copyright message
 // msg = Buffer for error messages (256 bytes buffer size are enough)
 DLL void get_copyright_msg(char* msg) {
   if (V_MINOR2 == 0) {
@@ -444,6 +467,7 @@ void setSwitches(Switches switches) {
   use_png = switches.use_png;
   use_gif = switches.use_gif;
   use_jpg = switches.use_jpg;
+  use_mp3 = switches.use_mp3;
   use_swf = switches.use_swf;
   use_base64 = switches.use_base64;
   use_bzip2 = switches.use_bzip2;
@@ -463,13 +487,13 @@ void setSwitches(Switches switches) {
   }
 }
 
-//Precompress a file
+// precompress a file
 // in_file = input filename
 // out_file = output filename
 // msg = Buffer for error messages (256 bytes buffer size are enough)
 DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches switches) {
 
-  //Init compression and memory level count
+  // init compression and memory level count
   for (int i = 0; i < 81; i++) {
     comp_mem_level_count[i] = 0;
     zlib_level_was_used[i] = false;
@@ -483,9 +507,6 @@ DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches swi
 
     return false;
   }
-  //fseek(fin, 0, SEEK_END);
-  //fin_length = ftell(fin);
-  //fseek(fin, 0, SEEK_SET);
 
   fout = fopen(out_file, "wb");
 
@@ -515,13 +536,13 @@ DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches swi
   return true;
 }
 
-//Recompress a file
+// recompress a file
 // in_file = input filename
 // out_file = output filename
 // msg = Buffer for error messages (256 bytes buffer size are enough)
 DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches switches) {
 
-  //Init compression and memory level count
+  // init compression and memory level count
   for (int i = 0; i < 81; i++) {
     comp_mem_level_count[i] = 0;
     zlib_level_was_used[i] = false;
@@ -535,9 +556,6 @@ DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches swit
 
     return false;
   }
-  //fseek(fin, 0, SEEK_END);
-  //fin_length = ftell(fin);
-  //fseek(fin, 0, SEEK_SET);
 
   fout = fopen(out_file, "wb");
   if (fout == NULL) {
@@ -566,7 +584,7 @@ DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches swit
   return true;
 }
 
-//Test if a file contains streams that can be precompressed
+// test if a file contains streams that can be precompressed
 DLL bool file_precompressable(char* in, char* msg) {
   return false;
 }
@@ -577,7 +595,7 @@ int main(int argc, char* argv[])
 {
   int return_errorlevel = 0;
 
-  // Register CTRL-C handler
+  // register CTRL-C handler
   (void) signal(SIGINT, ctrl_c_handler);
 
   #ifndef COMFORT
@@ -589,7 +607,7 @@ int main(int argc, char* argv[])
     case P_COMPRESS:
       {
         start_time = get_time_ms();
-        if (!compress_file()) { // None of the streams could be decompressed
+        if (!compress_file()) { // none of the streams could be decompressed
           return_errorlevel = RETURN_NOTHING_DECOMPRESSED;
         }
         break;
@@ -611,7 +629,6 @@ int main(int argc, char* argv[])
   }
 
   #ifdef COMFORT
-    //Wait for key
     wait_for_key();
   #endif
   
@@ -626,11 +643,6 @@ int init(int argc, char* argv[]) {
   int i, j;
   bool appended_pcf = false;
 
-  #ifdef DEBUG_FILE
-  remove("debug.txt");
-  fdebug = fopen("debug.txt","wb");
-  #endif
-
   printf("\n");
   if (V_MINOR2 == 0) {
     printf("Precomp v%i.%i - %s version",V_MAJOR,V_MINOR,V_STATE);
@@ -640,7 +652,7 @@ int init(int argc, char* argv[]) {
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2016 by Christian Schneider\n\n");
 
-  //Init compression and memory level count
+  // init compression and memory level count
   bool use_zlib_level[81];
   for (i = 0; i < 81; i++) {
     comp_mem_level_count[i] = 0;
@@ -659,7 +671,7 @@ int init(int argc, char* argv[]) {
   bool long_help = false;
 
   for (i = 1; (i < argc) && (parse_on); i++) {
-    if (argv[i][0] == '-') { //switch
+    if (argv[i][0] == '-') { // switch
       if (input_file_given) {
         valid_syntax = false;
         parse_on = false;
@@ -674,7 +686,7 @@ int init(int argc, char* argv[]) {
           }
         case 'I':
           {
-            if (toupper(argv[i][2]) == 'N') { //intense mode
+            if (toupper(argv[i][2]) == 'N') { // intense mode
               if ((toupper(argv[i][3]) == 'T') && (toupper(argv[i][4]) == 'E')
                && (toupper(argv[i][5]) == 'N') && (toupper(argv[i][6]) == 'S') && (toupper(argv[i][7]) == 'E')) {
                 slow_mode = true;
@@ -850,6 +862,7 @@ int init(int argc, char* argv[]) {
                 use_png = false;
                 use_gif = false;
                 use_jpg = false;
+                use_mp3 = false;
                 use_swf = false;
                 use_base64 = false;
                 use_bzip2 = false;
@@ -862,6 +875,7 @@ int init(int argc, char* argv[]) {
                 use_png = true;
                 use_gif = true;
                 use_jpg = true;
+                use_mp3 = true;
                 use_swf = true;
                 use_base64 = true;
                 use_bzip2 = true;
@@ -874,31 +888,34 @@ int init(int argc, char* argv[]) {
             }
             for (j = 3; j < (int)strlen(argv[i]); j++) {
               switch (toupper(argv[i][j])) {
-                case 'P': //PDF
+                case 'P': // PDF
                   use_pdf = set_to;
                   break;
-                case 'Z': //ZIP
+                case 'Z': // ZIP
                   use_zip = set_to;
                   break;
-                case 'G': //GZip
+                case 'G': // GZip
                   use_gzip = set_to;
                   break;
-                case 'N': //PNG
+                case 'N': // PNG
                   use_png = set_to;
                   break;
-                case 'F': //GIF
+                case 'F': // GIF
                   use_gif = set_to;
                   break;
-                case 'J': //JPG
+                case 'J': // JPG
                   use_jpg = set_to;
                   break;
-                case 'S': //SWF
+                case '3': // MP3
+                  use_mp3 = set_to;
+                  break;
+                case 'S': // SWF
                   use_swf = set_to;
                   break;
-                case 'M': //MIME Base64
+                case 'M': // MIME Base64
                   use_base64 = set_to;
                   break;
-                case 'B': //bZip2
+                case 'B': // bZip2
                   use_bzip2 = set_to;
                   break;
                 default:
@@ -912,7 +929,7 @@ int init(int argc, char* argv[]) {
         case 'C':
           {
             switch (toupper(argv[i][2])) {
-              case 'N': // No compression
+              case 'N': // no compression
                 compression_otf_method = 0;
                 break;
               case 'B': // bZip2
@@ -928,7 +945,7 @@ int init(int argc, char* argv[]) {
         case 'N':
           {
             switch (toupper(argv[i][2])) {
-              case 'N': // No compression
+              case 'N': // no compression
                 conversion_to_method = 0;
                 break;
               case 'B': // bZip2
@@ -1002,10 +1019,10 @@ int init(int argc, char* argv[]) {
             output_file_name = new char[strlen(argv[i]) + 5];
             strcpy(output_file_name, argv[i] + 2);
 
-            //Check for backslash in file name
+            // check for backslash in file name
             char* backslash_at_pos = strrchr(output_file_name, PATH_DELIM);
 
-            //Dot in output file name? If not, use .pcf extension
+            // dot in output file name? If not, use .pcf extension
             char* dot_at_pos = strrchr(output_file_name, '.');
             if ((dot_at_pos == NULL) || ((backslash_at_pos != NULL) && (backslash_at_pos > dot_at_pos))) {
               strcpy(output_file_name + strlen(argv[i]) - 2, ".pcf");
@@ -1054,7 +1071,7 @@ int init(int argc, char* argv[]) {
             exit(1);
           }
       }
-    } else { //no switch
+    } else { // no switch
       if (input_file_given) {
         error(ERR_MORE_THAN_ONE_INPUT_FILE);
       }
@@ -1070,11 +1087,8 @@ int init(int argc, char* argv[]) {
 
         exit(1);
       }
-      //fseek(fin, 0, SEEK_END);
-      //fin_length = ftell(fin);
-      //fseek(fin, 0, SEEK_SET);
 
-      //Output file given? If not, use input filename with .pcf extension
+      // output file given? If not, use input filename with .pcf extension
       if ((!output_file_given) && (operation == P_COMPRESS)) {
         output_file_name = new char[strlen(input_file_name) + 9];
         strcpy(output_file_name, input_file_name);
@@ -1084,7 +1098,7 @@ int init(int argc, char* argv[]) {
           strcpy(output_file_name + strlen(input_file_name), ".pcf");
         } else {
           strcpy(dot_at_pos, ".pcf");
-          //Same as output file because input file had .pcf extension?
+          // same as output file because input file had .pcf extension?
           if (strcmp(input_file_name, output_file_name) == 0) {
             strcpy(dot_at_pos, "_pcf.pcf");
           }
@@ -1118,10 +1132,10 @@ int init(int argc, char* argv[]) {
     if (long_help) {
       printf("  brute        Brute force zLib detection. VERY Slow and most sensitive <off>\n");
     }
-    printf("  t[+-][pzgnfjsmb] Compression type switch <all enabled>\n");
+    printf("  t[+-][pzgnfjsmb3] Compression type switch <all enabled>\n");
     printf("              t+ = enable these types only, t- = enable all types except these\n");
     printf("              P = PDF, Z = ZIP, G = GZip, N = PNG, F = GIF, J = JPG\n");
-    printf("              S = SWF, M = MIME Base64, B = bZip2\n");
+    printf("              S = SWF, M = MIME Base64, B = bZip2, 3 = MP3\n");
     if (!long_help) {
       printf("  longhelp     Show long help\n");
     } else {
@@ -1146,7 +1160,7 @@ int init(int argc, char* argv[]) {
     }
 
     if (operation == P_DECOMPRESS) {
-      //If .pcf was appended, remove it
+      // if .pcf was appended, remove it
       if (appended_pcf) {
         output_file_name[strlen(output_file_name)-4] = 0;
       }
@@ -1175,11 +1189,6 @@ int init(int argc, char* argv[]) {
 
     printf("Input file: %s\n",input_file_name);
     printf("Output file: %s\n\n",output_file_name);
-    #ifdef DEBUG_FILE
-      fprintf(fdebug,"Input file: %s\n",input_file_name);
-      fprintf(fdebug,"Output file: %s\n\n",output_file_name);
-      fflush(fdebug);
-    #endif
     if (DEBUG_MODE) {
       if (min_ident_size_set) {
         printf("\n");
@@ -1189,7 +1198,6 @@ int init(int argc, char* argv[]) {
         printf("\n");
         printf("Ignore position list:\n");
         for (j = 0; j < ignore_list_len; j++) {
-          //printf("%u\n",ignore_list[j]);
           print64(ignore_list[j]);
           printf("\n");
         }
@@ -1216,7 +1224,7 @@ int init(int argc, char* argv[]) {
 
   sort_comp_mem_levels();
 
-  packjpg_dll_msg();
+  packjpg_mp3_dll_msg();
 
   return operation;
 }
@@ -1229,11 +1237,6 @@ int init_comfort(int argc, char* argv[]) {
   bool recursion_depth_set = false;
   bool level_switch = false;
 
-  #ifdef DEBUG_FILE
-  remove("debug.txt");
-  fdebug = fopen("debug.txt","wb");
-  #endif
-
   printf("\n");
   if (V_MINOR2 == 0) {
     printf("Precomp Comfort v%i.%i - %s version",V_MAJOR,V_MINOR,V_STATE);
@@ -1243,7 +1246,7 @@ int init_comfort(int argc, char* argv[]) {
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2016 by Christian Schneider\n\n");
 
-  //Init compression and memory level count
+  // init compression and memory level count
   bool use_zlib_level[81];
   for (i = 0; i < 81; i++) {
     comp_mem_level_count[i] = 0;
@@ -1251,7 +1254,7 @@ int init_comfort(int argc, char* argv[]) {
     use_zlib_level[i] = true;
   }
 
-  //Parse parameters (should be input file only)
+  // parse parameters (should be input file only)
   if (argc == 1) {
     printf("Usage:\n");
     printf("Drag and drop a file on the executable to precompress/restore it.\n");
@@ -1272,10 +1275,8 @@ int init_comfort(int argc, char* argv[]) {
       wait_for_key();
       exit(1);
     }
-    //fseek(fin, 0, SEEK_END);
-    //fin_length = ftell(fin);
-    //fseek(fin, 0, SEEK_SET);
-    if (fin_length > 6) {
+
+	if (fin_length > 6) {
       if (check_for_pcf_file()) {
         operation = P_DECOMPRESS;
       }
@@ -1289,7 +1290,7 @@ int init_comfort(int argc, char* argv[]) {
         strcpy(output_file_name + strlen(input_file_name), ".pcf");
       } else {
         strcpy(dot_at_pos, ".pcf");
-        //Same as output file because input file had .pcf extension?
+        // same as output file because input file had .pcf extension?
         if (strcmp(input_file_name, output_file_name) == 0) {
           strcpy(dot_at_pos, "_pcf.pcf");
         }
@@ -1298,10 +1299,10 @@ int init_comfort(int argc, char* argv[]) {
 
   }
 
-  //Precomf.ini in EXE directory?
+  // precomf.ini in EXE directory?
   char precomf_ini[1024];
   GetModuleFileName(NULL, precomf_ini, 1024);
-  //Truncate to get directory of executable only
+  // truncate to get directory of executable only
   char* lastslash = strrchr(precomf_ini, PATH_DELIM) + 1;
   strcpy(lastslash, "precomf.ini");
   printf("INI file: %s\n", precomf_ini);
@@ -1338,7 +1339,7 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,"Verbose=off\n\n");
       fprintf(fnewini,";; Compression types to use\n");
       fprintf(fnewini,";; P = PDF, Z = ZIP, G = GZip, N = PNG, F = GIF, J = JPG, S = SWF\n");
-      fprintf(fnewini,";; M = MIME Base64, B = bZip2\n");
+      fprintf(fnewini,";; M = MIME Base64, B = bZip2, 3 = MP3\n");
       fprintf(fnewini,"; Compression_Types=PZGNFJSMB\n\n");
       fprintf(fnewini,";; zLib levels to use\n");
       fprintf(fnewini,"; zLib_Levels=\n");
@@ -1355,7 +1356,7 @@ int init_comfort(int argc, char* argv[]) {
   }
 
  if (parse_ini_file) {
-  //Parse INI file
+  // parse INI file
   bool print_ignore_positions_message = true;
 
   ifstream ini_file(precomf_ini);
@@ -1371,7 +1372,7 @@ int init_comfort(int argc, char* argv[]) {
       line.erase(semicolon_at_pos, line.length() - semicolon_at_pos);
     }
 
-    //Valid line must contain an equal sign (=)
+    // valid line must contain an equal sign (=)
     string::size_type equal_at_pos = line.find("=", 0);
     if (line.empty()) {
       equal_at_pos = string::npos;
@@ -1380,9 +1381,9 @@ int init_comfort(int argc, char* argv[]) {
 
       stringstream ss;
       ss << line;
-      //Get parameter name
+      // get parameter name
       getline(ss, parName, '=');
-      //Remove spaces
+      // remove spaces
       for (it = parName.begin(); it != parName.end(); it++) {
         if (*it == ' ') {
           parName.erase(it);
@@ -1402,11 +1403,10 @@ int init_comfort(int argc, char* argv[]) {
       }
       memset(param, '\0', 256);
       parName.copy(param, 256);
-      //printf("parName: <%s>\n", param);
  
-      //Get value
+      // get value
       getline(ss, valuestr);
-      //Remove spaces
+      // remove spaces
       for (it = valuestr.begin(); it != valuestr.end(); it++) {
         if (*it == ' ') {
           valuestr.erase(it);
@@ -1426,12 +1426,10 @@ int init_comfort(int argc, char* argv[]) {
       }
       memset(value, '\0', 256);
       valuestr.copy(value, 256);
-      //printf("value: <%s>\n", value);
 
       if (strcmp(param, "") != 0) {
         bool valid_param = false;
 
-        //Minimal identical byte size
         if (strcmp(param, "minimal_size") == 0) {
           if (min_ident_size_set) {
             error(ERR_ONLY_SET_MIN_SIZE_ONCE);
@@ -1453,7 +1451,6 @@ int init_comfort(int argc, char* argv[]) {
           valid_param = true;
         }
 
-        //Verbose mode
         if (strcmp(param, "verbose") == 0) {
           if (strcmp(value, "off") == 0) {
             printf("INI: Disabled verbose mode\n");
@@ -1473,7 +1470,6 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        //Compression method
         if (strcmp(param, "compression_method") == 0) {
           if (strcmp(value, "0") == 0) {
             printf("INI: Using no compression method\n");
@@ -1494,7 +1490,6 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        //Fast mode
         if (strcmp(param, "fast_mode") == 0) {
           if (strcmp(value, "off") == 0) {
             printf("INI: Disabled fast mode\n");
@@ -1514,7 +1509,6 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        //Intense mode
         if (strcmp(param, "intense_mode") == 0) {
           if (strcmp(value, "off") == 0) {
             printf("INI: Disabled intense mode\n");
@@ -1534,7 +1528,6 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        //Brute mode
         if (strcmp(param, "brute_mode") == 0) {
           if (strcmp(value, "off") == 0) {
             printf("INI: Disabled brute mode\n");
@@ -1558,7 +1551,6 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        //PDF BMP mode
         if (strcmp(param, "pdf_bmp_mode") == 0) {
           if (strcmp(value, "off") == 0) {
             printf("INI: Disabled PDF BMP mode\n");
@@ -1579,7 +1571,6 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        //Progressive JPGs only
         if (strcmp(param, "jpg_progressive_only") == 0) {
           if (strcmp(value, "off") == 0) {
             printf("INI: Disabled progressive only JPG mode\n");
@@ -1600,7 +1591,6 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        //MJPEG recompression
         if (strcmp(param, "mjpeg_recompression") == 0) {
           if (strcmp(value, "off") == 0) {
             printf("INI: Disabled MJPEG recompression\n");
@@ -1621,7 +1611,6 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        //Compression types
         if (strcmp(param, "compression_types") == 0) {
           use_pdf = false;
           use_zip = false;
@@ -1629,37 +1618,41 @@ int init_comfort(int argc, char* argv[]) {
           use_png = false;
           use_gif = false;
           use_jpg = false;
+          use_mp3 = false;
           use_swf = false;
           use_base64 = false;
           use_bzip2 = false;
 
           for (j = 0; j < (int)strlen(value); j++) {
               switch (toupper(value[j])) {
-                case 'P': //PDF
+                case 'P': // PDF
                   use_pdf = true;
                   break;
-                case 'Z': //ZIP
+                case 'Z': // ZIP
                   use_zip = true;
                   break;
-                case 'G': //GZip
+                case 'G': // GZip
                   use_gzip = true;
                   break;
-                case 'N': //PNG
+                case 'N': // PNG
                   use_png = true;
                   break;
-                case 'F': //GIF
+                case 'F': // GIF
                   use_gif = true;
                   break;
-                case 'J': //JPG
+                case 'J': // JPG
                   use_jpg = true;
                   break;
-                case 'S': //SWF
+                case '3': // MP3
+                  use_mp3 = true;
+                  break;
+                case 'S': // SWF
                   use_swf = true;
                   break;
-                case 'M': //MIME Base64
+                case 'M': // MIME Base64
                   use_base64 = true;
                   break;
-                case 'B': //bZip2
+                case 'B': // bZip2
                   use_bzip2 = true;
                   break;
                 default:
@@ -1705,6 +1698,12 @@ int init_comfort(int argc, char* argv[]) {
             printf("INI: JPG compression disabled\n");
           } 
 
+          if (use_mp3) {
+            printf("INI: MP3 compression enabled\n");
+          } else {
+            printf("INI: MP3 compression disabled\n");
+          } 
+
           if (use_swf) {
             printf("INI: SWF compression enabled\n");
           } else {
@@ -1726,7 +1725,7 @@ int init_comfort(int argc, char* argv[]) {
           valid_param = true;
         }
 
-        //zLib levels
+        // zLib levels
         if (strcmp(param, "zlib_levels") == 0) {
           for (j = 0; j < 81; j++) {
             use_zlib_level[j] = false;
@@ -1762,7 +1761,6 @@ int init_comfort(int argc, char* argv[]) {
           valid_param = true;
         }
 
-        //Maximal recursion depth
         if (strcmp(param, "maximal_recursion_depth") == 0) {
           if (recursion_depth_set) {
             error(ERR_ONLY_SET_RECURSION_DEPTH_ONCE);
@@ -1785,7 +1783,6 @@ int init_comfort(int argc, char* argv[]) {
           valid_param = true;
         }
 
-        //Ignore position
         if (strcmp(param, "ignore_positions") == 0) {
 
           long long act_ignore_pos = -1;
@@ -1816,7 +1813,6 @@ int init_comfort(int argc, char* argv[]) {
                   ignore_list = (long long*)realloc(ignore_list, (ignore_list_len + 1) * sizeof(long long));
                   ignore_list[ignore_list_len] = act_ignore_pos;
                   ignore_list_len++;
-                  //printf ("INI: Added ignore position %i\n", act_ignore_pos);
                   act_ignore_pos = -1;
                 }
                 break;
@@ -1832,7 +1828,6 @@ int init_comfort(int argc, char* argv[]) {
             ignore_list = (long long*)realloc(ignore_list, (ignore_list_len + 1) * sizeof(long long));
             ignore_list[ignore_list_len] = act_ignore_pos;
             ignore_list_len++;
-            //printf ("INI: Added ignore position %i\n", act_ignore_pos);
           }
 
           if (print_ignore_positions_message) {
@@ -1876,11 +1871,6 @@ int init_comfort(int argc, char* argv[]) {
 
   printf("Input file: %s\n",input_file_name);
   printf("Output file: %s\n\n",output_file_name);
-  #ifdef DEBUG_FILE
-    fprintf(fdebug,"Input file: %s\n",input_file_name);
-    fprintf(fdebug,"Output file: %s\n\n",output_file_name);
-    fflush(fdebug);
-  #endif
   if (DEBUG_MODE) {
     if (min_ident_size_set) {
       printf("\n");
@@ -1890,7 +1880,6 @@ int init_comfort(int argc, char* argv[]) {
       printf("\n");
       printf("Ignore position list:\n");
       for (i = 0; i < ignore_list_len; i++) {
-        //printf("%u\n",ignore_list[i]);
         print64(ignore_list[i]);
         printf("\n");
       }
@@ -1914,7 +1903,7 @@ int init_comfort(int argc, char* argv[]) {
 
   sort_comp_mem_levels();
 
-  packjpg_dll_msg();
+  packjpg_mp3_dll_msg();
 
   return operation;
 }
@@ -1963,7 +1952,7 @@ void denit_compress() {
     printf("\nDone.\n");
     printf_time(get_time_ms() - start_time);
 
-    //Statistics
+    // statistics
     printf("\nRecompressed streams: %i/%i\n", recompressed_streams_count, decompressed_streams_count);
 
     if ((recompressed_streams_count > 0) || (decompressed_streams_count > 0)) {
@@ -1979,6 +1968,7 @@ void denit_compress() {
       if ((use_gif) && ((recompressed_gif_count > 0) || (decompressed_gif_count > 0))) printf("GIF streams: %i/%i\n", recompressed_gif_count, decompressed_gif_count);
       if ((use_jpg) && ((recompressed_jpg_count > 0) || (decompressed_jpg_count > 0))) printf("JPG streams: %i/%i\n", recompressed_jpg_count, decompressed_jpg_count);
       if ((use_jpg) && ((recompressed_jpg_prog_count > 0) || (decompressed_jpg_prog_count > 0))) printf("JPG streams (progressive): %i/%i\n", recompressed_jpg_prog_count, decompressed_jpg_prog_count);
+      if ((use_mp3) && ((recompressed_mp3_count > 0) || (decompressed_mp3_count > 0))) printf("MP3 streams: %i/%i\n", recompressed_mp3_count, decompressed_mp3_count);
       if ((use_swf) && ((recompressed_swf_count > 0) || (decompressed_swf_count > 0))) printf("SWF streams: %i/%i\n", recompressed_swf_count, decompressed_swf_count);
       if ((use_base64) && ((recompressed_base64_count > 0) || (decompressed_base64_count > 0))) printf("Base64 streams: %i/%i\n", recompressed_base64_count, decompressed_base64_count);
       if ((use_bzip2) && ((recompressed_bzip2_count > 0) || (decompressed_bzip2_count > 0))) printf("bZip2 streams: %i/%i\n", recompressed_bzip2_count, decompressed_bzip2_count);
@@ -2085,10 +2075,6 @@ void denit_convert() {
 }
 
 void denit() {
-  #ifdef DEBUG_FILE
-  safe_fclose(&fdebug);
-  #endif
-
   safe_fclose(&fin);
   safe_fclose(&fout);
 
@@ -2346,7 +2332,7 @@ size_t fread_skip(unsigned char *ptr, size_t size, size_t count, FILE* stream) {
          if (read_tmp == 0) return bytes_read;
         bytes_read += read_tmp;
       }
-      // Skip padding bytes
+      // skip padding bytes
       read_tmp = own_fread(frs_skipbuf, size, frs_skip_len, stream);
       if (read_tmp == 0) return bytes_read;
       frs_offset = 0;
@@ -2616,7 +2602,7 @@ int def_bzip2(FILE *source, FILE *dest, int level) {
   return BZ_OK;
 }
 
-int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel) { // Recompress file
+int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel) {
   int retval;
 
   ftempout = fopen(tempfile1,"rb");
@@ -2648,7 +2634,7 @@ int file_recompress(FILE* origfile, int compression_level, int windowbits, int m
   return retval;
 }
 
-int file_recompress_bzip2(FILE* origfile, int level) { // Recompress file
+int file_recompress_bzip2(FILE* origfile, int level) {
   int retval;
 
   ftempout = fopen(tempfile1,"rb");
@@ -2660,7 +2646,6 @@ int file_recompress_bzip2(FILE* origfile, int level) { // Recompress file
   frecomp = tryOpen(tempfile2,"w+b");
 
   fseek(ftempout, 0, SEEK_SET);
-  //retval = def_compare(ftempout, frecomp, origfile, compression_level, windowbits, memlevel);
   retval = def_bzip2(ftempout, frecomp, level);
 
   if (retval > -1) {
@@ -2752,7 +2737,7 @@ void start_uncompressed_data() {
   uncompressed_length = 0;
   uncompressed_pos = input_file_pos;
 
-  //Uncompressed data
+  // uncompressed data
   fout_fputc(0);
 
   uncompressed_data_in_work = true;
@@ -2762,16 +2747,9 @@ void end_uncompressed_data() {
 
   if (!uncompressed_data_in_work) return;
 
-  fout_fputc((uncompressed_length >> 56) % 256);
-  fout_fputc((uncompressed_length >> 48) % 256);
-  fout_fputc((uncompressed_length >> 40) % 256);
-  fout_fputc((uncompressed_length >> 32) % 256);
-  fout_fputc((uncompressed_length >> 24) % 256);
-  fout_fputc((uncompressed_length >> 16) % 256);
-  fout_fputc((uncompressed_length >> 8) % 256);
-  fout_fputc(uncompressed_length % 256);
+  fout_fput64(uncompressed_length);
 
-  //Fast copy of uncompressed data
+  // fast copy of uncompressed data
   seek_64(fin, uncompressed_pos);
   fast_copy(fin, fout, uncompressed_length);
 
@@ -2791,7 +2769,7 @@ int identical_bytes_decomp = -1;
 int real_identical_bytes = -1;
 bool final_compression_found = false;
 
-void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc) {
+void init_decompression_variables() {
   identical_bytes = -1;
   best_identical_bytes = -1;
   best_compression = -1;
@@ -2801,12 +2779,17 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
   identical_bytes_decomp = -1;
   real_identical_bytes = -1;
   final_compression_found = false;
-  int bmp_header_type = 0; //0 = none, 1 = 8-bit, 2 = 24-bit
+}
 
-        // Try to decompress at current position
+void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc) {
+  init_decompression_variables();
+
+  int bmp_header_type = 0; // 0 = none, 1 = 8-bit, 2 = 24-bit
+
+        // try to decompress at current position
         retval = try_to_decompress(fin, windowbits);
 
-        if (retval > 0) { //Seems to be a zLib-Stream
+        if (retval > 0) { // seems to be a zLib-Stream
 
           decompressed_streams_count++;
           if (img_bpc == 8) {
@@ -2828,23 +2811,16 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fin, comp_level, mem_level, windowbits);
 
             if (final_compression_found) break;
           }
 
-          //if ((best_identical_bytes > 4) && (best_identical_bytes < identical_bytes_decomp)) {
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_pdf_count++;
@@ -2889,27 +2865,21 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Write compressed data header (PDF) without 12 first bytes
-            //  (/FlateDecode)
+            // write compressed data header (PDF) without 12 first bytes
+            //   (/FlateDecode)
 
             unsigned char bmp_c = 0;
 
@@ -2926,42 +2896,30 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
             } else {
               fout_fputc(1 + 2 + (best_compression << 2) + bmp_c);
             }
-            fout_fputc(0); //PDF
+            fout_fputc(0); // PDF
             fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
 
             pdf_header_length -= 12;
 
-            fout_fputc((pdf_header_length >> 16) % 256);
-            fout_fputc((pdf_header_length >> 8) % 256);
-            fout_fputc(pdf_header_length % 256);
+			fout_fput24(pdf_header_length);
 
             own_fwrite(in_buf + cb + 12, 1, pdf_header_length, fout);
 
-            //Store penalty bytes, if any
+            // store penalty bytes, if any
             if (best_penalty_bytes_len != 0) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
-
-            // Eventually write BMP header
+            // eventually write BMP header
 
             if (bmp_header_type > 0) {
 
@@ -2977,10 +2935,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               } else {
                 bmp_size += 54;
               }
-              fout_fputc(bmp_size % 256);
-              fout_fputc((bmp_size >> 8) % 256);
-              fout_fputc((bmp_size >> 16) % 256);
-              fout_fputc((bmp_size >> 24) % 256);
+			  fout_fput32_little_endian(bmp_size);
 
               for (i = 0; i < 4; i++) {
                 fout_fputc(0);
@@ -2998,15 +2953,8 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               fout_fputc(0);
               fout_fputc(0);
 
-              fout_fputc(img_width % 256);
-              fout_fputc((img_width >> 8) % 256);
-              fout_fputc((img_width >> 16) % 256);
-              fout_fputc((img_width >> 24) % 256);
-
-              fout_fputc(img_height % 256);
-              fout_fputc((img_height >> 8) % 256);
-              fout_fputc((img_height >> 16) % 256);
-              fout_fputc((img_height >> 24) % 256);
+			  fout_fput32_little_endian(img_width);
+			  fout_fput32_little_endian(img_height);
 
               fout_fputc(1);
               fout_fputc(0);
@@ -3026,24 +2974,21 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 
               int datasize = ((img_width+3) & -4) * img_height;
               if (bmp_header_type == 2) datasize *= 3;
-              fout_fputc(datasize % 256);
-              fout_fputc((datasize >> 8) % 256);
-              fout_fputc((datasize >> 16) % 256);
-              fout_fputc((datasize >> 24) % 256);
+			  fout_fput32_little_endian(datasize);
 
               for (i = 0; i < 16; i++) {
                 fout_fputc(0);
               }
 
               if (bmp_header_type == 1) {
-                // Write BMP palette
+                // write BMP palette
                 for (i = 0; i < 1024; i++) {
                   fout_fputc(0);
                 }
               }
             }
 
-            // Write decompressed data
+            // write decompressed data
 
             if ((bmp_header_type == 0) || ((img_width % 4) == 0)) {
               write_decompressed_data(best_identical_bytes_decomp);
@@ -3069,9 +3014,9 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               safe_fclose(&ftempout);
             }
 
-            //Start new uncompressed data
+            // start new uncompressed data
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += best_identical_bytes - 1;
             cb += best_identical_bytes - 1;
 
@@ -3087,22 +3032,15 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 }
 
 void try_decompression_zip(int zip_header_length) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
+  init_decompression_variables();
   final_compression_found = false;
 
         int windowbits;
 
-        // Try to decompress at current position
+        // try to decompress at current position
         retval = try_to_decompress(fin, -15);
 
-        if (retval > 0) { //Seems to be a zLib-Stream
+        if (retval > 0) { // seems to be a zLib-Stream
 
           decompressed_streams_count++;
           decompressed_zip_count++;
@@ -3119,17 +3057,11 @@ void try_decompression_zip(int zip_header_length) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = 0; index < 81; index++) {
               if (levels_sorted[index] == -1) break;
               int comp_level = (levels_sorted[index] % 9) + 1;
               int mem_level = (levels_sorted[index] / 9) + 1;
-              #ifdef DEBUG_FILE
-              fprintf(fdebug,"Trying comp_level %i, mem_level %i, windowbits %i\n", comp_level, mem_level, -windowbits);
-              #endif
 
               try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -3137,7 +3069,6 @@ void try_decompression_zip(int zip_header_length) {
             }
           }
 
-          //if ((best_identical_bytes > 4) && (best_identical_bytes < identical_bytes_decomp)) {
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_zip_count++;
@@ -3158,29 +3089,23 @@ void try_decompression_zip(int zip_header_length) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Check recursion
+            // check recursion
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
-            //Write compressed data header (ZIP) without 4 first bytes (PK..)
+            // write compressed data header (ZIP) without 4 first bytes (PK..)
 
             int header_byte = 1 + (best_compression << 2);
             if (best_penalty_bytes_len != 0) {
@@ -3190,53 +3115,34 @@ void try_decompression_zip(int zip_header_length) {
               header_byte += 128;
             }
             fout_fputc(header_byte);
-            fout_fputc(1); //ZIP
+            fout_fputc(1); // ZIP
             fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
 
             zip_header_length -= 4;
 
-            fout_fputc((zip_header_length >> 16) % 256);
-            fout_fputc((zip_header_length >> 8) % 256);
-            fout_fputc(zip_header_length % 256);
+			fout_fput24(zip_header_length);
 
             own_fwrite(in_buf + cb + 4, 1, zip_header_length, fout);
 
-            //Store penalty bytes, if any
+            // store penalty bytes, if any
             if (best_penalty_bytes_len != 0) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
-            // Write decompressed data
+            // write decompressed data
             if (r.success) {
               write_decompressed_data(r.file_length, r.file_name);
               remove(r.file_name);
@@ -3245,7 +3151,7 @@ void try_decompression_zip(int zip_header_length) {
               write_decompressed_data(best_identical_bytes_decomp);
             }
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += best_identical_bytes - 1;
             cb += best_identical_bytes - 1;
 
@@ -3364,9 +3270,6 @@ bool compress_file(float min_percent, float max_percent) {
   global_min_percent = min_percent;
   global_max_percent = max_percent;
 
-  //fseek(fin, 0, SEEK_END);
-  //unsigned int size_in = ftell(fin);
-
   if (recursion_depth == 0) write_header();
   uncompressed_length = -1;
 
@@ -3441,7 +3344,7 @@ bool compress_file(float min_percent, float max_percent) {
 
     // ZIP header?
     if (((in_buf[cb] == 'P') && (in_buf[cb + 1] == 'K')) && (use_zip)) {
-      //Local file header?
+      // local file header?
       if ((in_buf[cb + 2] == 3) && (in_buf[cb + 3] == 4)) {
         if (DEBUG_MODE) {
         printf("ZIP header detected\n");
@@ -3460,16 +3363,6 @@ bool compress_file(float min_percent, float max_percent) {
         printf("file name length: %i\n", filename_length);
         printf("extra field length: %i\n", extra_field_length);
         }
-
-        // Stored ZIP detection - removed because it skips valid ZIP streams.
-        // Perhaps try to skip only if compressed_size and uncompressed_size
-        // are greater than 0:
-        // if ((compressed_size == uncompressed_size) && (compressed_size > 0)) {
-        /*if (compressed_size == uncompressed_size) {
-          if (DEBUG_MODE) {
-            printf("seems to be stored, skipping\n");
-          }
-        } else*/
 
         if ((filename_length + extra_field_length) <= CHECKBUF_SIZE) {
 
@@ -3493,12 +3386,12 @@ bool compress_file(float min_percent, float max_percent) {
       }
     }
 
-    if ((!compressed_data_found) && (use_gzip)) { // No ZIP header -> GZip header?
+    if ((!compressed_data_found) && (use_gzip)) { // no ZIP header -> GZip header?
       if ((in_buf[cb] == 31) && (in_buf[cb + 1] == 139)) {
-        //Check zLib header in GZip header
+        // check zLib header in GZip header
         int compression_method = (in_buf[cb + 2] & 15);
         if ((compression_method == 8) &&
-           ((in_buf[cb + 3] & 224) == 0)  //Reserved FLG bits must be zero.
+           ((in_buf[cb + 3] & 224) == 0)  // reserved FLG bits must be zero
           ) {
 
           //((in_buf[cb + 8] == 2) || (in_buf[cb + 8] == 4)) { //XFL = 2 or 4
@@ -3524,7 +3417,6 @@ bool compress_file(float min_percent, float max_percent) {
             int act_checkbuf_pos = 10;
 
             if (fextra) {
-              //int xlen = fgetc(fin) + (fgetc(fin) << 8);
               int xlen = in_buf[cb + act_checkbuf_pos] + (in_buf[cb + act_checkbuf_pos + 1] << 8);
               if ((act_checkbuf_pos + xlen) > CHECKBUF_SIZE) {
                 dont_compress = true;
@@ -3558,7 +3450,7 @@ bool compress_file(float min_percent, float max_percent) {
 
           if (!dont_compress) {
 
-            input_file_pos += header_length; //Skip GZip header
+            input_file_pos += header_length; // skip GZip header
 
             try_decompression_gzip(header_length);
 
@@ -3574,7 +3466,7 @@ bool compress_file(float min_percent, float max_percent) {
       }
     }
 
-    if ((!compressed_data_found) && (use_pdf)) { // No Gzip header -> PDF FlateDecode?
+    if ((!compressed_data_found) && (use_pdf)) { // no Gzip header -> PDF FlateDecode?
       if (memcmp(in_buf + cb, "/FlateDecode", 12) == 0) {
         saved_input_file_pos = input_file_pos;
         saved_cb = cb;
@@ -3593,9 +3485,9 @@ bool compress_file(float min_percent, float max_percent) {
 
         if (found_stream) {
 
-          // Check if the stream is an image and width and height are given
+          // check if the stream is an image and width and height are given
 
-          // Read 4096 bytes before stream
+          // read 4096 bytes before stream
 
           unsigned char type_buf[4097];
           int type_buf_length;
@@ -3612,7 +3504,7 @@ bool compress_file(float min_percent, float max_percent) {
             type_buf_length = input_file_pos + act_search_pos;
           }
 
-          // Find "<<"
+          // find "<<"
 
           int start_pos = -1;
 
@@ -3629,7 +3521,7 @@ bool compress_file(float min_percent, float max_percent) {
 
             int width_pos, height_pos, bpc_pos;
 
-            // Find "/Width"
+            // find "/Width"
             width_pos = (unsigned char*)strstr((const char*)(type_buf + start_pos), "/Width") - type_buf;
 
             if (width_pos > 0)
@@ -3643,7 +3535,7 @@ bool compress_file(float min_percent, float max_percent) {
                 }
               }
 
-            // Find "/Height"
+            // find "/Height"
             height_pos = (unsigned char*)strstr((const char*)(type_buf + start_pos), "/Height") - type_buf;
 
             if (height_pos > 0) 
@@ -3657,7 +3549,7 @@ bool compress_file(float min_percent, float max_percent) {
                 }
               }
 
-            // Find "/BitsPerComponent"
+            // find "/BitsPerComponent"
             bpc_pos = (unsigned char*)strstr((const char*)(type_buf + start_pos), "/BitsPerComponent") - type_buf;
                
             if (bpc_pos > 0) 
@@ -3680,15 +3572,15 @@ bool compress_file(float min_percent, float max_percent) {
 
           if ((in_buf[cb + act_search_pos + 6] == 13) || (in_buf[cb + act_search_pos + 6] == 10)) {
             if ((in_buf[cb + act_search_pos + 7] == 13) || (in_buf[cb + act_search_pos + 7] == 10)) {
-              //Seems to be two byte EOL - zLib Header present?
+              // seems to be two byte EOL - zLib Header present?
               if (((((in_buf[cb + act_search_pos + 8] << 8) + in_buf[cb + act_search_pos + 9]) % 31) == 0) &&
-                  ((in_buf[cb + act_search_pos + 9] & 32) == 0)) { //FDICT must not be set
+                  ((in_buf[cb + act_search_pos + 9] & 32) == 0)) { // FDICT must not be set
                 int compression_method = (in_buf[cb + act_search_pos + 8] & 15);
                 if (compression_method == 8) {
 
                   int windowbits = (in_buf[cb + act_search_pos + 8] >> 4) + 8;
 
-                  input_file_pos += act_search_pos + 10; //Skip PDF part
+                  input_file_pos += act_search_pos + 10; // skip PDF part
 
                   try_decompression_pdf(-windowbits, act_search_pos + 10, width_val, height_val, bpc_val);
 
@@ -3696,13 +3588,13 @@ bool compress_file(float min_percent, float max_percent) {
                 }
               }
             } else {
-              //Seems to be one byte EOL - zLib Header present?
+              // seems to be one byte EOL - zLib Header present?
               if ((((in_buf[cb + act_search_pos + 7] << 8) + in_buf[cb + act_search_pos + 8]) % 31) == 0) {
                 int compression_method = (in_buf[cb + act_search_pos + 7] & 15);
                 if (compression_method == 8) {
                   int windowbits = (in_buf[cb + act_search_pos + 7] >> 4) + 8;
 
-                  input_file_pos += act_search_pos + 9; //Skip PDF part
+                  input_file_pos += act_search_pos + 9; // skip PDF part
 
                   try_decompression_pdf(-windowbits, act_search_pos + 9, width_val, height_val, bpc_val);
 
@@ -3720,10 +3612,10 @@ bool compress_file(float min_percent, float max_percent) {
       }
     }
 
-    if ((!compressed_data_found) && (use_png)) { // No PDF header -> PNG IDAT?
+    if ((!compressed_data_found) && (use_png)) { // no PDF header -> PNG IDAT?
       if (memcmp(in_buf + cb, "IDAT", 4) == 0) {
 
-        //space for length and crc parts of IDAT chunks
+        // space for length and crc parts of IDAT chunks
         idat_lengths = (unsigned int*)(realloc(idat_lengths, 100 * sizeof(unsigned int)));
         idat_crcs = (unsigned int*)(realloc(idat_crcs, 100 * sizeof(unsigned int)));
 
@@ -3734,7 +3626,7 @@ bool compress_file(float min_percent, float max_percent) {
         bool zlib_header_correct = false;
         int windowbits = 0;
 
-        //Get preceding length bytes
+        // get preceding length bytes
         if (input_file_pos >= 4) {
           seek_64(fin, input_file_pos - 4);
 
@@ -3744,12 +3636,12 @@ bool compress_file(float min_percent, float max_percent) {
           idat_lengths[0] = (in[0] << 24) + (in[1] << 16) + (in[2] << 8) + in[3];
          if (idat_lengths[0] > 2) {
 
-          //Check zLib header and get windowbits
+          // check zLib header and get windowbits
           zlib_header[0] = in[8];
           zlib_header[1] = in[9];
           if ((((in[8] << 8) + in[9]) % 31) == 0) {
             if ((in[8] & 15) == 8) {
-              if ((in[9] & 32) == 0) { //FDICT must not be set
+              if ((in[9] & 32) == 0) { // FDICT must not be set
                 windowbits = (in[8] >> 4) + 8;
                 zlib_header_correct = true;
               }
@@ -3760,10 +3652,10 @@ bool compress_file(float min_percent, float max_percent) {
 
             idat_count++;
 
-            //Go through additional IDATs
+            // go through additional IDATs
             for (;;) {
               seek_64(fin, tell_64(fin) + idat_lengths[idat_count - 1]);
-              if (fread(in, 1, 12, fin) != 12) { //CRC, Length, "IDAT"
+              if (fread(in, 1, 12, fin) != 12) { // CRC, length, "IDAT"
                 idat_count = 0;
                 break;
               }
@@ -3793,18 +3685,18 @@ bool compress_file(float min_percent, float max_percent) {
 
         if (idat_count == 1) {
 
-          //Try to recompress directly
+          // try to recompress directly
           input_file_pos += 6;
           try_decompression_png(-windowbits);
           cb += 6;
         } else if (idat_count > 1) {
-          //Copy to temp0.dat before trying to recompress
+          // copy to temp0.dat before trying to recompress
           remove(tempfile0);
           fpng = tryOpen(tempfile0,"w+b");
 
-          seek_64(fin, input_file_pos + 6); // Start after zLib header
+          seek_64(fin, input_file_pos + 6); // start after zLib header
 
-          idat_lengths[0] -= 2; //zLib header length
+          idat_lengths[0] -= 2; // zLib header length
           for (int i = 0; i < idat_count; i++) {
             fast_copy(fin, fpng, idat_lengths[i]);
             seek_64(fin, tell_64(fin) + 12);
@@ -3831,7 +3723,7 @@ bool compress_file(float min_percent, float max_percent) {
 
     }
 
-    if ((!compressed_data_found) && (use_gif)) { // No PNG header -> GIF header?
+    if ((!compressed_data_found) && (use_gif)) { // no PNG header -> GIF header?
       if ((in_buf[cb] == 'G') && (in_buf[cb + 1] == 'I') && (in_buf[cb + 2] == 'F')) {
         if ((in_buf[cb + 3] == '8') && (in_buf[cb + 5] == 'a')) {
           if ((in_buf[cb + 4] == '7') || (in_buf[cb + 4] == '9')) {
@@ -3856,8 +3748,8 @@ bool compress_file(float min_percent, float max_percent) {
       }
     }
 
-    if ((!compressed_data_found) && (use_jpg)) { // No GIF header -> JPG header?
-      if ((in_buf[cb] == 0xFF) && (in_buf[cb + 1] == 0xD8)) { //SOI (FF D8)
+    if ((!compressed_data_found) && (use_jpg)) { // no GIF header -> JPG header?
+      if ((in_buf[cb] == 0xFF) && (in_buf[cb + 1] == 0xD8)) { // SOI (FF D8)
         if ((in_buf[cb + 2] == 0xFF)) {
           saved_input_file_pos = input_file_pos;
           saved_cb = cb;
@@ -3865,7 +3757,7 @@ bool compress_file(float min_percent, float max_percent) {
           int eoi_count = 1;
           bool progressive_flag = false;
 
-          //Find SOF
+          // find SOF
           bool ff_sof_found = false;
           bool sof_found = false;
           long long sof_pos = input_file_pos + 1;
@@ -3874,11 +3766,11 @@ bool compress_file(float min_percent, float max_percent) {
           while (fread(in, 1, 1, fin) == 1) {
             sof_pos++;
             if (ff_sof_found) {
-              if (in[0] == 0xD8) { //Another SOI (FF D8) - increase EOI count
+              if (in[0] == 0xD8) { // another SOI (FF D8) - increase EOI count
                 eoi_count++;
               }
-              sof_found = ((in[0] == 0xC0)   //baseline
-                        || (in[0] == 0xC2)); //progressive
+              sof_found = ((in[0] == 0xC0)   // baseline
+                        || (in[0] == 0xC2)); // progressive
               if (sof_found) {
                 progressive_flag = (in[0] == 0xC2);
                 if (fread(in, 1, 3, fin) == 3) {
@@ -3898,7 +3790,7 @@ bool compress_file(float min_percent, float max_percent) {
             }
           }
 
-          //Find EOI
+          // find EOI
           bool ff_eoi_found = false;
           long long eoi_pos = 0;
 
@@ -3909,7 +3801,7 @@ bool compress_file(float min_percent, float max_percent) {
             while (fread(in, 1, 1, fin) == 1) {
               eoi_pos++;
               if (ff_eoi_found) {
-                if (in[0] == 0xD8) { //Another SOI (FF D8) - increase EOI count
+                if (in[0] == 0xD8) { // another SOI (FF D8) - increase EOI count
                   eoi_count++;
                 }
                 if (in[0] == 0xD9) {
@@ -3929,73 +3821,95 @@ bool compress_file(float min_percent, float max_percent) {
 
             long long jpg_length = (eoi_pos + 1) - input_file_pos;
 
-            //Check for DHT (0xFFC4) and DQT (0xFFDB) before 1st SOS (0xFFDA)
-            //Additionaly, check if there is _exactly one_ SOF (0xFFC0, 0xFFC1
-            //  or 0xFFC2) before 1st SOS (0xFFDA)
-            
-            /*fseek(fin, input_file_pos + 2, SEEK_SET);
-
-            bool dht_found = false;
-            bool dqt_found = false;
-            bool ff_found = false;
-            bool sos_found = false;
-            int sof_count = 0;
-            int act_pos = input_file_pos + 2;
-
-            while ((fread(in, 1, 1, fin) == 1) && (act_pos != eoi_pos)) {
-              act_pos++;
-              if (ff_found) {
-                if (in[0] == 0xC4) {
-                  dht_found = true;
-                }
-                if (in[0] == 0xDB) {
-                  dqt_found = true;
-                }
-                if ((in[0] == 0xC0) || (in[0] == 0xC1) || (in[0] == 0xC2)) {
-                  sof_count++;
-                  if (sos_found) { //SOF after SOS -> invalid
-                    sof_count = 0;
-                    break;
-                  }
-                }
-                if (in[0] == 0xD9) { //EOI
-                  sos_found = false; //reset SOS status
-                  if (sof_count != 1) break;
-                  sof_count = 0;
-                }
-                if (in[0] == 0xDA) { //SOS
-                  sos_found = true;
-                }
-                ff_found = (in[0] == 0xFF);
-              } else {
-                ff_found = (in[0] == 0xFF);
-              }
-            }
-
-            if (dht_found && dqt_found && (sof_count == 1)) {*/
-              try_decompression_jpg(jpg_length, progressive_flag);
-            //} else {
-            //}
+            try_decompression_jpg(jpg_length, progressive_flag);
 
             if (!compressed_data_found) {
               input_file_pos = saved_input_file_pos;
               cb = saved_cb;
             }
-
           }
         }
       }
     }
 
-    if ((!compressed_data_found) && (use_swf)) { // No JPG header -> SWF header?
+    if ((!compressed_data_found) && (use_mp3)) { // no JPG header -> MP3 header?
+      if ((in_buf[cb] == 0xFF) && ((in_buf[cb + 1] & 0xE0) == 0xE0)) { // frame start
+        int mpeg = -1;
+        int layer = -1;
+        int samples = -1;
+        int channels = -1;
+        int protection = -1;
+
+        int bits;
+        int padding;
+        int frame_size;
+        int n = 0;
+
+        long long mp3_length = 0;
+
+        saved_input_file_pos = input_file_pos;
+        saved_cb = cb;
+
+        long long act_pos = input_file_pos;
+
+        // parse frames until first invalid frame is found or end-of-file
+        seek_64(fin, act_pos);
+        while (fread(in, 1, 3, fin) == 3) {
+          // check syncword
+          if ((in[0] != 0xFF) || ((in[1] & 0xE0) != 0xE0)) break;
+          // compare data from header
+          if (n == 0) {
+            mpeg        = (in[1] >> 3) & 0x3;
+            layer       = (in[1] >> 1) & 0x3;
+            protection  = (in[1] >> 0) & 0x1;
+            samples     = (in[2] >> 2) & 0x3;
+            channels    = (in[3] >> 6) & 0x3;
+			// type must be MPEG-1, Layer III, packMP3 won't process any other files
+			int type = MBITS( in[1], 5, 1 );
+            if ( type != MPEG1_LAYER_III ) break;
+		  } else if (
+            (mpeg       != ((in[1] >> 3) & 0x3)) ||
+            (layer      != ((in[1] >> 1) & 0x3)) ||
+            (protection != ((in[1] >> 0) & 0x1)) ||
+            (samples    != ((in[2] >> 2) & 0x3)) ||
+            (channels   != ((in[3] >> 6) & 0x3))) break;
+
+		  bits     = (in[2] >> 4) & 0xF;
+          padding  = (in[2] >> 1) & 0x1;
+          // check for problems
+          if ((mpeg == 0x1) || (layer == 0x0) ||
+              (bits == 0x0) || (bits == 0xF) || (samples == 0x3)) break;
+          // find out frame size
+          frame_size = frame_size_table[mpeg][layer][samples][bits];
+          if (padding) frame_size += (layer == LAYER_I) ? 4 : 1;
+
+  		  n++;
+          mp3_length += frame_size;
+          act_pos += frame_size;
+          seek_64(fin, act_pos);
+        }
+
+        // conditions for proper first frame: 5 consecutive frames,
+		if (n >= 5) {
+          try_decompression_mp3(mp3_length);
+		}
+
+        if (!compressed_data_found) {
+          input_file_pos = saved_input_file_pos;
+          cb = saved_cb;
+        }
+      }
+    }
+
+    if ((!compressed_data_found) && (use_swf)) { // no MP3 header -> SWF header?
       // CWS = Compressed SWF file
       if ((in_buf[cb] == 'C') && (in_buf[cb + 1] == 'W') && (in_buf[cb + 2] == 'S')) {
         char swf_version = in_buf[cb + 3];
-        // Check version number is 1 - 10
+        // check version number is 1 - 10
         if ((swf_version > 0) && (swf_version < 10)) {
-          // Check zLib header
+          // check zLib header
           if (((((in_buf[cb + 8] << 8) + in_buf[cb + 9]) % 31) == 0) &&
-             ((in_buf[cb + 9] & 32) == 0)) { //FDICT must not be set
+             ((in_buf[cb + 9] & 32) == 0)) { // FDICT must not be set
             int compression_method = (in_buf[cb + 8] & 15);
             if (compression_method == 8) {
               int windowbits = (in_buf[cb + 8] >> 4) + 8;
@@ -4003,7 +3917,7 @@ bool compress_file(float min_percent, float max_percent) {
               saved_input_file_pos = input_file_pos;
               saved_cb = cb;
 
-              input_file_pos += 10; //Skip CWS and zLib header
+              input_file_pos += 10; // skip CWS and zLib header
 
               try_decompression_swf(-windowbits, swf_version);
 
@@ -4019,14 +3933,14 @@ bool compress_file(float min_percent, float max_percent) {
       }
     }
 
-    if ((!compressed_data_found) && (use_base64)) { // No SWF header -> Base64?
+    if ((!compressed_data_found) && (use_base64)) { // no SWF header -> Base64?
     if ((in_buf[cb + 1] == 'o') && (in_buf[cb + 2] == 'n') && (in_buf[cb + 3] == 't') && (in_buf[cb + 4] == 'e')) {
       unsigned char cte_detect[33];
       for (int i = 0; i < 33; i++) {
         cte_detect[i] = tolower(in_buf[cb + i]);
       }
       if (memcmp(cte_detect, "content-transfer-encoding: base64", 33) == 0) {
-        // Search for double CRLF, all between is "header"
+        // search for double CRLF, all between is "header"
         int base64_header_length = 33;
         bool found_double_crlf = false;
         do {
@@ -4034,7 +3948,7 @@ bool compress_file(float min_percent, float max_percent) {
             if ((in_buf[cb + base64_header_length + 2] == 13) && (in_buf[cb + base64_header_length + 3] == 10)) {
               found_double_crlf = true;
               base64_header_length += 4;
-              // Skip additional CRLFs
+              // skip additional CRLFs
               while ((in_buf[cb + base64_header_length] == 13) && (in_buf[cb + base64_header_length + 1] == 10)) {
                 base64_header_length += 2;
               }
@@ -4049,7 +3963,7 @@ bool compress_file(float min_percent, float max_percent) {
           saved_input_file_pos = input_file_pos;
           saved_cb = cb;
 
-          input_file_pos += base64_header_length; //Skip "header"
+          input_file_pos += base64_header_length; // skip "header"
 
           try_decompression_base64(base64_header_length);
 
@@ -4064,7 +3978,7 @@ bool compress_file(float min_percent, float max_percent) {
     }
     }
 
-    if ((!compressed_data_found) && (use_bzip2)) { // No Base64 header -> bZip2?
+    if ((!compressed_data_found) && (use_bzip2)) { // no Base64 header -> bZip2?
       // BZhx = header, x = compression level/blocksize (1-9)
       if ((in_buf[cb] == 'B') && (in_buf[cb + 1] == 'Z') && (in_buf[cb + 2] == 'h')) {
         int compression_level = in_buf[cb + 3] - '0';
@@ -4083,11 +3997,11 @@ bool compress_file(float min_percent, float max_percent) {
     }
 
 
-   // Nothing so far -> if slow mode is enabled, look for raw zLib header
+   // nothing so far -> if slow mode is enabled, look for raw zLib header
    if ((slow_mode) && ((slow_mode_depth_limit == -1) || (recursion_depth <= slow_mode_depth_limit))) {
     if (!compressed_data_found) {
       if (((((in_buf[cb] << 8) + in_buf[cb + 1]) % 31) == 0) &&
-          ((in_buf[cb + 1] & 32) == 0)) { //FDICT must not be set
+          ((in_buf[cb + 1] & 32) == 0)) { // FDICT must not be set
         int compression_method = (in_buf[cb] & 15);
         if (compression_method == 8) {
           int windowbits = (in_buf[cb] >> 4) + 8;
@@ -4095,7 +4009,7 @@ bool compress_file(float min_percent, float max_percent) {
           saved_input_file_pos = input_file_pos;
           saved_cb = cb;
 
-          input_file_pos += 2; //Skip zLib header
+          input_file_pos += 2; // skip zLib header
 
           try_decompression_zlib(-windowbits);
 
@@ -4112,7 +4026,7 @@ bool compress_file(float min_percent, float max_percent) {
     }
    } else {
 
-   // Nothing so far -> if brute mode is enabled, brute force for zLib streams
+   // nothing so far -> if brute mode is enabled, brute force for zLib streams
    if ((brute_mode) && ((brute_mode_depth_limit == -1) || (recursion_depth <= brute_mode_depth_limit))) {
     if (!compressed_data_found) {
       saved_input_file_pos = input_file_pos;
@@ -4157,10 +4071,6 @@ void decompress_file() {
     init_decompress_otf();
   }
 
-  //fseek(fin, 0, SEEK_END);
-  //int fin_length = ftell(fin);
-  //fseek(fin, 0, SEEK_SET);
-
   #ifndef PRECOMPDLL
   if (recursion_depth == 0)  {
     if (!DEBUG_MODE) {
@@ -4183,7 +4093,6 @@ void decompress_file() {
   
   fin_pos = tell_64(fin);
 
-//while (ftell(fin) < fin_length) {
 while (fin_pos < fin_length) {
 
   #ifndef PRECOMPDLL
@@ -4211,7 +4120,7 @@ while (fin_pos < fin_length) {
   #endif
 
   unsigned char header1 = fin_fgetc();
-  if (header1 == 0) { //Uncompressed data
+  if (header1 == 0) { // uncompressed data
     long long uncompressed_data_length;
     uncompressed_data_length = ((long long)fin_fgetc() << 56);
     uncompressed_data_length += ((long long)fin_fgetc() << 48);
@@ -4222,10 +4131,9 @@ while (fin_pos < fin_length) {
     uncompressed_data_length += ((long long)fin_fgetc() << 8);
     uncompressed_data_length += (long long)fin_fgetc();
 
-    if (uncompressed_data_length == 0) break; // End of PCF file, used by bZip2 compress-on-the-fly
+    if (uncompressed_data_length == 0) break; // end of PCF file, used by bZip2 compress-on-the-fly
 
     if (DEBUG_MODE) {
-    //printf("Uncompressed data, length=%i\n", uncompressed_data_length);
     printf("Uncompressed data, length=");
     print64(uncompressed_data_length);
     printf("\n");
@@ -4233,7 +4141,7 @@ while (fin_pos < fin_length) {
 
     fast_copy(fin, fout, uncompressed_data_length);
 
-  } else { //Decompressed data, recompress
+  } else { // decompressed data, recompress
 
     unsigned char headertype = fin_fgetc();
 
@@ -4263,13 +4171,13 @@ while (fin_pos < fin_length) {
       pdf_header_length += (fin_fgetc() << 8);
       pdf_header_length += fin_fgetc();
 
-      //Restore PDF header
+      // restore PDF header
       fprintf(fout, "/FlateDecode");
 
       own_fread(in, 1, pdf_header_length, fin);
       own_fwrite(in, 1, pdf_header_length, fout);
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -4294,10 +4202,10 @@ while (fin_pos < fin_length) {
       printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
       }
 
-      //Keep file position for penalty bytes
+      // keep file position for penalty bytes
       long long old_fout_pos = tell_64(fout);
 
-      // Read BMP header
+      // read BMP header
 
       int bmp_width = 0;
 
@@ -4315,15 +4223,15 @@ while (fin_pos < fin_length) {
       }
 
       if ((bmp_c == 0) || ((bmp_width % 4) == 0)) {
-        // Recompress directly to fout
+        // recompress directly to fout
         retval = def_part(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
         if (retval != Z_OK) {
           printf("Error recompressing data!");
           printf("retval = %i\n", retval);
           exit(0);
         }
-      } else { // Lines aligned to 4 byte, skip those bytes
-        // Recompress directly to fout, but skipping bytes
+      } else { // lines aligned to 4 byte, skip those bytes
+        // recompress directly to fout, but skipping bytes
 
         retval = def_part_skip(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length, bmp_width);
 
@@ -4391,7 +4299,7 @@ while (fin_pos < fin_length) {
       own_fread(in, 1, zip_header_length, fin);
       own_fwrite(in, 1, zip_header_length, fout);
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -4506,7 +4414,7 @@ while (fin_pos < fin_length) {
       own_fread(in, 1, gzip_header_length, fin);
       own_fwrite(in, 1, gzip_header_length, fout);
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -4604,16 +4512,16 @@ while (fin_pos < fin_length) {
       printf("Memory level: %i\n", memlevel);
       }
 
-      //Restore IDAT
+      // restore IDAT
       fprintf(fout, "IDAT");
 
-      //Restore zLib header (decrease by 1)
+      // restore zLib header (decrease by 1)
       own_fread(in, 1, 2, fin);
       unsigned char decchar = *(in + 1) - 1;
       own_fwrite(in, 1, 1, fout);
       fputc(decchar, fout);
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -4686,16 +4594,16 @@ while (fin_pos < fin_length) {
       printf("Memory level: %i\n", memlevel);
       }
 
-      //Restore first IDAT
+      // restore first IDAT
       fprintf(fout, "IDAT");
 
-      //Restore zLib header (decrease by 1)
+      // restore zLib header (decrease by 1)
       own_fread(in, 1, 2, fin);
       unsigned char decchar = *(in + 1) - 1;
       own_fwrite(in, 1, 1, fout);
       fputc(decchar, fout);
 
-      //Get IDAT count
+      // get IDAT count
       own_fread(in, 1, 2, fin);
       idat_count = (in[0] << 8) + in[1];
       idat_count++;
@@ -4703,12 +4611,12 @@ while (fin_pos < fin_length) {
       idat_crcs = (unsigned int*)(realloc(idat_crcs, idat_count * sizeof(unsigned int)));
       idat_lengths = (unsigned int*)(realloc(idat_lengths, idat_count * sizeof(unsigned int)));
 
-      //Get first IDAT length
+      // get first IDAT length
       own_fread(in, 1, 4, fin);
       idat_lengths[0] = (in[0] << 24) + (in[1] << 16) + (in[2] << 8) + in[3];
-      idat_lengths[0] -= 2; //zLib header length
+      idat_lengths[0] -= 2; // zLib header length
 
-      //Get IDAT chunk lengths and CRCs
+      // get IDAT chunk lengths and CRCs
       for (int i = 1; i < idat_count; i++) {
         own_fread(in, 1, 4, fin);
         idat_crcs[i] = (in[0] << 24) + (in[1] << 16) + (in[2] << 8) + in[3];
@@ -4716,7 +4624,7 @@ while (fin_pos < fin_length) {
         idat_lengths[i] = (in[0] << 24) + (in[1] << 16) + (in[2] << 8) + in[3];
       }
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -4755,7 +4663,7 @@ while (fin_pos < fin_length) {
 
       long long old_frecomp_pos = tell_64(frecomp);
 
-      //Recompress data
+      // recompress data
       retval = def(ftempout, frecomp, compression_level, windowbits, memlevel);
       if ((!penalty_bytes_stored) || (retval != Z_OK)) safe_fclose(&frecomp);
       safe_fclose(&ftempout);
@@ -4767,7 +4675,6 @@ while (fin_pos < fin_length) {
       }
 
       if (penalty_bytes_stored) {
-        //frecomp = tryOpen(tempfile2,"wb");
         fflush(frecomp);
 
         int pb_pos = 0;
@@ -4789,7 +4696,6 @@ while (fin_pos < fin_length) {
       unsigned int remaining_bytes = recompressed_data_length;
       unsigned int act_idat_chunk = 0;
       for (;;) {
-        //printf("DEBUG: Remaining bytes: %i - IDAT_length: %i\n", remaining_bytes, idat_lengths[act_idat_chunk]);
         if ((remaining_bytes + 2) > idat_lengths[act_idat_chunk]) {
           fast_copy(frecomp, fout, idat_lengths[act_idat_chunk]);
           remaining_bytes -= idat_lengths[act_idat_chunk];
@@ -4834,7 +4740,7 @@ while (fin_pos < fin_length) {
 
       GifDiffStruct gDiff;
 
-      //Read diff bytes
+      // read diff bytes
       gDiff.GIFDiffIndex = (fin_fgetc() << 24);
       gDiff.GIFDiffIndex += (fin_fgetc() << 16);
       gDiff.GIFDiffIndex += (fin_fgetc() << 8);
@@ -4848,7 +4754,7 @@ while (fin_pos < fin_length) {
       gDiff.GIFDiffIndex = 0;
       gDiff.GIFCodeCount = 0;
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -4887,7 +4793,7 @@ while (fin_pos < fin_length) {
       ftempout = tryOpen(tempfile1,"rb");
       frecomp = tryOpen(tempfile2,"wb");
 
-      //Recompress data
+      // recompress data
       recompress_success = recompress_gif(ftempout, frecomp, block_size, NULL, &gDiff);
 
       safe_fclose(&frecomp);
@@ -5044,22 +4950,22 @@ while (fin_pos < fin_length) {
       fputc('C', fout);
       fputc('W', fout);
       fputc('S', fout);
-      // Get Flash version
+      // get Flash version
       char c = fin_fgetc();
       fputc(c, fout);
-      // Get length from SWF header
+      // get length from SWF header
       for (int i = 0; i < 4; i++) {
         c = fin_fgetc();
         fputc(c, fout);
       }
 
-      //Restore zLib header (decrease by 1)
+      // restore zLib header (decrease by 1)
       own_fread(in, 1, 2, fin);
       unsigned char decchar = *(in + 1) - 1;
       own_fwrite(in, 1, 1, fout);
       fputc(decchar, fout);
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -5147,7 +5053,7 @@ while (fin_pos < fin_length) {
       int line_case = (header1 >> 2) & 3;
       bool recursion_used = ((header1 & 128) == 128);
 
-      // Restore Base64 "header"
+      // restore Base64 "header"
       int base64_header_length;
       base64_header_length = (fin_fgetc() << 8);
       base64_header_length += fin_fgetc();
@@ -5156,10 +5062,10 @@ while (fin_pos < fin_length) {
       printf("Base64 header length: %i\n", base64_header_length);
       }
       own_fread(in, 1, base64_header_length, fin);
-      fputc(*(in) + 1, fout); // First char was decreased
+      fputc(*(in) + 1, fout); // first char was decreased
       own_fwrite(in + 1, 1, base64_header_length - 1, fout);
 
-      // Read line length list
+      // read line length list
       int line_count = fin_fgetc() << 8;
       line_count += fin_fgetc();
       if (line_case == 2) {
@@ -5208,7 +5114,7 @@ while (fin_pos < fin_length) {
         }
       }
 
-      // Re-encode Base64
+      // re-encode Base64
 
       if (recursion_used) {
         recursion_result r = recursion_decompress(recursion_data_length);
@@ -5237,7 +5143,7 @@ while (fin_pos < fin_length) {
       printf("Compression level: %i\n", level);
       }
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -5315,8 +5221,60 @@ while (fin_pos < fin_length) {
 
         seek_64(fout, fsave_fout_pos);
       }
+    } else if (headertype == 10) { // Mp3 recompression
 
+      if (DEBUG_MODE) {
+      printf("Decompressed data - MP3\n");
+      }
 
+      int recompressed_data_length;
+      recompressed_data_length = (fin_fgetc() << 24);
+      recompressed_data_length += (fin_fgetc() << 16);
+      recompressed_data_length += (fin_fgetc() << 8);
+      recompressed_data_length += fin_fgetc();
+
+      int decompressed_data_length;
+      decompressed_data_length = (fin_fgetc() << 24);
+      decompressed_data_length += (fin_fgetc() << 16);
+      decompressed_data_length += (fin_fgetc() << 8);
+      decompressed_data_length += fin_fgetc();
+
+      if (DEBUG_MODE) {
+      printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+      }
+
+      remove(tempfile1);
+      ftempout = tryOpen(tempfile1,"wb");
+
+      fast_copy(fin, ftempout, decompressed_data_length);
+
+      safe_fclose(&ftempout);
+
+      remove(tempfile2);
+
+      bool recompress_success = false;
+
+      {
+        char msg[256];
+        recompress_success = pmplib_convert_file2file(tempfile1, tempfile2, msg);
+        if ((!recompress_success) && (DEBUG_MODE)) {
+          printf ("packMP3 error: %s\n", msg);
+        }
+      }
+
+      if (!recompress_success) {
+        printf("Error recompressing data!");
+        exit(1);
+      }
+
+      frecomp = tryOpen(tempfile2,"rb");
+
+      fast_copy(frecomp, fout, recompressed_data_length);
+
+      safe_fclose(&frecomp);
+
+      remove(tempfile2);
+      remove(tempfile1);
     } else if (headertype == 254) { // brute mode recompression
 
       if (DEBUG_MODE) {
@@ -5337,7 +5295,7 @@ while (fin_pos < fin_length) {
       printf("Memory level: %i\n", memlevel);
       }
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -5436,13 +5394,13 @@ while (fin_pos < fin_length) {
       printf("Memory level: %i\n", memlevel);
       }
 
-      //Restore zLib header (decrease by 1)
+      // restore zLib header (decrease by 1)
       own_fread(in, 1, 2, fin);
       unsigned char decchar = *(in + 1) - 1;
       own_fwrite(in, 1, 1, fout);
       fputc(decchar, fout);
 
-      //Read penalty bytes
+      // read penalty bytes
       if (penalty_bytes_stored) {
         penalty_bytes_len = (fin_fgetc() << 24);
         penalty_bytes_len += (fin_fgetc() << 16);
@@ -5563,7 +5521,7 @@ void convert_file() {
 
   for (;;) {
     bytes_read = own_fread(copybuf, 1, COPY_BUF_SIZE, fin);
-    // Truncate by 9 bytes (Precomp bZip2 delimiter) if converting from bZip2
+    // truncate by 9 bytes (Precomp bZip2 delimiter) if converting from bZip2
     if ((conversion_from_method == 1) && (bytes_read < COPY_BUF_SIZE)) {
       bytes_read -= 9;
       if (bytes_read < 0) {
@@ -5661,29 +5619,18 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
 
             print_work_sign(true);
 
-            //if (file_recompress(comp_level, windowbits, mem_level) == Z_OK) { //Successfully recompressed?
             identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level);
-            if (identical_bytes > -1) { //Successfully recompressed?
+            if (identical_bytes > -1) { // successfully recompressed?
 
               if (identical_bytes > best_identical_bytes) {
 
-                #ifdef DEBUG_FILE
-                  fprintf(fdebug, "Identical recompressed bytes: %i\n", identical_bytes);
-                #endif
-
-                //if (identical_bytes > 4) {
                 if (identical_bytes > min_ident_size) {
 
                   if (DEBUG_MODE) {
                   printf("Identical recompressed bytes: %i\n", identical_bytes);
                   }
 
-                  //DEBUG
-                  //system("copy temp1.dat recomp1.dat");
-                  //system("copy temp2.dat recomp2.dat");
-
-
-                  //Shorten temp2.dat to the identical bytes
+                  // shorten temp2.dat to the identical bytes
                   frecomp = tryOpen(tempfile2,"rb");
                   fident = tryOpen(tempfile2a, "wb");
                   fast_copy(frecomp, fident, identical_bytes);
@@ -5691,7 +5638,7 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
                   safe_fclose(&frecomp);
 
 
-                  //Decompress temp2.dat to temp3.dat for comparison with temp1.dat
+                  // decompress temp2.dat to temp3.dat for comparison with temp1.dat
                   fident = tryOpen(tempfile2a,"rb");
                   fseek(fident, 0, SEEK_SET);
 
@@ -5718,17 +5665,13 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
                   final_compression_found = (identical_bytes_decomp == ftempout_size);
 
                   if (!final_compression_found) {
-                    //Recompress temp3.dat for comparison with input file
+                    // recompress temp3.dat for comparison with input file
                     remove(tempfile4);
                     fdecomp = tryOpen(tempfile3,"rb");
                     frecomp2 = tryOpen(tempfile4,"wb");
                     retval = def(fdecomp, frecomp2, comp_level, windowbits, mem_level);
                     safe_fclose(&frecomp2);
                     safe_fclose(&fdecomp);
-
-                    //DEBUG
-                    //system("copy temp3.dat recomp3.dat");
-                    //system("copy temp4.dat recomp4.dat");
 
                     frecomp2 = tryOpen(tempfile4,"rb");
                   } else { // tempfile4 would be the same as tempfile2a, no need to recompress again
@@ -5772,29 +5715,18 @@ void try_recompress_bzip2(FILE* origfile, int level) {
 
             print_work_sign(true);
 
-            //if (file_recompress(comp_level, windowbits, mem_level) == Z_OK) { //Successfully recompressed?
             identical_bytes = file_recompress_bzip2(origfile, level);
             if (identical_bytes > -1) { //Successfully recompressed?
 
               if (identical_bytes > best_identical_bytes) {
 
-                #ifdef DEBUG_FILE
-                  fprintf(fdebug, "Identical recompressed bytes: %i\n", identical_bytes);
-                #endif
-
-                //if (identical_bytes > 4) {
                 if (identical_bytes > min_ident_size) {
 
                   if (DEBUG_MODE) {
                   printf("Identical recompressed bytes: %i\n", identical_bytes);
                   }
 
-                  //DEBUG
-                  //system("copy temp1.dat recomp1.dat");
-                  //system("copy temp2.dat recomp2.dat");
-
-
-                  //Shorten temp2.dat to the identical bytes
+                  // shorten temp2.dat to the identical bytes
                   frecomp = tryOpen(tempfile2,"rb");
                   fident = tryOpen(tempfile2a, "wb");
                   fast_copy(frecomp, fident, identical_bytes);
@@ -5802,7 +5734,7 @@ void try_recompress_bzip2(FILE* origfile, int level) {
                   safe_fclose(&frecomp);
 
 
-                  //Decompress temp2.dat to temp3.dat for comparison with temp1.dat
+                  // decompress temp2.dat to temp3.dat for comparison with temp1.dat
                   fident = tryOpen(tempfile2a,"rb");
                   fseek(fident, 0, SEEK_SET);
 
@@ -5829,17 +5761,13 @@ void try_recompress_bzip2(FILE* origfile, int level) {
                   final_compression_found = (identical_bytes_decomp == ftempout_size);
 
                   if (!final_compression_found) {
-                    //Recompress temp3.dat for comparison with input file
+                    // recompress temp3.dat for comparison with input file
                     remove(tempfile4);
                     fdecomp = tryOpen(tempfile3,"rb");
                     frecomp2 = tryOpen(tempfile4,"wb");
                     retval = def_bzip2(fdecomp, frecomp2, level);
                     safe_fclose(&frecomp2);
                     safe_fclose(&fdecomp);
-
-                    //DEBUG
-                    //system("copy temp3.dat recomp3.dat");
-                    //system("copy temp4.dat recomp4.dat");
 
                     frecomp2 = tryOpen(tempfile4,"rb");
                   } else { // tempfile4 would be the same as tempfile2a, no need to recompress again
@@ -5883,15 +5811,15 @@ void write_header() {
 
   fprintf(fout, "PCF");
 
-  //Version number
+  // version number
   fputc(V_MAJOR, fout);
   fputc(V_MINOR, fout);
   fputc(V_MINOR2, fout);
 
-  // Compression-on-the-fly method used
+  // compression-on-the-fly method used
   fputc(compression_otf_method, fout);
 
-  //Write input file name without path
+  // write input file name without path
   char* last_backslash = strrchr(input_file_name, PATH_DELIM);
   if (last_backslash != NULL) {
     strcpy(input_file_name_without_path, last_backslash + 1);
@@ -5904,7 +5832,7 @@ void write_header() {
 
   delete[] input_file_name_without_path;
 
-  // Initialize compression-on-the-fly now
+  // initialize compression-on-the-fly now
   if (compression_otf_method != 0) {
     init_compress_otf();
   }
@@ -5928,7 +5856,7 @@ bool check_for_pcf_file() {
     exit(1);
   }
 
-  // Skip compression method
+  // skip compression method
   fread(in, 1, 1, fin);
 
   string header_filename = "";
@@ -5938,10 +5866,10 @@ bool check_for_pcf_file() {
     if (c != 0) header_filename += c;
   } while (c != 0);
 
-  //Append output filename to the executable directory
+  // append output filename to the executable directory
   char exec_dir[1024];
   GetModuleFileName(NULL, exec_dir, 1024);
-  //Truncate to get directory of executable only
+  // truncate to get directory of executable only
   char* lastslash = strrchr(exec_dir, PATH_DELIM) + 1;
   strcpy(lastslash, "");
   header_filename = exec_dir + header_filename;
@@ -6071,7 +5999,7 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
     }
   } else {
     switch (compression_otf_method) {
-      case 1: { //bZip2
+      case 1: { // bZip2
         int flush, ret;
         unsigned have;
 
@@ -6122,7 +6050,7 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
     return fread(ptr, size, count, stream);
   } else {
     switch (compression_otf_method) {
-      case 1: { //bZip2
+      case 1: { // bZip2
         int ret;
         int bytes_read = 0;
 
@@ -6197,7 +6125,6 @@ long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long l
   long long same_byte_count_penalty = 0;
   long long rek_same_byte_count = 0;
   long long rek_same_byte_count_penalty = -1;
-  //int old_same_byte_count = 0;
   long long size1, size2, minsize;
   long long i;
   bool endNow = false;
@@ -6230,35 +6157,34 @@ long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long l
     for (i = 0; i < minsize; i++) {
       if (input_bytes1[i] != input_bytes2[i]) {
 
-        same_byte_count_penalty -= 5; //4 bytes = position, 1 byte = new byte
+        same_byte_count_penalty -= 5; // 4 bytes = position, 1 byte = new byte
 
-        //if same_byte_count_penalty is too low, stop
+        // if same_byte_count_penalty is too low, stop
         if ((long long)(same_byte_count_penalty + (compare_end - same_byte_count)) < 0) {
           endNow = true;
           break;
         }
-        //stop, if local_penalty_bytes_len gets too big
+        // stop, if local_penalty_bytes_len gets too big
         if ((local_penalty_bytes_len + 5) >= MAX_PENALTY_BYTES) {
           endNow = true;
           break;
         }
 
         local_penalty_bytes_len += 5;
-        //Position
+        // position
         local_penalty_bytes[local_penalty_bytes_len-5] = (same_byte_count >> 24) % 256;
         local_penalty_bytes[local_penalty_bytes_len-4] = (same_byte_count >> 16) % 256; 
         local_penalty_bytes[local_penalty_bytes_len-3] = (same_byte_count >> 8) % 256; 
         local_penalty_bytes[local_penalty_bytes_len-2] = same_byte_count % 256;
-        //New byte
+        // new byte
         local_penalty_bytes[local_penalty_bytes_len-1] = input_bytes1[i];
       } else {
         same_byte_count_penalty++;
       }
 
       same_byte_count++;
-      //if (!endNow) old_same_byte_count = same_byte_count;
 
-      if (same_byte_count_penalty > rek_same_byte_count_penalty) {
+	  if (same_byte_count_penalty > rek_same_byte_count_penalty) {
 
         use_penalty_bytes = true;
         rek_penalty_bytes_len = local_penalty_bytes_len;
@@ -6268,7 +6194,6 @@ long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long l
       }
 
     }
-  //} while (minsize == COMP_CHUNK);
   } while ((minsize == COMP_CHUNK) && (!endNow));
 
   if ((rek_penalty_bytes_len > 0) && (use_penalty_bytes)) {
@@ -6278,35 +6203,18 @@ long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long l
     penalty_bytes_len = 0;
   }
 
-
-  /*if (old_same_byte_count != rek_same_byte_count) {
-    printf("old_same_byte_count: %i, rek_same_byte_count: %i\n", old_same_byte_count, rek_same_byte_count);
-    printf("penalty_bytes_len: %i\n\n", penalty_bytes_len);
-    if (old_same_byte_count > rek_same_byte_count) exit(0);
-  }*/
-
-  //return old_same_byte_count;
-
   return rek_same_byte_count;
 }
 
 void try_decompression_gzip(int gzip_header_length) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         int windowbits;
 
-        // Try to decompress at current position
+        // try to decompress at current position
         retval = try_to_decompress(fin, -15);
 
-        if (retval > 0) { //Seems to be a zLib-Stream
+        if (retval > 0) { // seems to be a zLib-Stream
 
           decompressed_streams_count++;
           decompressed_gzip_count++;
@@ -6323,17 +6231,11 @@ void try_decompression_gzip(int gzip_header_length) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = 0; index < 81; index++) {
               if (levels_sorted[index] == -1) break;
               int comp_level = (levels_sorted[index] % 9) + 1;
               int mem_level = (levels_sorted[index] / 9) + 1;
-              #ifdef DEBUG_FILE
-              fprintf(fdebug,"Trying comp_level %i, mem_level %i, windowbits %i\n", comp_level, mem_level, -windowbits);
-              #endif
 
               try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -6341,7 +6243,6 @@ void try_decompression_gzip(int gzip_header_length) {
             }
           }
 
-          //if ((best_identical_bytes > 4) && (best_identical_bytes < identical_bytes_decomp)) {
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_gzip_count++;
@@ -6362,29 +6263,23 @@ void try_decompression_gzip(int gzip_header_length) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Check recursion
+            // check recursion
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
-            //Write compressed data header (GZip) without 2 first bytes
+            // write compressed data header (GZip) without 2 first bytes
 
             int header_byte = 1 + (best_compression << 2);
             if (best_penalty_bytes_len != 0) {
@@ -6394,53 +6289,34 @@ void try_decompression_gzip(int gzip_header_length) {
               header_byte += 128;
             }
             fout_fputc(header_byte);
-            fout_fputc(2); //GZip
+            fout_fputc(2); // GZip
             fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
 
             gzip_header_length -= 2;
 
-            fout_fputc((gzip_header_length >> 16) % 256);
-            fout_fputc((gzip_header_length >> 8) % 256);
-            fout_fputc(gzip_header_length % 256);
+			fout_fput24(gzip_header_length);
 
             own_fwrite(in_buf + cb + 2, 1, gzip_header_length, fout);
 
-            //Store penalty bytes, if any
+            // store penalty bytes, if any
             if (best_penalty_bytes_len != 0) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
-            //Write decompressed data
+            // write decompressed data
             if (r.success) {
               write_decompressed_data(r.file_length, r.file_name);
               remove(r.file_name);
@@ -6449,9 +6325,9 @@ void try_decompression_gzip(int gzip_header_length) {
               write_decompressed_data(best_identical_bytes_decomp);
             }
 
-            //Start new uncompressed data
+            // start new uncompressed data
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += best_identical_bytes - 1;
             cb += best_identical_bytes - 1;
 
@@ -6467,20 +6343,12 @@ void try_decompression_gzip(int gzip_header_length) {
 }
 
 void try_decompression_png (int windowbits) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
-        // Try to decompress at current position
+        // try to decompress at current position
         retval = try_to_decompress(fin, windowbits);
 
-        if (retval > 0) { //Seems to be a zLib-Stream
+        if (retval > 0) { // seems to be a zLib-Stream
 
           decompressed_streams_count++;
           decompressed_png_count++;
@@ -6497,23 +6365,16 @@ void try_decompression_png (int windowbits) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fin, comp_level, mem_level, windowbits);
 
             if (final_compression_found) break;
           }
 
-          //if ((best_identical_bytes > 4) && (best_identical_bytes < identical_bytes_decomp)) {
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_png_count++;
@@ -6533,72 +6394,56 @@ void try_decompression_png (int windowbits) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Write compressed data header (PNG)
+            // write compressed data header (PNG)
 
             if (best_penalty_bytes_len == 0) {
               fout_fputc(1 + (best_compression << 2));
             } else {
               fout_fputc(1 + 2 + (best_compression << 2));
             }
-            fout_fputc(3); //PNG
+            fout_fputc(3); // PNG
             fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
 
-            //Store zLib header, but increased by 1 to prevent finding it
-            //  again in the next pass
+            // store zLib header, but increased by 1 to prevent finding it
+            //   again in the next pass
             own_fwrite(zlib_header, 1, 1, fout);
             unsigned char incchar = *(zlib_header + 1) + 1;
             fout_fputc(incchar);
 
-            //Store penalty bytes, if any
+            // store penalty bytes, if any
             if (best_penalty_bytes_len != 0) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
-
-            //Write decompressed data
+            // write decompressed data
 
             write_decompressed_data(best_identical_bytes_decomp);
 
-            //Start new uncompressed data
+            // start new uncompressed data
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += best_identical_bytes - 1;
             cb += best_identical_bytes - 1;
 
@@ -6614,20 +6459,12 @@ void try_decompression_png (int windowbits) {
 }
 
 void try_decompression_png_multi(int windowbits) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
-        // Try to decompress at current position
+        // try to decompress at current position
         retval = try_to_decompress(fpng, windowbits);
 
-        if (retval > 0) { //Seems to be a zLib-Stream
+        if (retval > 0) { // seems to be a zLib-Stream
 
           decompressed_streams_count++;
           decompressed_png_multi_count++;
@@ -6644,23 +6481,16 @@ void try_decompression_png_multi(int windowbits) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fpng, comp_level, mem_level, windowbits);
 
             if (final_compression_found) break;
           }
 
-          //if ((best_identical_bytes > 4) && (best_identical_bytes < identical_bytes_decomp)) {
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_png_multi_count++;
@@ -6680,42 +6510,36 @@ void try_decompression_png_multi(int windowbits) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Write compressed data header (PNG)
+            // write compressed data header (PNG)
 
             if (best_penalty_bytes_len == 0) {
               fout_fputc(1 + (best_compression << 2));
             } else {
               fout_fputc(1 + 2 + (best_compression << 2));
             }
-            fout_fputc(4); //PNG multi
+            fout_fputc(4); // PNG multi
             fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
 
-            //Store zLib header, but increased by 1 to prevent finding it
-            //  again in the next pass
+            // store zLib header, but increased by 1 to prevent finding it
+            //   again in the next pass
             own_fwrite(zlib_header, 1, 1, fout);
             unsigned char incchar = *(zlib_header + 1) + 1;
             fout_fputc(incchar);
 
-            //Simulate IDAT write to get IDAT pairs count
+            // simulate IDAT write to get IDAT pairs count
             int i = 1;
             int idat_pos = idat_lengths[0] - 2;
             unsigned int idat_pairs_written_count = 0;
@@ -6729,31 +6553,20 @@ void try_decompression_png_multi(int windowbits) {
                 i++;
               } while (i < idat_count);
             }
-            //Store IDAT pairs count
-            fout_fputc((idat_pairs_written_count >> 8) % 256);
-            fout_fputc(idat_pairs_written_count % 256);
+            // store IDAT pairs count
+			fout_fput16(idat_pairs_written_count);
 
-            //Store IDAT CRCs and lengths
-            fout_fputc((idat_lengths[0] >> 24) % 256);
-            fout_fputc((idat_lengths[0] >> 16) % 256);
-            fout_fputc((idat_lengths[0] >> 8) % 256);
-            fout_fputc(idat_lengths[0] % 256);
+            // store IDAT CRCs and lengths
+			fout_fput32(idat_lengths[0]);
 
-            //Store IDAT CRCs and lengths
+            // store IDAT CRCs and lengths
             i = 1;
             idat_pos = idat_lengths[0] - 2;
             idat_pairs_written_count = 0;
             if (idat_pos <= best_identical_bytes) {
               do {
-                fout_fputc((idat_crcs[i] >> 24) % 256);
-                fout_fputc((idat_crcs[i] >> 16) % 256);
-                fout_fputc((idat_crcs[i] >> 8) % 256);
-                fout_fputc(idat_crcs[i] % 256);
-
-                fout_fputc((idat_lengths[i] >> 24) % 256);
-                fout_fputc((idat_lengths[i] >> 16) % 256);
-                fout_fputc((idat_lengths[i] >> 8) % 256);
-                fout_fputc(idat_lengths[i] % 256);
+				fout_fput32(idat_crcs[i]);
+				fout_fput32(idat_lengths[i]);
 
                 idat_pairs_written_count++;
 
@@ -6764,40 +6577,30 @@ void try_decompression_png_multi(int windowbits) {
               } while (i < idat_count);
             }
 
-            //Store penalty bytes, if any
+            // store penalty bytes, if any
             if (best_penalty_bytes_len != 0) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
-
-            //Write decompressed data
+            // write decompressed data
 
             write_decompressed_data(best_identical_bytes_decomp);
 
-            //Start new uncompressed data
+            // start new uncompressed data
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += best_identical_bytes - 1;
             cb += best_identical_bytes - 1;
-            //Now add IDAT chunk overhead
+            // now add IDAT chunk overhead
             input_file_pos += (idat_pairs_written_count * 12);
             cb += (idat_pairs_written_count * 12);
 
@@ -6812,7 +6615,7 @@ void try_decompression_png_multi(int windowbits) {
 
 }
 
-//GIF functions
+// GIF functions
 
 bool newgif_may_write;
 FILE* frecompress_gif = NULL;
@@ -6932,7 +6735,7 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
 
             long long dstfile_pos = tell_64(dstfile);
             seek_64(dstfile, 0);
-            //Change PGF8xa to GIF8xa
+            // change PGF8xa to GIF8xa
             fputc('G', dstfile);
             fputc('I', dstfile);
             seek_64(dstfile, dstfile_pos);
@@ -6952,7 +6755,7 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
           own_fread(&ScreenBuff[i][Col], 1, Width, srcfile);
         }
 
-        // This does send a clear code, so we pass g and gd
+        // this does send a clear code, so we pass g and gd
         EGifPutImageDesc(newGifFile, g, gd, Row, Col, Width, Height, myGifFile->Image.Interlace, myGifFile->Image.ColorMap);
 
         newgif_may_write = true;
@@ -7083,7 +6886,7 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
 
             long long dstfile_pos = tell_64(dstfile);
             seek_64(dstfile, 0);
-            //Change GIF8xa to PGF8xa
+            // change GIF8xa to PGF8xa
             fputc('P', dstfile);
             fputc('G', dstfile);
             seek_64(dstfile, dstfile_pos);
@@ -7130,13 +6933,13 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
                   delete[] ScreenBuff;
                 }
                 DGifCloseFile(myGifFile);
-                //TODO: If this fails, write as much rows to dstfile
-                //      as possible to support second decompression.
+                // TODO: If this fails, write as much rows to dstfile
+                //       as possible to support second decompression.
                 return false;
               }
             }
           }
-          //Write to dstfile
+          // write to dstfile
           for (i = Row; i < (Row + Height); i++) {
             own_fwrite(&ScreenBuff[i][Col], 1, Width, dstfile);
           }
@@ -7152,7 +6955,7 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
               DGifCloseFile(myGifFile);
               return false;
             }
-            //Write to dstfile
+            // write to dstfile
             own_fwrite(&ScreenBuff[i][Col], 1, Width, dstfile);
           }
         }
@@ -7237,7 +7040,7 @@ void try_decompression_gif(unsigned char version[5]) {
 
   seek_64(fin, input_file_pos);
 
-  //Read GIF file
+  // read GIF file
   ftempout = tryOpen(tempfile1, "wb");
 
   if (!decompress_gif(fin, ftempout, input_file_pos, gif_length, decomp_length, block_size, &gCode)) {
@@ -7265,7 +7068,6 @@ void try_decompression_gif(unsigned char version[5]) {
     safe_fclose(&ftempout);
 
     frecomp = tryOpen(tempfile2,"rb");
-    //best_identical_bytes = compare_files(fin, frecomp, input_file_pos, 0);
     best_identical_bytes = compare_files_penalty(fin, frecomp, input_file_pos, 0);
     safe_fclose(&frecomp);
 
@@ -7279,14 +7081,14 @@ void try_decompression_gif(unsigned char version[5]) {
       int decomp_length2 = -1;
       unsigned char block_size2 = 255;
 
-      //Shorten temp2.dat to the identical bytes
+      // shorten temp2.dat to the identical bytes
       frecomp = tryOpen(tempfile2,"rb");
       fident = tryOpen(tempfile2a, "wb");
       fast_copy(frecomp, fident, best_identical_bytes);
       safe_fclose(&fident);
       safe_fclose(&frecomp);
 
-      //Decompress temp2.dat to temp3.dat for comparison with temp1.dat
+      // decompress temp2.dat to temp3.dat for comparison with temp1.dat
       fident = tryOpen(tempfile2a,"rb");
       fseek(fident, 0, SEEK_SET);
 
@@ -7296,7 +7098,7 @@ void try_decompression_gif(unsigned char version[5]) {
       GifCodeFree(&gCode);
       GifCodeInit(&gCode);
       decompress_gif(fident, fdecomp, 0, gif_length2, decomp_length2, block_size2, &gCode);
-      // Do not exit on failure as the GIF file was shortened, so
+      // do not exit on failure as the GIF file was shortened, so
       // we surely can't succeed in decompression
 
       safe_fclose(&fdecomp);
@@ -7315,7 +7117,7 @@ void try_decompression_gif(unsigned char version[5]) {
       printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, ftempout_size);
       }
 
-      //Recompress temp3.dat for comparison with input file
+      // recompress temp3.dat for comparison with input file
       GifDiffFree(&gDiff);
       GifDiffInit(&gDiff);
 
@@ -7325,10 +7127,6 @@ void try_decompression_gif(unsigned char version[5]) {
       recompress_success_needed = recompress_gif(fdecomp, frecomp2, block_size2, &gCode, &gDiff);
       safe_fclose(&frecomp2);
       safe_fclose(&fdecomp);
-
-      //DEBUG
-      //system("copy temp3.dat recomp3.dat");
-      //system("copy temp4.dat recomp4.dat");
 
       frecomp2 = tryOpen(tempfile4,"rb");
       real_identical_bytes = compare_files_penalty(fin, frecomp2, input_file_pos, 0);
@@ -7360,12 +7158,12 @@ void try_decompression_gif(unsigned char version[5]) {
         best_penalty_bytes_len = 0;
       }
 
-      //End uncompressed data
+      // end uncompressed data
 
       compressed_data_found = true;
       end_uncompressed_data();
 
-      //Write compressed data header (GIF)
+      // write compressed data header (GIF)
 
       unsigned char add_bits = 0;
       if (best_penalty_bytes_len != 0) add_bits += 2;
@@ -7373,13 +7171,10 @@ void try_decompression_gif(unsigned char version[5]) {
       if (recompress_success_needed) add_bits += 128;
 
       fout_fputc(1 + add_bits);
-      fout_fputc(5); //GIF
+      fout_fputc(5); // GIF
 
-      //Store diff bytes
-      fout_fputc((gDiff.GIFDiffIndex >> 24) % 256);
-      fout_fputc((gDiff.GIFDiffIndex >> 16) % 256);
-      fout_fputc((gDiff.GIFDiffIndex >> 8) % 256);
-      fout_fputc(gDiff.GIFDiffIndex % 256);
+      // store diff bytes
+	  fout_fput32(gDiff.GIFDiffIndex);
       if(DEBUG_MODE) {
         if (gDiff.GIFDiffIndex > 0)
           printf("Diff bytes were used: %i bytes\n", gDiff.GIFDiffIndex);
@@ -7388,39 +7183,29 @@ void try_decompression_gif(unsigned char version[5]) {
         fout_fputc(gDiff.GIFDiff[dbc]);
       }
 
-      //Store penalty bytes, if any
+      // store penalty bytes, if any
       if (best_penalty_bytes_len != 0) {
         if (DEBUG_MODE) {
           printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
         }
 
-        fout_fputc((best_penalty_bytes_len >> 24) % 256);
-        fout_fputc((best_penalty_bytes_len >> 16) % 256);
-        fout_fputc((best_penalty_bytes_len >> 8) % 256);
-        fout_fputc(best_penalty_bytes_len % 256);
+		fout_fput32(best_penalty_bytes_len);
 
         for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
           fout_fputc(best_penalty_bytes[pbc]);
         }
       }
 
-      fout_fputc((best_identical_bytes >> 24) % 256);
-      fout_fputc((best_identical_bytes >> 16) % 256);
-      fout_fputc((best_identical_bytes >> 8) % 256);
-      fout_fputc(best_identical_bytes % 256);
+	  fout_fput32(best_identical_bytes);
+	  fout_fput32(decomp_length);
 
-      fout_fputc((decomp_length >> 24) % 256);
-      fout_fputc((decomp_length >> 16) % 256);
-      fout_fputc((decomp_length >> 8) % 256);
-      fout_fputc(decomp_length % 256);
-
-      //Write decompressed data
+      // write decompressed data
 
       write_decompressed_data(decomp_length);
 
-      //Start new uncompressed data
+      // start new uncompressed data
 
-      //Set input file pointer after recompressed data
+      // set input file pointer after recompressed data
       input_file_pos += gif_length - 1;
       cb += gif_length - 1;
 
@@ -7440,20 +7225,19 @@ void try_decompression_gif(unsigned char version[5]) {
   GifDiffFree(&gDiff);
   GifCodeFree(&gCode);
 
-  //exit(0); //Use this to have a look at ~temp1.dat and ~temp2.dat
-
   remove(tempfile2);
   remove(tempfile1);
 
 }
 
-//JPEG routines
+// JPG routines
 
-void packjpg_dll_msg() {
+void packjpg_mp3_dll_msg() {
 
-  printf("Using PackJPG for JPG recompression.\n");
+  printf("Using packJPG for JPG recompression, packMP3 for MP3 recompression.\n");
   printf("%s\n", pjglib_version_info());
-  printf("More about PackJPG here: http://www.elektronik.htw-aalen.de/packjpg\n\n");
+  printf("%s\n", pmplib_version_info());
+  printf("More about packJPG and packMP3 here: http://www.matthiasstirner.com\n\n");
 
 }
 
@@ -7470,18 +7254,18 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           printf (", length ");
           print64(jpg_length);
           printf ("\n");
-          // Do not recompress non-progressive JPGs when prog_only is set
+          // do not recompress non-progressive JPGs when prog_only is set
           if ((!progressive_jpg) && (prog_only)) {
             printf("Skipping (only progressive JPGs mode set)\n");
           }
         }
 
-        // Do not recompress non-progressive JPGs when prog_only is set
+        // do not recompress non-progressive JPGs when prog_only is set
         if ((!progressive_jpg) && (prog_only)) return;
 
         bool jpg_success = false;
 
-        // Try to decompress at current position
+        // try to decompress at current position
         fjpg = tryOpen(tempfile0,"wb");
         seek_64(fin, input_file_pos);
         fast_copy(fin, fjpg, jpg_length);
@@ -7502,7 +7286,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 
           if ((!recompress_success) && (strncmp(msg, "huffman table missing", 21) == 0) && (use_mjpeg)) {
             if (DEBUG_MODE) printf ("huffman table missing, trying to use Motion JPEG DHT\n");
-            // Search 0xFF 0xDA, insert MJPGDHT (MJPGDHT_LEN bytes)
+            // search 0xFF 0xDA, insert MJPGDHT (MJPGDHT_LEN bytes)
             fjpg = tryOpen(tempfile0,"rb");
             bool found_ffda = false;
             bool found_ff = false;
@@ -7522,7 +7306,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
               fdecomp = tryOpen(tempfile3,"wb");
               seek_64(fjpg, 0);
               fast_copy(fjpg, fdecomp, ffda_pos - 1);
-              // Insert MJPGDHT
+              // insert MJPGDHT
               own_fwrite(MJPGDHT, 1, MJPGDHT_LEN, fdecomp);
               seek_64(fjpg, ffda_pos - 1);
               fast_copy(fjpg, fdecomp, jpg_length - (ffda_pos - 1));
@@ -7573,36 +7357,120 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           printf("Best match: %i bytes, recompressed to %i bytes\n", best_identical_bytes, best_identical_bytes_decomp);
           }
 
-          //End uncompressed data
+          // end uncompressed data
 
           compressed_data_found = true;
           end_uncompressed_data();
 
-          //Write compressed data header (JPG)
+          // write compressed data header (JPG)
 
           if (mjpg_dht_used) {
-            fout_fputc(1 + 4); //No penalty bytes, Motion JPG DHT used
+            fout_fputc(1 + 4); // no penalty bytes, Motion JPG DHT used
           } else {
-            fout_fputc(1); //No penalty bytes
+            fout_fputc(1); // no penalty bytes
           }
-          fout_fputc(6); //JPG
+          fout_fputc(6); // JPG
 
-          fout_fputc((best_identical_bytes >> 24) % 256);
-          fout_fputc((best_identical_bytes >> 16) % 256);
-          fout_fputc((best_identical_bytes >> 8) % 256);
-          fout_fputc(best_identical_bytes % 256);
+		  fout_fput32(best_identical_bytes);
+		  fout_fput32(best_identical_bytes_decomp);
 
-          fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-          fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-          fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-          fout_fputc(best_identical_bytes_decomp % 256);
-
-          //Write compressed JPG
+          // write compressed JPG
           write_decompressed_data(best_identical_bytes_decomp);
 
-          //Start new uncompressed data
+          // start new uncompressed data
 
-          //Set input file pointer after recompressed data
+          // set input file pointer after recompressed data
+          input_file_pos += best_identical_bytes - 1;
+          cb += best_identical_bytes - 1;
+
+        } else {
+          if (DEBUG_MODE) {
+          printf("No matches\n");
+          }
+        }
+
+}
+
+void try_decompression_mp3 (long long mp3_length) {
+
+        if (DEBUG_MODE) {
+          print_debug_percent();
+          printf ("Possible MP3 found at position ");
+          print64(saved_input_file_pos);
+          printf (", length ");
+          print64(mp3_length);
+          printf ("\n");
+        }
+
+        bool mp3_success = false;
+
+        // try to decompress at current position
+        fmp3 = tryOpen(tempfile0,"wb");
+        seek_64(fin, input_file_pos);
+        fast_copy(fin, fmp3, mp3_length);
+        safe_fclose(&fmp3);
+        remove(tempfile1);
+
+        // workaround for bugs, similar to packJPG
+        FILE* fworkaround = tryOpen(tempfile1,"wb");
+        safe_fclose(&fworkaround);
+
+        bool recompress_success = false;
+        {
+          char msg[256];
+          recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, msg);
+          
+          decompressed_streams_count++;
+          decompressed_mp3_count++;
+
+          if (!recompress_success) {
+            if (DEBUG_MODE) printf ("packMP3 error: %s\n", msg);
+          }
+
+          remove(tempfile0);
+        }
+
+        if (recompress_success) {
+          ftempout = tryOpen(tempfile1,"rb");
+          fseek(ftempout, 0, SEEK_END);
+          int mp3_new_length = ftell(ftempout);
+          safe_fclose(&ftempout);
+          if (mp3_new_length > 0) {
+            recompressed_streams_count++;
+            recompressed_mp3_count++;
+            non_zlib_was_used = true;
+
+            best_identical_bytes = mp3_length;
+            best_identical_bytes_decomp = mp3_new_length;
+            mp3_success = true;
+          }
+        }
+
+        if (mp3_success) {
+
+          if (DEBUG_MODE) {
+          printf("Best match: %i bytes, recompressed to %i bytes\n", best_identical_bytes, best_identical_bytes_decomp);
+          }
+
+          // end uncompressed data
+
+          compressed_data_found = true;
+          end_uncompressed_data();
+
+          // write compressed data header (MP3)
+
+          fout_fputc(1); // no penalty bytes
+          fout_fputc(10); // MP3
+
+		  fout_fputc(best_identical_bytes);
+		  fout_fputc(best_identical_bytes_decomp);
+
+          // write compressed MP3
+          write_decompressed_data(best_identical_bytes_decomp);
+
+          // start new uncompressed data
+
+          // set input file pointer after recompressed data
           input_file_pos += best_identical_bytes - 1;
           cb += best_identical_bytes - 1;
 
@@ -7615,20 +7483,12 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 }
 
 void try_decompression_zlib(int windowbits) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
-        // Try to decompress at current position
+        // try to decompress at current position
         retval = try_to_decompress(fin, windowbits);
 
-        if (retval > 0) { //Seems to be a zLib-Stream
+        if (retval > 0) { // seems to be a zLib-Stream
 
           decompressed_streams_count++;
           decompressed_zlib_count++;
@@ -7657,23 +7517,16 @@ void try_decompression_zlib(int windowbits) {
             return;
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fin, comp_level, mem_level, windowbits);
 
             if (final_compression_found) break;
           }
 
-          //if ((best_identical_bytes > 4) && (best_identical_bytes < identical_bytes_decomp)) {
           if ((best_identical_bytes > min_ident_size_slow_brute_mode) && (best_identical_bytes < identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_zlib_count++;
@@ -7693,29 +7546,23 @@ void try_decompression_zlib(int windowbits) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Check recursion
+            // check recursion
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
-            //Write compressed data header (zLib)
+            // write compressed data header (zLib)
 
             int header_byte = 1 + (best_compression << 2);
             if (best_penalty_bytes_len != 0) {
@@ -7725,51 +7572,34 @@ void try_decompression_zlib(int windowbits) {
               header_byte += 128;
             }
             fout_fputc(header_byte);
-            fout_fputc(255); //raw zLib
+            fout_fputc(255); // raw zLib
             fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
 
-            //Store zLib header, but increased by 1 to prevent finding it
-            //  again in the next pass
+            // store zLib header, but increased by 1 to prevent finding it
+            //   again in the next pass
             own_fwrite(in_buf + cb, 1, 1, fout);
             unsigned char incchar = *(in_buf + cb + 1) + 1;
             fout_fputc(incchar);
 
-            //Store penalty bytes, if any
+            // store penalty bytes, if any
             if (best_penalty_bytes_len != 0) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fputc(best_identical_bytes);
+			fout_fputc(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
-            // Write decompressed data
+            // write decompressed data
             if (r.success) {
               write_decompressed_data(r.file_length, r.file_name);
               remove(r.file_name);
@@ -7778,9 +7608,9 @@ void try_decompression_zlib(int windowbits) {
               write_decompressed_data(best_identical_bytes_decomp);
             }
 
-            //Start new uncompressed data
+            // start new uncompressed data
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += best_identical_bytes - 1;
             cb += best_identical_bytes - 1;
 
@@ -7796,22 +7626,14 @@ void try_decompression_zlib(int windowbits) {
 }
 
 void try_decompression_brute() {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
         int windowbits;
 
-        // Try to decompress at current position
+        // try to decompress at current position
         retval = try_to_decompress(fin, -15);
 
-        if (retval > 0) { //Seems to be a zLib-Stream
+        if (retval > 0) { // seems to be a zLib-Stream
 
           decompressed_streams_count++;
           decompressed_brute_count++;
@@ -7840,17 +7662,11 @@ void try_decompression_brute() {
             return;
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
-	  for (windowbits = -15; windowbits < -7; windowbits++) {
+          for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = 0; index < 81; index++) {
               if (levels_sorted[index] == -1) break;
               int comp_level = (levels_sorted[index] % 9) + 1;
               int mem_level = (levels_sorted[index] / 9) + 1;
-              #ifdef DEBUG_FILE
-              fprintf(fdebug,"Trying comp_level %i, mem_level %i, windowbits %i\n", comp_level, mem_level, -windowbits);
-              #endif
 
               try_recompress(fin, comp_level, mem_level, windowbits);
 
@@ -7858,7 +7674,6 @@ void try_decompression_brute() {
             }
           }
 
-          //if ((best_identical_bytes > 4) && (best_identical_bytes < identical_bytes_decomp)) {
           if ((best_identical_bytes > min_ident_size_slow_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_brute_count++;
@@ -7879,29 +7694,23 @@ void try_decompression_brute() {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Check recursion
+            // check recursion
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
-            //Write compressed data header (brute)
+            // write compressed data header (brute)
 
             int header_byte = 1 + (best_compression << 2);
             if (best_penalty_bytes_len != 0) {
@@ -7911,45 +7720,28 @@ void try_decompression_brute() {
               header_byte += 128;
             }
             fout_fputc(header_byte);
-            fout_fputc(254); //brute
+            fout_fputc(254); // brute
             fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
 
-            //Store penalty bytes, if any
+            // store penalty bytes, if any
             if (best_penalty_bytes_len != 0) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
-            // Write decompressed data
+            // write decompressed data
             if (r.success) {
               write_decompressed_data(r.file_length, r.file_name);
               remove(r.file_name);
@@ -7958,7 +7750,7 @@ void try_decompression_brute() {
               write_decompressed_data(best_identical_bytes_decomp);
             }
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += best_identical_bytes - 1;
             cb += best_identical_bytes - 1;
 
@@ -7974,20 +7766,12 @@ void try_decompression_brute() {
 }
 
 void try_decompression_swf(int windowbits, char swf_version) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
-        // Try to decompress at current position
+        // try to decompress at current position
         retval = try_to_decompress(fin, windowbits);
 
-        if (retval > 0) { //Seems to be a zLib-Stream
+        if (retval > 0) { // seems to be a zLib-Stream
 
           decompressed_streams_count++;
           decompressed_swf_count++;
@@ -8006,23 +7790,16 @@ void try_decompression_swf(int windowbits, char swf_version) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
-            #ifdef DEBUG_FILE
-            fprintf(fdebug,"Trying comp_level %i, mem_level %i\n", comp_level, mem_level);
-            #endif
 
             try_recompress(fin, comp_level, mem_level, windowbits);
 
             if (final_compression_found) break;
           }
 
-          //if ((best_identical_bytes > 4) && (best_identical_bytes < identical_bytes_decomp)) {
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_swf_count++;
@@ -8042,29 +7819,23 @@ void try_decompression_swf(int windowbits, char swf_version) {
                 }
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
                 sort_comp_mem_levels();
-                #ifdef DEBUG_FILE
-                fprintf(fdebug,"Compression level %i, mem level %i has new count: %i\n", best_compression, best_mem_level, comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]);
-                #endif
               }
             }
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Check recursion
+            // check recursion
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
-            //Write compressed data header (SWF)
+            // write compressed data header (SWF)
 
             int header_byte = 1 + (best_compression << 2);
             if (best_penalty_bytes_len != 0) {
@@ -8079,51 +7850,34 @@ void try_decompression_swf(int windowbits, char swf_version) {
 
             fout_fputc(swf_version);
 
-            // Store length from SWF header
+            // store length from SWF header
             own_fwrite(in_buf + cb + 4, 1, 4, fout);
 
-            //Store zLib header, but increased by 1 to prevent finding it
-            //  again in the next pass
+            // store zLib header, but increased by 1 to prevent finding it
+            //   again in the next pass
             own_fwrite(in_buf + cb + 8, 1, 1, fout);
             unsigned char incchar = *(in_buf + cb + 9) + 1;
             fout_fputc(incchar);
 
-            //Store penalty bytes, if any
+            // store penalty bytes, if any
             if (best_penalty_bytes_len != 0) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
-            // Write decompressed data
+            // write decompressed data
             if (r.success) {
               write_decompressed_data(r.file_length, r.file_name);
               remove(r.file_name);
@@ -8132,9 +7886,9 @@ void try_decompression_swf(int windowbits, char swf_version) {
               write_decompressed_data(best_identical_bytes_decomp);
             }
 
-            //Start new uncompressed data
+            // start new uncompressed data
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += best_identical_bytes - 1;
             cb += best_identical_bytes - 1;
 
@@ -8149,20 +7903,12 @@ void try_decompression_swf(int windowbits, char swf_version) {
 }
 
 void try_decompression_bzip2(int compression_level) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
-        // Try to decompress at current position
+        // try to decompress at current position
         retval = try_to_decompress_bzip2(fin, compression_level);
 
-        if (retval > 0) { //Seems to be a zLib-Stream
+        if (retval > 0) { // seems to be a zLib-Stream
 
           decompressed_streams_count++;
           decompressed_bzip2_count++;
@@ -8181,10 +7927,6 @@ void try_decompression_bzip2(int compression_level) {
           safe_fclose(&ftempout);
           }
 
-          #ifdef DEBUG_FILE
-          fprintf(fdebug,"----\n");
-          #endif
-          
           try_recompress_bzip2(fin, compression_level);
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < identical_bytes_decomp)) {
@@ -8197,15 +7939,15 @@ void try_decompression_bzip2(int compression_level) {
 
             non_zlib_was_used = true;
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Check recursion
+            // check recursion
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
-            //Write compressed data header (bZip2)
+            // write compressed data header (bZip2)
 
             int header_byte = 1;
             if (best_penalty_bytes_len != 0) {
@@ -8218,42 +7960,25 @@ void try_decompression_bzip2(int compression_level) {
             fout_fputc(9); // Base64
             fout_fputc(compression_level);
 
-            //Store penalty bytes, if any
+            // store penalty bytes, if any
             if (best_penalty_bytes_len != 0) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fputc((best_penalty_bytes_len >> 24) % 256);
-              fout_fputc((best_penalty_bytes_len >> 16) % 256);
-              fout_fputc((best_penalty_bytes_len >> 8) % 256);
-              fout_fputc(best_penalty_bytes_len % 256);
+			  fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fputc((best_identical_bytes >> 24) % 256);
-            fout_fputc((best_identical_bytes >> 16) % 256);
-            fout_fputc((best_identical_bytes >> 8) % 256);
-            fout_fputc(best_identical_bytes % 256);
-
-            fout_fputc((best_identical_bytes_decomp >> 24) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 16) % 256);
-            fout_fputc((best_identical_bytes_decomp >> 8) % 256);
-            fout_fputc(best_identical_bytes_decomp % 256);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
-            // Write decompressed data
+            // write decompressed data
             if (r.success) {
               write_decompressed_data(r.file_length, r.file_name);
               remove(r.file_name);
@@ -8262,9 +7987,9 @@ void try_decompression_bzip2(int compression_level) {
               write_decompressed_data(best_identical_bytes_decomp);
             }
 
-            //Start new uncompressed data
+            // start new uncompressed data
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += best_identical_bytes - 1;
             cb += best_identical_bytes - 1;
 
@@ -8295,7 +8020,7 @@ unsigned char base64_char_decode(unsigned char c) {
   if (c == '/') return 63;
 
   if (c == '=') return 64; // padding
-  return 65; //invalid
+  return 65; // invalid
 }
 
 void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_count, int max_byte_count) {
@@ -8316,7 +8041,7 @@ void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_c
             }
             remaining_bytes -= avail_in;
 
-            // Make sure avail_in mod 3 = 0, pad with 0 bytes
+            // make sure avail_in mod 3 = 0, pad with 0 bytes
             while ((avail_in % 3) != 0) {
               in[avail_in] = 0;
               avail_in++;
@@ -8329,7 +8054,7 @@ void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_c
               if (act_byte_count < max_byte_count) own_fputc(b64[a >> 2], file_out);
               act_byte_count++;
               act_line_len++;
-              if (act_line_len == base64_line_len[line_nr]) { // End of line, write CRLF
+              if (act_line_len == base64_line_len[line_nr]) { // end of line, write CRLF
                 if (act_byte_count < max_byte_count) own_fputc(13, file_out);
                 act_byte_count++;
                 if (act_byte_count < max_byte_count) own_fputc(10, file_out);
@@ -8341,7 +8066,7 @@ void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_c
               if (act_byte_count < max_byte_count) own_fputc(b64[((a & 0x03) << 4) | (b >> 4)], file_out);
               act_byte_count++;
               act_line_len++;
-              if (act_line_len == base64_line_len[line_nr]) { // End of line, write CRLF
+              if (act_line_len == base64_line_len[line_nr]) { // end of line, write CRLF
                 if (act_byte_count < max_byte_count) own_fputc(13, file_out);
                 act_byte_count++;
                 if (act_byte_count < max_byte_count) own_fputc(10, file_out);
@@ -8353,7 +8078,7 @@ void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_c
               if (act_byte_count < max_byte_count) own_fputc(b64[((b & 0x0F) << 2) | (c >> 6)], file_out);
               act_byte_count++;
               act_line_len++;
-              if (act_line_len == base64_line_len[line_nr]) { // End of line, write CRLF
+              if (act_line_len == base64_line_len[line_nr]) { // end of line, write CRLF
                 if (act_byte_count < max_byte_count) own_fputc(13, file_out);
                 act_byte_count++;
                 if (act_byte_count < max_byte_count) own_fputc(10, file_out);
@@ -8365,7 +8090,7 @@ void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_c
               if (act_byte_count < max_byte_count) own_fputc(b64[c & 63], file_out);
               act_byte_count++;
               act_line_len++;
-              if (act_line_len == base64_line_len[line_nr]) { // End of line, write CRLF
+              if (act_line_len == base64_line_len[line_nr]) { // end of line, write CRLF
                 if (act_byte_count < max_byte_count) own_fputc(13, file_out);
                 act_byte_count++;
                 if (act_byte_count < max_byte_count) own_fputc(10, file_out);
@@ -8381,17 +8106,9 @@ void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_c
 }
 
 void try_decompression_base64(int base64_header_length) {
-  identical_bytes = -1;
-  best_identical_bytes = -1;
-  best_compression = -1;
-  best_mem_level = -1;
-  best_penalty_bytes_len = 0;
-  best_identical_bytes_decomp = -1;
-  identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
-  final_compression_found = false;
+  init_decompression_variables();
 
-        // Try to decode at current position
+        // try to decode at current position
         remove(tempfile1);
         ftempout = tryOpen(tempfile1,"wb");
         seek_64(fin, input_file_pos);
@@ -8413,7 +8130,7 @@ void try_decompression_base64(int base64_header_length) {
         do {
           avail_in = fread(in, 1, CHUNK, fin);
           for (i = 0; i < (avail_in >> 2); i++) {
-            // Are these valid base64 chars?
+            // are these valid base64 chars?
             for (j = (i << 2); j < ((i << 2) + 4); j++) {
               c = base64_char_decode(in[j]);
               if (c < 64) {
@@ -8426,7 +8143,7 @@ void try_decompression_base64(int base64_header_length) {
               if ((in[j] == 13) || (in[j] == 10)) {
                 if (in[j] == 13) {
                   cr_count++;
-                  if (cr_count == 2) { // Double CRLF -> base64 end
+                  if (cr_count == 2) { // double CRLF -> base64 end
                     stream_finished = true;
                     break;
                   }
@@ -8489,7 +8206,7 @@ void try_decompression_base64(int base64_header_length) {
 
         if (!decoding_failed) {
           int line_case = -1;
-          // Check line case
+          // check line case
           if (line_count == 1) {
             line_case = 0; // one length for all lines
           } else {
@@ -8526,7 +8243,7 @@ void try_decompression_base64(int base64_header_length) {
           printf ("Can be decoded to %i bytes\n", identical_bytes);
           }
 
-          // Try to re-encode Base64 data
+          // try to re-encode Base64 data
 
           ftempout = fopen(tempfile1,"rb");
           if (ftempout == NULL) {
@@ -8551,31 +8268,29 @@ void try_decompression_base64(int base64_header_length) {
             printf("Match: encoded to %i bytes\n", identical_bytes_decomp);
             }
 
-            //End uncompressed data
+            // end uncompressed data
 
             compressed_data_found = true;
             end_uncompressed_data();
 
-            //Check recursion
+            // check recursion
             recursion_result r = recursion_compress(identical_bytes_decomp, identical_bytes);
 
-            //Write compressed data header (Base64)
+            // write compressed data header (Base64)
             int header_byte = 1 + (line_case << 2);
             if (r.success) {
               header_byte += 128;
             }
             fout_fputc(header_byte);
-            fout_fputc(8); //Base64
+            fout_fputc(8); // Base64
 
-            fout_fputc((base64_header_length >> 8) % 256);
-            fout_fputc(base64_header_length % 256);
+			fout_fput16(base64_header_length);
 
-            //Write "header", but change first char to prevent re-detection
+            // write "header", but change first char to prevent re-detection
             fout_fputc(in_buf[cb] - 1);
             own_fwrite(in_buf + cb + 1, 1, base64_header_length - 1, fout);
 
-            fout_fputc((line_count >> 8) % 256);
-            fout_fputc(line_count % 256);
+			fout_fput16(line_count);
             if (line_case == 2) {
               for (i = 0; i < line_count; i++) {
                 fout_fputc(base64_line_len[i]);
@@ -8585,28 +8300,14 @@ void try_decompression_base64(int base64_header_length) {
               if (line_case == 1) fout_fputc(base64_line_len[line_count - 1]);
             }
 
-            fout_fputc((identical_bytes >> 24) % 256);
-            fout_fputc((identical_bytes >> 16) % 256);
-            fout_fputc((identical_bytes >> 8) % 256);
-            fout_fputc(identical_bytes % 256);
-
-            fout_fputc((identical_bytes_decomp >> 24) % 256);
-            fout_fputc((identical_bytes_decomp >> 16) % 256);
-            fout_fputc((identical_bytes_decomp >> 8) % 256);
-            fout_fputc(identical_bytes_decomp % 256);
+			fout_fput32(identical_bytes);
+			fout_fput32(identical_bytes_decomp);
 
             if (r.success) {
-              fout_fputc((r.file_length >> 56) % 256);
-              fout_fputc((r.file_length >> 48) % 256);
-              fout_fputc((r.file_length >> 40) % 256);
-              fout_fputc((r.file_length >> 32) % 256);
-              fout_fputc((r.file_length >> 24) % 256);
-              fout_fputc((r.file_length >> 16) % 256);
-              fout_fputc((r.file_length >> 8) % 256);
-              fout_fputc(r.file_length % 256);
+			  fout_fput64(r.file_length);
             }
 
-            //Write decompressed data
+            // write decompressed data
             if (r.success) {
               write_decompressed_data(r.file_length, r.file_name);
               remove(r.file_name);
@@ -8615,9 +8316,9 @@ void try_decompression_base64(int base64_header_length) {
               write_decompressed_data(identical_bytes);
             }
 
-            //Start new uncompressed data
+            // start new uncompressed data
 
-            //Set input file pointer after recompressed data
+            // set input file pointer after recompressed data
             input_file_pos += identical_bytes_decomp - 1;
             cb += identical_bytes_decomp - 1;
           } else {
@@ -8633,7 +8334,7 @@ void try_decompression_base64(int base64_header_length) {
 #ifdef COMFORT
 void wait_for_key() {
   printf("\nPress any key to continue\n");
-  //Wait for key
+  // wait for key
   do {
   } while (!kbhit());
 }
@@ -8665,7 +8366,7 @@ void error(int error_nr) {
       break;
     case ERR_DISK_FULL:
       printf("There is not enough space on disk");
-      // Delete output file
+      // delete output file
       safe_fclose(&fout);
       remove(output_file_name);
       break;
@@ -8732,7 +8433,6 @@ long long fileSize64(char* filename) {
   #ifndef UNIX
     unsigned long s1 = 0, s2 = 0;
 
-    //HANDLE h = CreateFile(filename, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     #ifdef _MSC_VER
     HANDLE h = CreateFile(convertCharArrayToLPCWSTR(filename), 0, (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     #else
@@ -8803,18 +8503,18 @@ void init_temp_files() {
     k /= 10;
   }
 
-  // Create meta file
+  // create meta file
   FILE* f = fopen(metatempfile, "wb");
   safe_fclose(&f);
 
-  // Update temporary file list
+  // update temporary file list
   tempfilelist_count += 8;
   tempfilelist = (char*)realloc(tempfilelist, 20 * tempfilelist_count * sizeof(char));
   strcpy(tempfilelist + (tempfilelist_count - 8) * 20, metatempfile);
   strcpy(tempfilelist + (tempfilelist_count - 7) * 20, tempfile0);
   strcpy(tempfilelist + (tempfilelist_count - 6) * 20, tempfile1);
 
-  // Recursion input file
+  // recursion input file
   strcpy(tempfilelist + (tempfilelist_count - 5) * 20, tempfile1);
   tempfilelist[(tempfilelist_count - 5) * 20 + 18] = '_';
   tempfilelist[(tempfilelist_count - 5) * 20 + 19] = 0;
@@ -8866,6 +8566,7 @@ void recursion_push() {
   recursion_stack_push(&fpack, sizeof(fpack));
   recursion_stack_push(&fpng, sizeof(fpng));
   recursion_stack_push(&fjpg, sizeof(fjpg));
+  recursion_stack_push(&fmp3, sizeof(fmp3));
   recursion_stack_push(&in_buf[0], sizeof(in_buf[0]) * IN_BUF_SIZE);
   recursion_stack_push(&metatempfile[0], sizeof(metatempfile[0]) * 18);
   recursion_stack_push(&tempfile0[0], sizeof(tempfile0[0]) * 19);
@@ -8933,6 +8634,7 @@ void recursion_pop() {
   recursion_stack_pop(&tempfile0[0], sizeof(tempfile0[0]) * 19);
   recursion_stack_pop(&metatempfile[0], sizeof(metatempfile[0]) * 18);
   recursion_stack_pop(&in_buf[0], sizeof(in_buf[0]) * IN_BUF_SIZE);
+  recursion_stack_pop(&fmp3, sizeof(fmp3));
   recursion_stack_pop(&fjpg, sizeof(fjpg));
   recursion_stack_pop(&fpng, sizeof(fpng));
   recursion_stack_pop(&fpack, sizeof(fpack));
@@ -8977,7 +8679,7 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
 
   recursion_push();
 
-  // Shorten tempfile1 to decompressed_bytes
+  // shorten tempfile1 to decompressed_bytes
   FILE* ftempfile1 = fopen(tempfile1, "r+b");
   ftruncate(fileno(ftempfile1), decompressed_bytes);
   fclose(ftempfile1);
@@ -9004,7 +8706,7 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   local_penalty_bytes = new char[MAX_PENALTY_BYTES];
   best_penalty_bytes = new char[MAX_PENALTY_BYTES];
 
-  // Disable compression-on-the-fly in recursion - we don't want compressed compressed streams
+  // disable compression-on-the-fly in recursion - we don't want compressed compressed streams
   compression_otf_method = 0;
 
   recursion_depth++;
@@ -9042,7 +8744,7 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   } else {
     if ((recursion_depth + 1) > max_recursion_depth_used)
       max_recursion_depth_used = (recursion_depth + 1);
-    // Get recursion file size
+    // get recursion file size
     tmp_r.file_length = fileSize64(tmp_r.file_name);
   }
 
@@ -9085,7 +8787,7 @@ recursion_result recursion_decompress(long long recursion_data_length) {
   local_penalty_bytes = new char[MAX_PENALTY_BYTES];
   best_penalty_bytes = new char[MAX_PENALTY_BYTES];
 
-  // Disable compression-on-the-fly in recursion - we don't want compressed compressed streams
+  // disable compression-on-the-fly in recursion - we don't want compressed compressed streams
   compression_otf_method = 0;
 
   recursion_depth++;
@@ -9101,7 +8803,7 @@ recursion_result recursion_decompress(long long recursion_data_length) {
     printf("Recursion end - back to recursion depth %i\n", recursion_depth);
   }
 
-  // Get recursion file size
+  // get recursion file size
   tmp_r.file_length = fileSize64(tmp_r.file_name);
 
   tmp_r.frecurse = fopen(tmp_r.file_name, "rb");
@@ -9132,11 +8834,11 @@ void own_fputc(char c, FILE* f) {
 
 void fout_fputc(char c) {
   switch (compression_otf_method) {
-    case 0: { //uncompressed
+    case 0: { // uncompressed
       fputc(c, fout);
       break;
     }
-    case 1: { //bZip2
+    case 1: { // bZip2
       unsigned char temp_buf[1];
       temp_buf[0] = c;
       own_fwrite(temp_buf, 1, 1, fout);
@@ -9145,15 +8847,69 @@ void fout_fputc(char c) {
   }
 }
 
+void fout_fput16(int v) {
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput24(int v) {
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput32_little_endian(int v) {
+  fout_fputc(v % 256);	
+  fout_fputc((v >> 8) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 24) % 256);
+}
+
+void fout_fput32(int v) {
+  fout_fputc((v >> 24) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput32(unsigned int v) {
+  fout_fputc((v >> 24) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput64(long long v) {
+  fout_fputc((v >> 56) % 256);
+  fout_fputc((v >> 48) % 256);
+  fout_fputc((v >> 40) % 256);
+  fout_fputc((v >> 32) % 256);
+  fout_fputc((v >> 24) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
+void fout_fput64(unsigned long long v) {
+  fout_fputc((v >> 56) % 256);
+  fout_fputc((v >> 48) % 256);
+  fout_fputc((v >> 40) % 256);
+  fout_fputc((v >> 32) % 256);
+  fout_fputc((v >> 24) % 256);
+  fout_fputc((v >> 16) % 256);
+  fout_fputc((v >> 8) % 256);
+  fout_fputc(v % 256);	
+}
+
 unsigned char fin_fgetc() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_from_method;
 
   switch (compression_otf_method) {
-    case 0: { //uncompressed
+    case 0: { // uncompressed
       return fgetc(fin);
       break;
     }
-    case 1: { //bZip2
+    case 1: { // bZip2
       unsigned char temp_buf[1];
       own_fread(temp_buf, 1, 1, fin);
       return temp_buf[0];
@@ -9168,7 +8924,7 @@ void init_compress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_to_method;
 
   switch (compression_otf_method) {
-    case 1: { //bZip2
+    case 1: { // bZip2
       otf_bz2_stream_c.bzalloc = NULL;
       otf_bz2_stream_c.bzfree = NULL;
       otf_bz2_stream_c.opaque = NULL;
@@ -9185,9 +8941,9 @@ void denit_compress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_to_method;
 
   switch (compression_otf_method) {
-    case 1: { //bZip2
+    case 1: { // bZip2
 
-      // Uncompressed data of length 0 ends bZip2 compress-on-the-fly data
+      // uncompressed data of length 0 ends bZip2 compress-on-the-fly data
       char final_buf[9];
       for (int i = 0; i < 9; i++) {
         final_buf[i] = 0;
@@ -9204,7 +8960,7 @@ void init_decompress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_from_method;
 
   switch (compression_otf_method) {
-    case 1: { //bZip2
+    case 1: { // bZip2
       otf_bz2_stream_d.bzalloc = NULL;
       otf_bz2_stream_d.bzfree = NULL;
       otf_bz2_stream_d.opaque = NULL;
@@ -9224,7 +8980,7 @@ void denit_decompress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_from_method;
 
   switch (compression_otf_method) {
-    case 1: { //bZip2
+    case 1: { // bZip2
 
       (void)BZ2_bzDecompressEnd(&otf_bz2_stream_d);
       break;
@@ -9232,7 +8988,7 @@ void denit_decompress_otf() {
   }
 }
 
-// Get current time in ms
+// get current time in ms
 long long get_time_ms() {
   #ifndef UNIX
     return GetTickCount();
@@ -9243,7 +8999,7 @@ long long get_time_ms() {
   #endif
 }
 
-// Nice time output, input t in ms
+// nice time output, input t in ms
 // 2^32 ms maximum, so will display incorrect negative values after about 49 days
 void printf_time(long long t) {
   printf("Time: ");
