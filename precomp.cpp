@@ -7247,6 +7247,28 @@ void try_decompression_mp3 (long long mp3_length) {
         {
           char msg[256];
           recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, msg);
+		  
+		  if ((!recompress_success) && (strncmp(msg, "synching failure", 16) == 0)) {
+			  int frame_n;
+			  int pos;
+			  if (sscanf(msg, "synching failure (frame #%i at 0x%X)", &frame_n, &pos) == 2) {
+                if ((pos > 0) && (pos < mp3_length)) {
+                  mp3_length = pos;
+
+                  if (DEBUG_MODE) printf ("Too much garbage data at the end, retry with new length %i\n", pos);
+                  fmp3 = tryOpen(tempfile0, "r+b");
+                  ftruncate(fileno(fmp3), pos);
+                  safe_fclose(&fmp3);
+                  remove(tempfile1);
+
+                  // workaround for bugs, similar to packJPG
+                  FILE* fworkaround = tryOpen(tempfile1,"wb");
+                  safe_fclose(&fworkaround);
+                  
+                  recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, msg);
+                }
+			  }
+		  }
           
           decompressed_streams_count++;
           decompressed_mp3_count++;
@@ -7290,8 +7312,8 @@ void try_decompression_mp3 (long long mp3_length) {
           fout_fputc(1); // no penalty bytes
           fout_fputc(10); // MP3
 
-		  fout_fputc(best_identical_bytes);
-		  fout_fputc(best_identical_bytes_decomp);
+		  fout_fput32(best_identical_bytes);
+		  fout_fput32(best_identical_bytes_decomp);
 
           // write compressed MP3
           write_decompressed_data(best_identical_bytes_decomp);
@@ -7420,8 +7442,8 @@ void try_decompression_zlib(int windowbits) {
               }
             }
 
-			fout_fputc(best_identical_bytes);
-			fout_fputc(best_identical_bytes_decomp);
+			fout_fput32(best_identical_bytes);
+			fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
 			  fout_fput64(r.file_length);
