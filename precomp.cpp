@@ -1104,7 +1104,7 @@ int init_comfort(int argc, char* argv[]) {
       exit(1);
     }
 
-	if (fin_length > 6) {
+    if (fin_length > 6) {
       if (check_for_pcf_file()) {
         operation = P_DECOMPRESS;
       }
@@ -2729,7 +2729,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 
             pdf_header_length -= 12;
 
-			fout_fput24(pdf_header_length);
+            fout_fput24(pdf_header_length);
 
             own_fwrite(in_buf + cb + 12, 1, pdf_header_length, fout);
 
@@ -2738,14 +2738,14 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-			  fout_fput32(best_penalty_bytes_len);
+              fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-			fout_fput32(best_identical_bytes);
-			fout_fput32(best_identical_bytes_decomp);
+            fout_fput32(best_identical_bytes);
+            fout_fput32(best_identical_bytes_decomp);
 
             // eventually write BMP header
 
@@ -2763,7 +2763,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               } else {
                 bmp_size += 54;
               }
-			  fout_fput32_little_endian(bmp_size);
+              fout_fput32_little_endian(bmp_size);
 
               for (i = 0; i < 4; i++) {
                 fout_fputc(0);
@@ -2781,8 +2781,8 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               fout_fputc(0);
               fout_fputc(0);
 
-			  fout_fput32_little_endian(img_width);
-			  fout_fput32_little_endian(img_height);
+              fout_fput32_little_endian(img_width);
+              fout_fput32_little_endian(img_height);
 
               fout_fputc(1);
               fout_fputc(0);
@@ -2802,7 +2802,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 
               int datasize = ((img_width+3) & -4) * img_height;
               if (bmp_header_type == 2) datasize *= 3;
-			  fout_fput32_little_endian(datasize);
+              fout_fput32_little_endian(datasize);
 
               for (i = 0; i < 16; i++) {
                 fout_fputc(0);
@@ -2948,7 +2948,7 @@ void try_decompression_zip(int zip_header_length) {
 
             zip_header_length -= 4;
 
-			fout_fput24(zip_header_length);
+            fout_fput24(zip_header_length);
 
             own_fwrite(in_buf + cb + 4, 1, zip_header_length, fout);
 
@@ -2957,17 +2957,17 @@ void try_decompression_zip(int zip_header_length) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-			  fout_fput32(best_penalty_bytes_len);
+              fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-			fout_fput32(best_identical_bytes);
-			fout_fput32(best_identical_bytes_decomp);
+            fout_fput32(best_identical_bytes);
+            fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-			  fout_fput64(r.file_length);
+              fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -3692,17 +3692,17 @@ bool compress_file(float min_percent, float max_percent) {
             protection  = (in[1] >> 0) & 0x1;
             samples     = (in[2] >> 2) & 0x3;
             channels    = (in[3] >> 6) & 0x3;
-			// type must be MPEG-1, Layer III, packMP3 won't process any other files
-			int type = MBITS( in[1], 5, 1 );
+            // type must be MPEG-1, Layer III, packMP3 won't process any other files
+            int type = MBITS( in[1], 5, 1 );
             if ( type != MPEG1_LAYER_III ) break;
-		  } else if (
+          } else if (
             (mpeg       != ((in[1] >> 3) & 0x3)) ||
             (layer      != ((in[1] >> 1) & 0x3)) ||
             (protection != ((in[1] >> 0) & 0x1)) ||
             (samples    != ((in[2] >> 2) & 0x3)) ||
             (channels   != ((in[3] >> 6) & 0x3))) break;
 
-		  bits     = (in[2] >> 4) & 0xF;
+          bits     = (in[2] >> 4) & 0xF;
           padding  = (in[2] >> 1) & 0x1;
           // check for problems
           if ((mpeg == 0x1) || (layer == 0x0) ||
@@ -3711,16 +3711,16 @@ bool compress_file(float min_percent, float max_percent) {
           frame_size = frame_size_table[mpeg][layer][samples][bits];
           if (padding) frame_size += (layer == LAYER_I) ? 4 : 1;
 
-  		  n++;
+          n++;
           mp3_length += frame_size;
           act_pos += frame_size;
           seek_64(fin, act_pos);
         }
 
         // conditions for proper first frame: 5 consecutive frames,
-		if (n >= 5) {
+        if (n >= 5) {
           try_decompression_mp3(mp3_length);
-		}
+        }
 
         if (!compressed_data_found) {
           input_file_pos = saved_input_file_pos;
@@ -6012,7 +6012,7 @@ long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long l
 
       same_byte_count++;
 
-	  if (same_byte_count_penalty > rek_same_byte_count_penalty) {
+      if (same_byte_count_penalty > rek_same_byte_count_penalty) {
 
         use_penalty_bytes = true;
         rek_penalty_bytes_len = local_penalty_bytes_len;
@@ -6122,7 +6122,7 @@ void try_decompression_gzip(int gzip_header_length) {
 
             gzip_header_length -= 2;
 
-			fout_fput24(gzip_header_length);
+            fout_fput24(gzip_header_length);
 
             own_fwrite(in_buf + cb + 2, 1, gzip_header_length, fout);
 
@@ -6131,17 +6131,17 @@ void try_decompression_gzip(int gzip_header_length) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-			  fout_fput32(best_penalty_bytes_len);
+              fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-			fout_fput32(best_identical_bytes);
-			fout_fput32(best_identical_bytes_decomp);
+            fout_fput32(best_identical_bytes);
+            fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-			  fout_fput64(r.file_length);
+              fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -6256,14 +6256,14 @@ void try_decompression_png (int windowbits) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-			  fout_fput32(best_penalty_bytes_len);
+              fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-			fout_fput32(best_identical_bytes);
-			fout_fput32(best_identical_bytes_decomp);
+            fout_fput32(best_identical_bytes);
+            fout_fput32(best_identical_bytes_decomp);
 
             // write decompressed data
 
@@ -6382,10 +6382,10 @@ void try_decompression_png_multi(int windowbits) {
               } while (i < idat_count);
             }
             // store IDAT pairs count
-			fout_fput16(idat_pairs_written_count);
+            fout_fput16(idat_pairs_written_count);
 
             // store IDAT CRCs and lengths
-			fout_fput32(idat_lengths[0]);
+            fout_fput32(idat_lengths[0]);
 
             // store IDAT CRCs and lengths
             i = 1;
@@ -6393,8 +6393,8 @@ void try_decompression_png_multi(int windowbits) {
             idat_pairs_written_count = 0;
             if (idat_pos <= best_identical_bytes) {
               do {
-				fout_fput32(idat_crcs[i]);
-				fout_fput32(idat_lengths[i]);
+                fout_fput32(idat_crcs[i]);
+                fout_fput32(idat_lengths[i]);
 
                 idat_pairs_written_count++;
 
@@ -6410,14 +6410,14 @@ void try_decompression_png_multi(int windowbits) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-			  fout_fput32(best_penalty_bytes_len);
+              fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-			fout_fput32(best_identical_bytes);
-			fout_fput32(best_identical_bytes_decomp);
+            fout_fput32(best_identical_bytes);
+            fout_fput32(best_identical_bytes_decomp);
 
             // write decompressed data
 
@@ -6467,10 +6467,10 @@ void CopyLine(void* dst, void* src, int count)
 {
     do
     {
-	*(short*) dst = *(short*) src;
-        src = (unsigned char*)src + 2;
-        dst = (unsigned char*)dst + 2;
-	count -= 2;
+      *(short*) dst = *(short*) src;
+      src = (unsigned char*)src + 2;
+      dst = (unsigned char*)dst + 2;
+      count -= 2;
     }
     while (count > 0);
 }
@@ -7002,7 +7002,7 @@ void try_decompression_gif(unsigned char version[5]) {
       fout_fputc(5); // GIF
 
       // store diff bytes
-	  fout_fput32(gDiff.GIFDiffIndex);
+      fout_fput32(gDiff.GIFDiffIndex);
       if(DEBUG_MODE) {
         if (gDiff.GIFDiffIndex > 0)
           printf("Diff bytes were used: %i bytes\n", gDiff.GIFDiffIndex);
@@ -7017,15 +7017,15 @@ void try_decompression_gif(unsigned char version[5]) {
           printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
         }
 
-		fout_fput32(best_penalty_bytes_len);
+        fout_fput32(best_penalty_bytes_len);
 
         for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
           fout_fputc(best_penalty_bytes[pbc]);
         }
       }
 
-	  fout_fput32(best_identical_bytes);
-	  fout_fput32(decomp_length);
+      fout_fput32(best_identical_bytes);
+      fout_fput32(decomp_length);
 
       // write decompressed data
 
@@ -7199,8 +7199,8 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           }
           fout_fputc(6); // JPG
 
-		  fout_fput32(best_identical_bytes);
-		  fout_fput32(best_identical_bytes_decomp);
+          fout_fput32(best_identical_bytes);
+          fout_fput32(best_identical_bytes_decomp);
 
           // write compressed JPG
           write_decompressed_data(best_identical_bytes_decomp);
@@ -7247,28 +7247,28 @@ void try_decompression_mp3 (long long mp3_length) {
         {
           char msg[256];
           recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, msg);
-		  
-		  if ((!recompress_success) && (strncmp(msg, "synching failure", 16) == 0)) {
-			  int frame_n;
-			  int pos;
-			  if (sscanf(msg, "synching failure (frame #%i at 0x%X)", &frame_n, &pos) == 2) {
-                if ((pos > 0) && (pos < mp3_length)) {
-                  mp3_length = pos;
 
-                  if (DEBUG_MODE) printf ("Too much garbage data at the end, retry with new length %i\n", pos);
-                  fmp3 = tryOpen(tempfile0, "r+b");
-                  ftruncate(fileno(fmp3), pos);
-                  safe_fclose(&fmp3);
-                  remove(tempfile1);
+          if ((!recompress_success) && (strncmp(msg, "synching failure", 16) == 0)) {
+            int frame_n;
+            int pos;
+            if (sscanf(msg, "synching failure (frame #%i at 0x%X)", &frame_n, &pos) == 2) {
+              if ((pos > 0) && (pos < mp3_length)) {
+                mp3_length = pos;
 
-                  // workaround for bugs, similar to packJPG
-                  FILE* fworkaround = tryOpen(tempfile1,"wb");
-                  safe_fclose(&fworkaround);
+                if (DEBUG_MODE) printf ("Too much garbage data at the end, retry with new length %i\n", pos);
+                fmp3 = tryOpen(tempfile0, "r+b");
+                ftruncate(fileno(fmp3), pos);
+                safe_fclose(&fmp3);
+                remove(tempfile1);
+
+                // workaround for bugs, similar to packJPG
+                FILE* fworkaround = tryOpen(tempfile1,"wb");
+                safe_fclose(&fworkaround);
                   
-                  recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, msg);
-                }
-			  }
-		  }
+                recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, msg);
+              }
+            }
+          }
           
           decompressed_streams_count++;
           decompressed_mp3_count++;
@@ -7312,8 +7312,8 @@ void try_decompression_mp3 (long long mp3_length) {
           fout_fputc(1); // no penalty bytes
           fout_fputc(10); // MP3
 
-		  fout_fput32(best_identical_bytes);
-		  fout_fput32(best_identical_bytes_decomp);
+          fout_fput32(best_identical_bytes);
+          fout_fput32(best_identical_bytes_decomp);
 
           // write compressed MP3
           write_decompressed_data(best_identical_bytes_decomp);
@@ -7436,17 +7436,17 @@ void try_decompression_zlib(int windowbits) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-			  fout_fput32(best_penalty_bytes_len);
+              fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-			fout_fput32(best_identical_bytes);
-			fout_fput32(best_identical_bytes_decomp);
+            fout_fput32(best_identical_bytes);
+            fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-			  fout_fput64(r.file_length);
+              fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -7578,17 +7578,17 @@ void try_decompression_brute() {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-			  fout_fput32(best_penalty_bytes_len);
+              fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-			fout_fput32(best_identical_bytes);
-			fout_fput32(best_identical_bytes_decomp);
+            fout_fput32(best_identical_bytes);
+            fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-			  fout_fput64(r.file_length);
+              fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -7714,17 +7714,17 @@ void try_decompression_swf(int windowbits, char swf_version) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-			  fout_fput32(best_penalty_bytes_len);
+              fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-			fout_fput32(best_identical_bytes);
-			fout_fput32(best_identical_bytes_decomp);
+            fout_fput32(best_identical_bytes);
+            fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-			  fout_fput64(r.file_length);
+              fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -7815,17 +7815,17 @@ void try_decompression_bzip2(int compression_level) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-			  fout_fput32(best_penalty_bytes_len);
+              fout_fput32(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-			fout_fput32(best_identical_bytes);
-			fout_fput32(best_identical_bytes_decomp);
+            fout_fput32(best_identical_bytes);
+            fout_fput32(best_identical_bytes_decomp);
 
             if (r.success) {
-			  fout_fput64(r.file_length);
+              fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -8134,13 +8134,13 @@ void try_decompression_base64(int base64_header_length) {
             fout_fputc(header_byte);
             fout_fputc(8); // Base64
 
-			fout_fput16(base64_header_length);
+            fout_fput16(base64_header_length);
 
             // write "header", but change first char to prevent re-detection
             fout_fputc(in_buf[cb] - 1);
             own_fwrite(in_buf + cb + 1, 1, base64_header_length - 1, fout);
 
-			fout_fput16(line_count);
+            fout_fput16(line_count);
             if (line_case == 2) {
               for (i = 0; i < line_count; i++) {
                 fout_fputc(base64_line_len[i]);
@@ -8150,11 +8150,11 @@ void try_decompression_base64(int base64_header_length) {
               if (line_case == 1) fout_fputc(base64_line_len[line_count - 1]);
             }
 
-			fout_fput32(identical_bytes);
-			fout_fput32(identical_bytes_decomp);
+            fout_fput32(identical_bytes);
+            fout_fput32(identical_bytes_decomp);
 
             if (r.success) {
-			  fout_fput64(r.file_length);
+              fout_fput64(r.file_length);
             }
 
             // write decompressed data
@@ -8699,17 +8699,17 @@ void fout_fputc(char c) {
 
 void fout_fput16(int v) {
   fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);	
+  fout_fputc(v % 256);
 }
 
 void fout_fput24(int v) {
   fout_fputc((v >> 16) % 256);
   fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);	
+  fout_fputc(v % 256);
 }
 
 void fout_fput32_little_endian(int v) {
-  fout_fputc(v % 256);	
+  fout_fputc(v % 256);
   fout_fputc((v >> 8) % 256);
   fout_fputc((v >> 16) % 256);
   fout_fputc((v >> 24) % 256);
@@ -8719,14 +8719,14 @@ void fout_fput32(int v) {
   fout_fputc((v >> 24) % 256);
   fout_fputc((v >> 16) % 256);
   fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);	
+  fout_fputc(v % 256);
 }
 
 void fout_fput32(unsigned int v) {
   fout_fputc((v >> 24) % 256);
   fout_fputc((v >> 16) % 256);
   fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);	
+  fout_fputc(v % 256);
 }
 
 void fout_fput64(long long v) {
@@ -8737,7 +8737,7 @@ void fout_fput64(long long v) {
   fout_fputc((v >> 24) % 256);
   fout_fputc((v >> 16) % 256);
   fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);	
+  fout_fputc(v % 256);
 }
 
 void fout_fput64(unsigned long long v) {
@@ -8748,7 +8748,7 @@ void fout_fput64(unsigned long long v) {
   fout_fputc((v >> 24) % 256);
   fout_fputc((v >> 16) % 256);
   fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);	
+  fout_fputc(v % 256);
 }
 
 unsigned char fin_fgetc() {
