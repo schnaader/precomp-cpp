@@ -33,7 +33,7 @@ void try_decompression_jpg(long long jpg_length, bool progressive_jpg);
 void try_decompression_mp3(long long mp3_length);
 void try_decompression_zlib(int windowbits);
 void try_decompression_brute();
-void try_decompression_swf(int windowbits, char swf_version);
+void try_decompression_swf(int windowbits);
 void try_decompression_bzip2(int compression_level);
 void try_decompression_base64(int gzip_header_length);
 

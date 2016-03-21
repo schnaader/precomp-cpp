@@ -3732,29 +3732,25 @@ bool compress_file(float min_percent, float max_percent) {
     if ((!compressed_data_found) && (use_swf)) { // no MP3 header -> SWF header?
       // CWS = Compressed SWF file
       if ((in_buf[cb] == 'C') && (in_buf[cb + 1] == 'W') && (in_buf[cb + 2] == 'S')) {
-        char swf_version = in_buf[cb + 3];
-        // check version number is 1 - 10
-        if ((swf_version > 0) && (swf_version < 10)) {
-          // check zLib header
-          if (((((in_buf[cb + 8] << 8) + in_buf[cb + 9]) % 31) == 0) &&
-             ((in_buf[cb + 9] & 32) == 0)) { // FDICT must not be set
-            int compression_method = (in_buf[cb + 8] & 15);
-            if (compression_method == 8) {
-              int windowbits = (in_buf[cb + 8] >> 4) + 8;
+        // check zLib header
+        if (((((in_buf[cb + 8] << 8) + in_buf[cb + 9]) % 31) == 0) &&
+           ((in_buf[cb + 9] & 32) == 0)) { // FDICT must not be set
+          int compression_method = (in_buf[cb + 8] & 15);
+          if (compression_method == 8) {
+            int windowbits = (in_buf[cb + 8] >> 4) + 8;
 
-              saved_input_file_pos = input_file_pos;
-              saved_cb = cb;
+            saved_input_file_pos = input_file_pos;
+            saved_cb = cb;
 
-              input_file_pos += 10; // skip CWS and zLib header
+            input_file_pos += 10; // skip CWS and zLib header
 
-              try_decompression_swf(-windowbits, swf_version);
+            try_decompression_swf(-windowbits);
 
-              cb += 10;
+            cb += 10;
 
-              if (!compressed_data_found) {
-                input_file_pos = saved_input_file_pos;
-                cb = saved_cb;
-              }
+            if (!compressed_data_found) {
+              input_file_pos = saved_input_file_pos;
+              cb = saved_cb;
             }
           }
         }
@@ -7615,7 +7611,7 @@ void try_decompression_brute() {
 
 }
 
-void try_decompression_swf(int windowbits, char swf_version) {
+void try_decompression_swf(int windowbits) {
   init_decompression_variables();
 
         // try to decompress at current position
@@ -7698,10 +7694,8 @@ void try_decompression_swf(int windowbits, char swf_version) {
             fout_fputc(7); // SWF
             fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
 
-            fout_fputc(swf_version);
-
-            // store length from SWF header
-            own_fwrite(in_buf + cb + 4, 1, 4, fout);
+            // store version and length from SWF header
+            own_fwrite(in_buf + cb + 3, 1, 5, fout);
 
             // store zLib header, but increased by 1 to prevent finding it
             //   again in the next pass
