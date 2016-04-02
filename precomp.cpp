@@ -241,6 +241,8 @@ unsigned int* idat_lengths = NULL;
 unsigned int* idat_crcs = NULL;
 int idat_count;
 
+long long suppress_mp3_type_until[16];
+
 bool fast_mode = false;
 bool slow_mode = false;
 bool brute_mode = false;
@@ -488,6 +490,11 @@ int init(int argc, char* argv[]) {
     use_zlib_level[i] = true;
   }
 
+  // init MP3 suppress types
+  for (i = 0; i < 16; i++) {
+      suppress_mp3_type_until[i] = -1;
+  }
+  
   bool valid_syntax = false;
   bool input_file_given = false;
   bool output_file_given = false;
@@ -3667,6 +3674,7 @@ bool compress_file(float min_percent, float max_percent) {
         int samples = -1;
         int channels = -1;
         int protection = -1;
+        int type = -1;
 
         int bits;
         int padding;
@@ -3692,15 +3700,18 @@ bool compress_file(float min_percent, float max_percent) {
             protection  = (in[1] >> 0) & 0x1;
             samples     = (in[2] >> 2) & 0x3;
             channels    = (in[3] >> 6) & 0x3;
-            // type must be MPEG-1, Layer III, packMP3 won't process any other files
-            int type = MBITS( in[1], 5, 1 );
-            if ( type != MPEG1_LAYER_III ) break;
+            type = MBITS( in[1], 5, 1 );
+            // avoid slowdown and multiple verbose messages on unsupported types that have already been detected
+            if ((type != MPEG1_LAYER_III) && (saved_input_file_pos <= suppress_mp3_type_until[type])) {
+                break;
+            }
           } else if (
             (mpeg       != ((in[1] >> 3) & 0x3)) ||
             (layer      != ((in[1] >> 1) & 0x3)) ||
             (protection != ((in[1] >> 0) & 0x1)) ||
             (samples    != ((in[2] >> 2) & 0x3)) ||
-            (channels   != ((in[3] >> 6) & 0x3))) break;
+            (channels   != ((in[3] >> 6) & 0x3)) ||
+            (type       != MBITS( in[1], 5, 1))) break;
 
           bits     = (in[2] >> 4) & 0xF;
           padding  = (in[2] >> 1) & 0x1;
@@ -3719,7 +3730,21 @@ bool compress_file(float min_percent, float max_percent) {
 
         // conditions for proper first frame: 5 consecutive frames,
         if (n >= 5) {
-          try_decompression_mp3(mp3_length);
+          // type must be MPEG-1, Layer III, packMP3 won't process any other files
+          if ( type == MPEG1_LAYER_III ) {
+              try_decompression_mp3(mp3_length);
+          } else if (type > 0) {
+            suppress_mp3_type_until[type] = saved_input_file_pos + mp3_length;
+            if (DEBUG_MODE) {
+              print_debug_percent();
+              printf ("Unsupported MP3 type found at position ");
+              print64(saved_input_file_pos);
+              printf (", length ");
+              print64(mp3_length);
+              printf ("\n");
+              printf ("Type: %s\n", filetype_description[type]);
+            }
+          }
         }
 
         if (!compressed_data_found) {
@@ -8440,7 +8465,8 @@ void recursion_push() {
   recursion_stack_push(&global_min_percent, sizeof(global_min_percent));
   recursion_stack_push(&global_max_percent, sizeof(global_max_percent));
   recursion_stack_push(&comp_decomp_state, sizeof(comp_decomp_state));
-
+  recursion_stack_push(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
+  
   recursion_stack_push(&compression_otf_method, sizeof(compression_otf_method));
   recursion_stack_push(&decompress_otf_end, sizeof(decompress_otf_end));
 }
@@ -8449,6 +8475,7 @@ void recursion_pop() {
   recursion_stack_pop(&decompress_otf_end, sizeof(decompress_otf_end));
   recursion_stack_pop(&compression_otf_method, sizeof(compression_otf_method));
 
+  recursion_stack_pop(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
   recursion_stack_pop(&comp_decomp_state, sizeof(comp_decomp_state));
   recursion_stack_pop(&global_max_percent, sizeof(global_max_percent));
   recursion_stack_pop(&global_min_percent, sizeof(global_min_percent));
@@ -8549,6 +8576,11 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   penalty_bytes = new char[MAX_PENALTY_BYTES];
   local_penalty_bytes = new char[MAX_PENALTY_BYTES];
   best_penalty_bytes = new char[MAX_PENALTY_BYTES];
+
+  // init MP3 suppress types
+  for (int i = 0; i < 16; i++) {
+      suppress_mp3_type_until[i] = -1;
+  }
 
   // disable compression-on-the-fly in recursion - we don't want compressed compressed streams
   compression_otf_method = 0;
