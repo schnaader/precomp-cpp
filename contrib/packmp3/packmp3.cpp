@@ -35,7 +35,7 @@
 
 // special realloc with guaranteed free() of previous memory
 static inline void* frealloc( void* ptr, size_t size ) {
-	void* n_ptr = realloc( ptr, size );
+	void* n_ptr = realloc( ptr, (size) ? size : 1 );
 	if ( n_ptr == NULL ) free( ptr );
 	return n_ptr;
 }
@@ -310,15 +310,15 @@ INTERN int  action     = A_COMPRESS;// what to do with MP3/PMP files
 	----------------------------------------------- */
 
 INTERN const unsigned char appversion = 10;
-INTERN const char*  subversion   = "f";
+INTERN const char*  subversion   = "g";
 INTERN const char*  apptitle     = "packMP3";
 INTERN const char*  appname      = "packMP3";
-INTERN const char*  versiondate  = "11/21/2014";
+INTERN const char*  versiondate  = "01/22/2016";
 INTERN const char*  author       = "Matthias Stirner";
 #if !defined( BUILD_LIB )
 INTERN const char*  website      = "http://packjpg.encode.ru/";
-INTERN const char*  email        = "packjpg@htw-aalen.de";
-INTERN const char*	copyright    = "2010-2014 Ratisbon University & Matthias Stirner";
+INTERN const char*  email        = "packjpg (at) matthiasstirner.com";
+INTERN const char*	copyright    = "2010-2016 Ratisbon University & Matthias Stirner";
 INTERN const char*  pmp_ext      = "pmp";
 INTERN const char*  mp3_ext      = "mp3";
 #endif

@@ -52,8 +52,8 @@ Thanks for support, help and comments:
 
 Legal stuff
 -----------
-- packJPG v2.5j (https://github.com/packjpg/packJPG) by Matthias Stirner is used for compression/decompression of JPG files.
-- packMP3 v1.0f by Matthias Stirner (http://packjpg.encode.ru/?page_id=19) by Matthias Stirner is used for compression/decompression of MP3 files.
+- packJPG v2.5k (https://github.com/packjpg/packJPG) by Matthias Stirner is used for compression/decompression of JPG files.
+- packMP3 v1.0g by Matthias Stirner (http://packjpg.encode.ru/?page_id=19) by Matthias Stirner is used for compression/decompression of MP3 files.
 - bZip2 1.0.6 (http://www.bzip.org) by Julian Seward is used for compression/decompression of bZip2 streams.
 - zLib 1.2.8 (http://www.zlib.net) by Jean-loup Gailly and Mark Adler is used for compression/decompression of zLib streams.
 - GifLib 4.1.4 (http://sourceforge.net/projects/giflib) is used for compression/decompression of GIF files. The GIFLIB distribution is Copyright (c) 1997 Eric S. Raymond

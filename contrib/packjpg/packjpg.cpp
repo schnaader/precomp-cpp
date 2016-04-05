@@ -1,5 +1,5 @@
 /*
-packJPG v2.5j (01/15/2014)
+packJPG v2.5k (01/22/2016)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 packJPG is a compression program specially designed for further
@@ -235,7 +235,11 @@ v2.5i (12/26/13) (public)
 v2.5j (01/15/14) (public)
  - various source code optimizations (using cppcheck)
 
+v2.5k (01/22/16) (public)
+ - Updated contact info
+ - fixed a minor bug
 
+ 
 Acknowledgements
 ~~~~~~~~~~~~~~~~
 
