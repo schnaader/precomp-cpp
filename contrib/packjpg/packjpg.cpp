@@ -250,8 +250,7 @@ Prof. Dr. Gerhard Seelmann from Hochschule Aalen supported my
 development of packJPG with his extensive knowledge in the field of data
 compression. Without his advice, packJPG would not be possible.
 
-The official homepage of packJPG is currently maintained by Hochschule 
-Aalen staff. 
+The official developer blog for packJPG is hosted by encode.ru.
 
 packJPG logo and icon are designed by Michael Kaufmann.
 
