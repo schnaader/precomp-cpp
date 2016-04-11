@@ -3705,13 +3705,19 @@ bool compress_file(float min_percent, float max_percent) {
             if ((type != MPEG1_LAYER_III) && (saved_input_file_pos <= suppress_mp3_type_until[type])) {
                 break;
             }
-          } else if (
-            (mpeg       != ((in[1] >> 3) & 0x3)) ||
-            (layer      != ((in[1] >> 1) & 0x3)) ||
-            (protection != ((in[1] >> 0) & 0x1)) ||
-            (samples    != ((in[2] >> 2) & 0x3)) ||
-            (channels   != ((in[3] >> 6) & 0x3)) ||
-            (type       != MBITS( in[1], 5, 1))) break;
+          } else {
+            if (type == MPEG1_LAYER_III) { // supported MP3 type, all header information must be identical to the first frame
+              if (
+                (mpeg       != ((in[1] >> 3) & 0x3)) ||
+                (layer      != ((in[1] >> 1) & 0x3)) ||
+                (protection != ((in[1] >> 0) & 0x1)) ||
+                (samples    != ((in[2] >> 2) & 0x3)) ||
+                (channels   != ((in[3] >> 6) & 0x3)) ||
+                (type       != MBITS( in[1], 5, 1))) break;
+            } else { // unsupported type, compare only type, ignore the other header information to get a longer stream
+              if (type != MBITS( in[1], 5, 1)) break;
+            }
+          }
 
           bits     = (in[2] >> 4) & 0xF;
           padding  = (in[2] >> 1) & 0x1;
