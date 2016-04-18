@@ -5829,7 +5829,42 @@ void fast_copy(FILE* file1, FILE* file2, long long bytecount) {
     own_fread(copybuf, 1, remaining_bytes, file1);
     own_fwrite(copybuf, 1, remaining_bytes, file2);
   }
+}
 
+void fast_copy_file_to_mem(FILE* file, unsigned char* mem, long long bytecount) {
+    if (bytecount == 0) return;
+    
+  long long i;
+  int remaining_bytes = (bytecount % COPY_BUF_SIZE);
+  long long maxi = (bytecount / COPY_BUF_SIZE);
+
+  for (i = 1; i <= maxi; i++) {
+    own_fread(mem + (i - 1) * COPY_BUF_SIZE, 1, COPY_BUF_SIZE, file);
+
+    if (((i - 1) % FAST_COPY_WORK_SIGN_DIST) == 0)
+      print_work_sign(true);
+  }
+  if (remaining_bytes != 0) {
+    own_fread(mem + maxi * COPY_BUF_SIZE, 1, remaining_bytes, file);
+  }
+}
+
+void fast_copy_mem_to_file(unsigned char* mem, FILE* file, long long bytecount) {
+    if (bytecount == 0) return;
+    
+  long long i;
+  int remaining_bytes = (bytecount % COPY_BUF_SIZE);
+  long long maxi = (bytecount / COPY_BUF_SIZE);
+
+  for (i = 1; i <= maxi; i++) {
+    own_fwrite(mem + (i - 1) * COPY_BUF_SIZE, 1, COPY_BUF_SIZE, file);
+
+    if (((i - 1) % FAST_COPY_WORK_SIGN_DIST) == 0)
+      print_work_sign(true);
+  }
+  if (remaining_bytes != 0) {
+    own_fwrite(mem + maxi * COPY_BUF_SIZE, 1, remaining_bytes, file);
+  }
 }
 
 size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int final_byte) {
@@ -7258,31 +7293,48 @@ void try_decompression_mp3 (long long mp3_length) {
         }
 
         bool mp3_success = false;
-
-        // try to decompress at current position
-        fmp3 = tryOpen(tempfile0,"wb");
-        seek_64(fin, input_file_pos);
-        fast_copy(fin, fmp3, mp3_length);
-        safe_fclose(&fmp3);
-        remove(tempfile1);
-
-        // workaround for bugs, similar to packJPG
-        FILE* fworkaround = tryOpen(tempfile1,"wb");
-        safe_fclose(&fworkaround);
-
         bool recompress_success = false;
-        {
-          char msg[256];
-          recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, msg);
+        char recompress_msg[256];
+        unsigned char* mp3_mem_in = NULL;
+        unsigned char* mp3_mem_out = NULL;
+        unsigned int mp3_mem_out_size = -1;
+        bool in_memory = (mp3_length <= MP3_MAX_MEMORY_SIZE);
 
-          if ((!recompress_success) && (strncmp(msg, "synching failure", 16) == 0)) {
-            int frame_n;
-            int pos;
-            if (sscanf(msg, "synching failure (frame #%i at 0x%X)", &frame_n, &pos) == 2) {
-              if ((pos > 0) && (pos < mp3_length)) {
-                mp3_length = pos;
+        if (in_memory) { // small stream => do everything in memory
+          mp3_mem_in = new unsigned char[mp3_length];
+          seek_64(fin, input_file_pos);
+          fast_copy_file_to_mem(fin, mp3_mem_in, mp3_length);
+                    
+          pmplib_init_streams(mp3_mem_in, 1, mp3_length, mp3_mem_out, 1);
+          recompress_success = pmplib_convert_stream2mem(&mp3_mem_out, &mp3_mem_out_size, recompress_msg);
+        } else { // large stream => use temporary files
+          // try to decompress at current position
+          fmp3 = tryOpen(tempfile0,"wb");
+          seek_64(fin, input_file_pos);
+          fast_copy(fin, fmp3, mp3_length);
+          safe_fclose(&fmp3);
+          remove(tempfile1);
 
-                if (DEBUG_MODE) printf ("Too much garbage data at the end, retry with new length %i\n", pos);
+          // workaround for bugs, similar to packJPG
+          FILE* fworkaround = tryOpen(tempfile1,"wb");
+          safe_fclose(&fworkaround);
+
+          recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, recompress_msg);
+        }
+        
+        if ((!recompress_success) && (strncmp(recompress_msg, "synching failure", 16) == 0)) {
+          int frame_n;
+          int pos;
+          if (sscanf(recompress_msg, "synching failure (frame #%i at 0x%X)", &frame_n, &pos) == 2) {
+            if ((pos > 0) && (pos < mp3_length)) {
+              mp3_length = pos;
+
+              if (DEBUG_MODE) printf ("Too much garbage data at the end, retry with new length %i\n", pos);
+              
+              if (in_memory) {
+                pmplib_init_streams(mp3_mem_in, 1, mp3_length, mp3_mem_out, 1);
+                recompress_success = pmplib_convert_stream2mem(&mp3_mem_out, &mp3_mem_out_size, recompress_msg);
+              } else {
                 fmp3 = tryOpen(tempfile0, "r+b");
                 ftruncate(fileno(fmp3), pos);
                 safe_fclose(&fmp3);
@@ -7291,27 +7343,36 @@ void try_decompression_mp3 (long long mp3_length) {
                 // workaround for bugs, similar to packJPG
                 FILE* fworkaround = tryOpen(tempfile1,"wb");
                 safe_fclose(&fworkaround);
-                  
-                recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, msg);
+
+                recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, recompress_msg);
               }
             }
           }
+        }
           
-          decompressed_streams_count++;
-          decompressed_mp3_count++;
+        decompressed_streams_count++;
+        decompressed_mp3_count++;
 
-          if (!recompress_success) {
-            if (DEBUG_MODE) printf ("packMP3 error: %s\n", msg);
-          }
+        if (!recompress_success) {
+          if (DEBUG_MODE) printf ("packMP3 error: %s\n", recompress_msg);
+        }
 
+        if (!in_memory) {
           remove(tempfile0);
         }
 
         if (recompress_success) {
-          ftempout = tryOpen(tempfile1,"rb");
-          fseek(ftempout, 0, SEEK_END);
-          int mp3_new_length = ftell(ftempout);
-          safe_fclose(&ftempout);
+          int mp3_new_length = -1;
+          
+          if (in_memory) {
+            mp3_new_length = mp3_mem_out_size;
+          } else {
+            ftempout = tryOpen(tempfile1,"rb");
+            fseek(ftempout, 0, SEEK_END);
+            mp3_new_length = ftell(ftempout);
+            safe_fclose(&ftempout);
+          }
+          
           if (mp3_new_length > 0) {
             recompressed_streams_count++;
             recompressed_mp3_count++;
@@ -7343,7 +7404,11 @@ void try_decompression_mp3 (long long mp3_length) {
           fout_fput32(best_identical_bytes_decomp);
 
           // write compressed MP3
-          write_decompressed_data(best_identical_bytes_decomp);
+          if (in_memory) {
+            fast_copy_mem_to_file(mp3_mem_out, fout, best_identical_bytes_decomp);
+          } else {
+            write_decompressed_data(best_identical_bytes_decomp);
+          }
 
           // start new uncompressed data
 
@@ -7357,6 +7422,8 @@ void try_decompression_mp3 (long long mp3_length) {
           }
         }
 
+        if (mp3_mem_in != NULL) delete[] mp3_mem_in;
+        if (mp3_mem_out != NULL) delete[] mp3_mem_out;
 }
 
 void try_decompression_zlib(int windowbits) {
