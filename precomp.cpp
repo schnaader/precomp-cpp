@@ -5076,7 +5076,7 @@ while (fin_pos < fin_length) {
 
         seek_64(fout, fsave_fout_pos);
       }
-    } else if (headertype == 10) { // Mp3 recompression
+    } else if (headertype == 10) { // MP3 recompression
 
       if (DEBUG_MODE) {
       printf("Decompressed data - MP3\n");
@@ -5098,38 +5098,55 @@ while (fin_pos < fin_length) {
       printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
       }
 
-      remove(tempfile1);
-      ftempout = tryOpen(tempfile1,"wb");
-
-      fast_copy(fin, ftempout, decompressed_data_length);
-
-      safe_fclose(&ftempout);
-
-      remove(tempfile2);
+      char recompress_msg[256];
+      unsigned char* mp3_mem_in = NULL;
+      unsigned char* mp3_mem_out = NULL;
+      unsigned int mp3_mem_out_size = -1;
+      bool in_memory = (recompressed_data_length <= MP3_MAX_MEMORY_SIZE);
 
       bool recompress_success = false;
+      
+      if (in_memory) {
+        mp3_mem_in = new unsigned char[decompressed_data_length];
 
-      {
-        char msg[256];
-        recompress_success = pmplib_convert_file2file(tempfile1, tempfile2, msg);
-        if ((!recompress_success) && (DEBUG_MODE)) {
-          printf ("packMP3 error: %s\n", msg);
-        }
+        fast_copy(fin, mp3_mem_in, decompressed_data_length);
+
+        pmplib_init_streams(mp3_mem_in, 1, decompressed_data_length, mp3_mem_out, 1);
+        recompress_success = pmplib_convert_stream2mem(&mp3_mem_out, &mp3_mem_out_size, recompress_msg);
+      } else {
+        remove(tempfile1);
+        ftempout = tryOpen(tempfile1,"wb");
+
+        fast_copy(fin, ftempout, decompressed_data_length);
+
+        safe_fclose(&ftempout);
+
+        remove(tempfile2);
+
+        recompress_success = pmplib_convert_file2file(tempfile1, tempfile2, recompress_msg);
       }
 
       if (!recompress_success) {
+        if (DEBUG_MODE) printf ("packMP3 error: %s\n", recompress_msg);
         printf("Error recompressing data!");
         exit(1);
       }
 
-      frecomp = tryOpen(tempfile2,"rb");
+      if (in_memory) {
+        fast_copy(mp3_mem_out, fout, recompressed_data_length);
+          
+        if (mp3_mem_in != NULL) delete[] mp3_mem_in;
+        if (mp3_mem_out != NULL) delete[] mp3_mem_out;
+      } else {
+        frecomp = tryOpen(tempfile2,"rb");
 
-      fast_copy(frecomp, fout, recompressed_data_length);
+        fast_copy(frecomp, fout, recompressed_data_length);
 
-      safe_fclose(&frecomp);
+        safe_fclose(&frecomp);
 
-      remove(tempfile2);
-      remove(tempfile1);
+        remove(tempfile2);
+        remove(tempfile1);
+      }
     } else if (headertype == 254) { // brute mode recompression
 
       if (DEBUG_MODE) {
@@ -5831,7 +5848,7 @@ void fast_copy(FILE* file1, FILE* file2, long long bytecount) {
   }
 }
 
-void fast_copy_file_to_mem(FILE* file, unsigned char* mem, long long bytecount) {
+void fast_copy(FILE* file, unsigned char* mem, long long bytecount) {
     if (bytecount == 0) return;
     
   long long i;
@@ -5849,7 +5866,7 @@ void fast_copy_file_to_mem(FILE* file, unsigned char* mem, long long bytecount) 
   }
 }
 
-void fast_copy_mem_to_file(unsigned char* mem, FILE* file, long long bytecount) {
+void fast_copy(unsigned char* mem, FILE* file, long long bytecount) {
     if (bytecount == 0) return;
     
   long long i;
@@ -7303,7 +7320,7 @@ void try_decompression_mp3 (long long mp3_length) {
         if (in_memory) { // small stream => do everything in memory
           mp3_mem_in = new unsigned char[mp3_length];
           seek_64(fin, input_file_pos);
-          fast_copy_file_to_mem(fin, mp3_mem_in, mp3_length);
+          fast_copy(fin, mp3_mem_in, mp3_length);
                     
           pmplib_init_streams(mp3_mem_in, 1, mp3_length, mp3_mem_out, 1);
           recompress_success = pmplib_convert_stream2mem(&mp3_mem_out, &mp3_mem_out_size, recompress_msg);
@@ -7405,7 +7422,7 @@ void try_decompression_mp3 (long long mp3_length) {
 
           // write compressed MP3
           if (in_memory) {
-            fast_copy_mem_to_file(mp3_mem_out, fout, best_identical_bytes_decomp);
+            fast_copy(mp3_mem_out, fout, best_identical_bytes_decomp);
           } else {
             write_decompressed_data(best_identical_bytes_decomp);
           }

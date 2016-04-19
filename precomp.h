@@ -59,6 +59,8 @@ void write_header();
 void read_header();
 void convert_header();
 void fast_copy(FILE* file1, FILE* file2, long long bytecount);
+void fast_copy(FILE* file, unsigned char* mem, long long bytecount);
+void fast_copy(unsigned char* mem, FILE* file, long long bytecount);
 size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int final_byte = 0);
 size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream);
 void seek_64(FILE* f, unsigned long long pos);
