@@ -12,16 +12,16 @@ g++ -c -O3 -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fsched-spec-l
 if exist ..\..\aricoder.o del ..\..\aricoder.o
 if exist ..\..\bitops.o del ..\..\bitops.o
 if exist ..\..\packjpg.o del ..\..\packjpg.o
-move aricoder.o ..\..\
-move bitops.o ..\..\
-move packjpg.o ..\..\
+move aricoder.o ..\..\ > nul
+move bitops.o ..\..\ > nul
+move packjpg.o ..\..\ > nul
 popd
 pushd contrib\packmp3
-copy ..\packjpg\aricoder.*
-copy ..\packjpg\bitops.*
+copy ..\packjpg\aricoder.* > nul
+copy ..\packjpg\bitops.* > nul
 g++ -c -O3 -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer aricoder.cpp bitops.cpp huffmp3.cpp packmp3.cpp
-move huffmp3.o ..\..\
-move packmp3.o ..\..\
+move huffmp3.o ..\..\ > nul
+move packmp3.o ..\..\ > nul
 if exist aricoder.* del aricoder.*
 if exist bitops.* del bitops.*
 popd
