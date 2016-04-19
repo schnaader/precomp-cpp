@@ -1,5 +1,7 @@
 #include "../packjpg/bitops.h" // for MBITS
+#define PRECOMP_MP3 // to avoid compiler warnings (unused variables), use only a part of the header file
 #include "pmp3tbl.h"
+#undef PRECOMP_MP3
 
 #define MP3_MAX_MEMORY_SIZE 64 * 1024 * 1024
 

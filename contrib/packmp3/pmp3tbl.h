@@ -165,8 +165,11 @@ static const int samplerate_table[4][4] =
 	{22050, 24000, 16000, -1}, // MPEG 2.0
 	{44100, 48000, 32000, -1} // MPEG 1.0
 };
+
+#ifndef PRECOMP_MP3
 // shortcut for MPEG 1 LAYER III
 static const int* mp3_samplerate_table = samplerate_table[MP3_V1_0];
+#endif
 
 
 /* -----------------------------------------------
@@ -199,9 +202,11 @@ static const int bitrate_table[4][4][16] =
 		{0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, -1} // LAYER I
 	}
 };
+
+#ifndef PRECOMP_MP3
 // shortcut for MPEG 1 LAYER III
 static const int* mp3_bitrate_table = bitrate_table[MP3_V1_0][LAYER_III];
-
+#endif
 
 /* -----------------------------------------------
 	frame size table, indexed by MPEG, LAYER, SAMPLE, BITS
@@ -313,6 +318,8 @@ static const int frame_size_table[4][4][4][16] =
 	  }
 	}
 };
+
+#ifndef PRECOMP_MP3
 // shortcut for MPEG 1 LAYER III
 static const int* mp3_frame_size_table[ 4 ] = 
 {
@@ -321,7 +328,7 @@ static const int* mp3_frame_size_table[ 4 ] =
 	frame_size_table[MP3_V1_0][LAYER_III][2],
 	frame_size_table[MP3_V1_0][LAYER_III][3]
 };
-
+#endif
 
 /* -----------------------------------------------
 	slength lo/hi table, indexed by slength
@@ -489,6 +496,8 @@ static const int* mp3_bandwidth_table_short[4] =
 	bandwidth_table_short[MP3_V1_0][2],
 	bandwidth_table_short[MP3_V1_0][3]
 };*/
+
+#ifndef PRECOMP_MP3
 static const int* mp3_bandwidth_bounds[4] =
 {
 	bandwidth_bounds[MP3_V1_0][0],
@@ -503,7 +512,7 @@ static const int* mp3_bandwidth_bounds_short[4] =
 	bandwidth_bounds_short[MP3_V1_0][2],
 	bandwidth_bounds_short[MP3_V1_0][3]
 };
-
+#endif
 
 /* -----------------------------------------------
 	crc calculation table
