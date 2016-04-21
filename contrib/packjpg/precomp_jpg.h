@@ -1,3 +1,5 @@
+#define JPG_MAX_MEMORY_SIZE 64 * 1024 * 1024
+
 // Motion JPEG DHT header
 // JPEG DHT Segment for YCrCb omitted from MJPEG data
 
@@ -34,6 +36,10 @@ unsigned char MJPGDHT[MJPGDHT_LEN] = {
 // it returns false if an error happened during conversion
 // errormessage is returned via the string 'msg'
 bool pjglib_convert_file2file( char* in, char* out, char* msg );
+
+// functions to convert JPG to PJG and vice versa, in memory
+void pjglib_init_streams( void* in_src, int in_type, int in_size, void* out_dest, int out_type );
+bool pjglib_convert_stream2mem( unsigned char** out_file, unsigned int* out_size, char* msg );
 
 // this function writes versioninfo for the packJPG
 // DLL to a string

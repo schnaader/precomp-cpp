@@ -7171,33 +7171,66 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
         if ((!progressive_jpg) && (prog_only)) return;
 
         bool jpg_success = false;
-
-        // try to decompress at current position
-        fjpg = tryOpen(tempfile0,"wb");
-        seek_64(fin, input_file_pos);
-        fast_copy(fin, fjpg, jpg_length);
-        safe_fclose(&fjpg);
-        remove(tempfile1);
-
-        // Workaround for JPG bugs. Sometimes tempfile1 is removed, but still
-        // not accessible by packJPG, so we prevent that by opening it here
-        // ourselves.
-        FILE* fworkaround = tryOpen(tempfile1,"wb");
-        safe_fclose(&fworkaround);
-
         bool recompress_success = false;
         bool mjpg_dht_used = false;
-        {
-          char msg[256];
-          recompress_success = pjglib_convert_file2file(tempfile0, tempfile1, msg);
+        char recompress_msg[256];
+        unsigned char* jpg_mem_in = NULL;
+        unsigned char* jpg_mem_out = NULL;
+        unsigned int jpg_mem_out_size = -1;
+        bool in_memory = ((jpg_length + MJPGDHT_LEN) <= JPG_MAX_MEMORY_SIZE);
 
-          if ((!recompress_success) && (strncmp(msg, "huffman table missing", 21) == 0) && (use_mjpeg)) {
-            if (DEBUG_MODE) printf ("huffman table missing, trying to use Motion JPEG DHT\n");
-            // search 0xFF 0xDA, insert MJPGDHT (MJPGDHT_LEN bytes)
+        if (in_memory) { // small stream => do everything in memory
+          jpg_mem_in = new unsigned char[jpg_length + MJPGDHT_LEN];
+          seek_64(fin, input_file_pos);
+          fast_copy(fin, jpg_mem_in, jpg_length);
+                    
+          pjglib_init_streams(jpg_mem_in, 1, jpg_length, jpg_mem_out, 1);
+          recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+        } else { // large stream => use temporary files
+          // try to decompress at current position
+          fjpg = tryOpen(tempfile0,"wb");
+          seek_64(fin, input_file_pos);
+          fast_copy(fin, fjpg, jpg_length);
+          safe_fclose(&fjpg);
+          remove(tempfile1);
+
+          // Workaround for JPG bugs. Sometimes tempfile1 is removed, but still
+          // not accessible by packJPG, so we prevent that by opening it here
+          // ourselves.
+          FILE* fworkaround = tryOpen(tempfile1,"wb");
+          safe_fclose(&fworkaround);
+
+          recompress_success = pjglib_convert_file2file(tempfile0, tempfile1, recompress_msg);
+        }
+        
+        if ((!recompress_success) && (strncmp(recompress_msg, "huffman table missing", 21) == 0) && (use_mjpeg)) {
+          if (DEBUG_MODE) printf ("huffman table missing, trying to use Motion JPEG DHT\n");
+          // search 0xFF 0xDA, insert MJPGDHT (MJPGDHT_LEN bytes)
+          bool found_ffda = false;
+          bool found_ff = false;
+          int ffda_pos = -1;
+          
+          if (in_memory) {
+            do {
+              ffda_pos++;
+              if (ffda_pos >= jpg_length) break;
+              if (found_ff) {
+                found_ffda = (jpg_mem_in[ffda_pos] == 0xDA);
+                if (found_ffda) break;
+                found_ff = false;
+              } else {
+                found_ff = (jpg_mem_in[ffda_pos] == 0xFF);
+              }
+            } while (!found_ffda);
+            if (found_ffda) {
+                memmove(jpg_mem_in + (ffda_pos - 1) + MJPGDHT_LEN, jpg_mem_in + (ffda_pos - 1), jpg_length - (ffda_pos - 1));
+                memcpy(jpg_mem_in + (ffda_pos - 1), MJPGDHT, MJPGDHT_LEN);
+
+                pjglib_init_streams(jpg_mem_in, 1, jpg_length + MJPGDHT_LEN, jpg_mem_out, 1);
+                recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+            }
+          } else {
             fjpg = tryOpen(tempfile0,"rb");
-            bool found_ffda = false;
-            bool found_ff = false;
-            int ffda_pos = -1;
             do {
               ffda_pos++;
               if (fread(in, 1, 1, fjpg) != 1) break;
@@ -7220,29 +7253,39 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
               safe_fclose(&fdecomp);
             }
             safe_fclose(&fjpg);
-            recompress_success = pjglib_convert_file2file(tempfile3, tempfile1, msg);
-            mjpg_dht_used = recompress_success;
+            recompress_success = pjglib_convert_file2file(tempfile3, tempfile1, recompress_msg);
           }
           
-          decompressed_streams_count++;
-          if (progressive_jpg) {
-            decompressed_jpg_prog_count++;
-          } else {
-            decompressed_jpg_count++;
-          }
+          mjpg_dht_used = recompress_success;
+        }
+          
+        decompressed_streams_count++;
+        if (progressive_jpg) {
+          decompressed_jpg_prog_count++;
+        } else {
+          decompressed_jpg_count++;
+        }
 
-          if (!recompress_success) {
-            if (DEBUG_MODE) printf ("packJPG error: %s\n", msg);
-          }
+        if (!recompress_success) {
+          if (DEBUG_MODE) printf ("packJPG error: %s\n", recompress_msg);
+        }
 
+        if (!in_memory) {
           remove(tempfile0);
         }
 
         if (recompress_success) {
-          ftempout = tryOpen(tempfile1,"rb");
-          fseek(ftempout, 0, SEEK_END);
-          int jpg_new_length = ftell(ftempout);
-          safe_fclose(&ftempout);
+          int jpg_new_length = -1;  
+          
+          if (in_memory) {
+            jpg_new_length = jpg_mem_out_size;
+          } else {
+            ftempout = tryOpen(tempfile1,"rb");
+            fseek(ftempout, 0, SEEK_END);
+            jpg_new_length = ftell(ftempout);
+            safe_fclose(&ftempout);
+          }  
+            
           if (jpg_new_length > 0) {
             recompressed_streams_count++;
             if (progressive_jpg) {
@@ -7282,7 +7325,11 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           fout_fput32(best_identical_bytes_decomp);
 
           // write compressed JPG
-          write_decompressed_data(best_identical_bytes_decomp);
+          if (in_memory) {
+            fast_copy(jpg_mem_out, fout, best_identical_bytes_decomp);
+          } else {
+            write_decompressed_data(best_identical_bytes_decomp);
+          }
 
           // start new uncompressed data
 
@@ -7296,6 +7343,8 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           }
         }
 
+        if (jpg_mem_in != NULL) delete[] jpg_mem_in;
+        if (jpg_mem_out != NULL) delete[] jpg_mem_out;        
 }
 
 void try_decompression_mp3 (long long mp3_length) {
