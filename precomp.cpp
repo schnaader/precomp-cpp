@@ -4718,31 +4718,42 @@ while (fin_pos < fin_length) {
       printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
       }
 
-      remove(tempfile1);
-      ftempout = tryOpen(tempfile1,"wb");
-
-      fast_copy(fin, ftempout, decompressed_data_length);
-
-      safe_fclose(&ftempout);
-
-      remove(tempfile2);
-
+      char recompress_msg[256];
+      unsigned char* jpg_mem_in = NULL;
+      unsigned char* jpg_mem_out = NULL;
+      unsigned int jpg_mem_out_size = -1;
+      bool in_memory = (recompressed_data_length <= JPG_MAX_MEMORY_SIZE);
       bool recompress_success = false;
 
-      {
-        char msg[256];
-        recompress_success = pjglib_convert_file2file(tempfile1, tempfile2, msg);
-        if ((!recompress_success) && (DEBUG_MODE)) {
-          printf ("packJPG error: %s\n", msg);
-        }
+      if (in_memory) {
+        jpg_mem_in = new unsigned char[decompressed_data_length];
+        
+        fast_copy(fin, jpg_mem_in, decompressed_data_length);
+        
+        pjglib_init_streams(jpg_mem_in, 1, decompressed_data_length, jpg_mem_out, 1);
+        recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+      } else {
+        remove(tempfile1);
+        ftempout = tryOpen(tempfile1,"wb");
+
+        fast_copy(fin, ftempout, decompressed_data_length);
+
+        safe_fclose(&ftempout);
+
+        remove(tempfile2);
+
+        recompress_success = pjglib_convert_file2file(tempfile1, tempfile2, recompress_msg);
       }
 
       if (!recompress_success) {
+        if (DEBUG_MODE) printf ("packJPG error: %s\n", recompress_msg);
         printf("Error recompressing data!");
         exit(1);
       }
 
-      frecomp = tryOpen(tempfile2,"rb");
+      if (!in_memory) {
+        frecomp = tryOpen(tempfile2,"rb");
+      }
 
       if (mjpg_dht_used) {
         long long frecomp_pos = 0;
@@ -4750,37 +4761,66 @@ while (fin_pos < fin_length) {
         bool found_ff = false;
         int ffda_pos = -1;
 
-        do {
-          ffda_pos++;
-          if (fread(in, 1, 1, frecomp) != 1) break;
-          if (found_ff) {
-            found_ffda = (in[0] == 0xDA);
-            if (found_ffda) break;
-            found_ff = false;
-          } else {
-            found_ff = (in[0] == 0xFF);
-          }
-        } while (!found_ffda);
+        if (in_memory) {
+          do {
+            ffda_pos++;
+            if (ffda_pos >= (int)jpg_mem_out_size) break;
+            if (found_ff) {
+              found_ffda = (jpg_mem_out[ffda_pos] == 0xDA);
+              if (found_ffda) break;
+              found_ff = false;
+            } else {
+              found_ff = (jpg_mem_out[ffda_pos] == 0xFF);
+            }
+          } while (!found_ffda);
+        } else {
+          do {
+            ffda_pos++;
+            if (fread(in, 1, 1, frecomp) != 1) break;
+            if (found_ff) {
+              found_ffda = (in[0] == 0xDA);
+              if (found_ffda) break;
+              found_ff = false;
+            } else {
+              found_ff = (in[0] == 0xFF);
+            }
+          } while (!found_ffda);
+        }
+        
         if ((!found_ffda) || ((ffda_pos - 1 - MJPGDHT_LEN) < 0)) {
           printf("ERROR: Motion JPG stream corrupted\n");
           exit(1);
         }
 
-        seek_64(frecomp, frecomp_pos);
-        fast_copy(frecomp, fout, ffda_pos - 1 - MJPGDHT_LEN);
+        // remove motion JPG huffman table
+        if (in_memory) {
+          fast_copy(jpg_mem_out, fout, ffda_pos - 1 - MJPGDHT_LEN);
+          fast_copy(jpg_mem_out + (ffda_pos - 1), fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
+        } else {
+          seek_64(frecomp, frecomp_pos);
+          fast_copy(frecomp, fout, ffda_pos - 1 - MJPGDHT_LEN);
 
-        frecomp_pos += ffda_pos - 1;
-        seek_64(frecomp, frecomp_pos);
-        fast_copy(frecomp, fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
-
+          frecomp_pos += ffda_pos - 1;
+          seek_64(frecomp, frecomp_pos);
+          fast_copy(frecomp, fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
+        }
       } else {
-        fast_copy(frecomp, fout, recompressed_data_length);
+        if (in_memory) {
+          fast_copy(jpg_mem_out, fout, recompressed_data_length);
+        } else {
+          fast_copy(frecomp, fout, recompressed_data_length);
+        }
       }
 
-      safe_fclose(&frecomp);
+      if (in_memory) {
+        if (jpg_mem_in != NULL) delete[] jpg_mem_in;
+        if (jpg_mem_out != NULL) delete[] jpg_mem_out;
+      } else {
+        safe_fclose(&frecomp);
 
-      remove(tempfile2);
-      remove(tempfile1);
+        remove(tempfile2);
+        remove(tempfile1);
+      }
 
     } else if (headertype == 7) { // SWF recompression
 
