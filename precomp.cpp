@@ -229,9 +229,6 @@ int penalty_bytes_len = 0;
 long long* ignore_list = NULL; // positions to ignore
 int ignore_list_len = 0;
 
-// Base64 line length list
-static unsigned int base64_line_len[65536];
-
 long long saved_input_file_pos, saved_cb;
 int min_ident_size = 4;
 int min_ident_size_slow_brute_mode = 64;
@@ -4963,6 +4960,9 @@ while (fin_pos < fin_length) {
       // read line length list
       int line_count = fin_fgetc() << 8;
       line_count += fin_fgetc();
+
+      unsigned int* base64_line_len = new unsigned int[line_count];
+      
       if (line_case == 2) {
         for (int i = 0; i < line_count; i++) {
           base64_line_len[i] = fin_fgetc();
@@ -5013,15 +5013,15 @@ while (fin_pos < fin_length) {
 
       if (recursion_used) {
         recursion_result r = recursion_decompress(recursion_data_length);
-        base64_reencode(r.frecurse, fout, line_count, r.file_length, decompressed_data_length);
+        base64_reencode(r.frecurse, fout, line_count, base64_line_len, r.file_length, decompressed_data_length);
         safe_fclose(&r.frecurse);
         remove(r.file_name);
         delete[] r.file_name;
       } else {
-        base64_reencode(fin, fout, line_count, recompressed_data_length, decompressed_data_length);
+        base64_reencode(fin, fout, line_count, base64_line_len, recompressed_data_length, decompressed_data_length);
       }
 
-
+      delete[] base64_line_len;
     } else if (headertype == 9) { // bZip2 recompression
 
       if (DEBUG_MODE) {
@@ -8071,7 +8071,7 @@ unsigned char base64_char_decode(unsigned char c) {
   return 65; // invalid
 }
 
-void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_count, int max_byte_count) {
+void base64_reencode(FILE* file_in, FILE* file_out, int line_count, unsigned int* base64_line_len, int max_in_count, int max_byte_count) {
           int line_nr = 0;
           unsigned int act_line_len = 0;
           int avail_in;
@@ -8162,7 +8162,8 @@ void try_decompression_base64(int base64_header_length) {
         seek_64(fin, input_file_pos);
 
         unsigned char base64_data[CHUNK >> 2];
-
+        unsigned int* base64_line_len = new unsigned int[65536];
+        
         int avail_in = 0;
         int i, j, k;
         unsigned char a, b, c, d;
@@ -8301,7 +8302,7 @@ void try_decompression_base64(int base64_header_length) {
           remove(tempfile2);
           frecomp = tryOpen(tempfile2,"w+b");
 
-          base64_reencode(ftempout, frecomp, line_count);
+          base64_reencode(ftempout, frecomp, line_count, base64_line_len);
 
           safe_fclose(&ftempout);
 
@@ -8348,6 +8349,8 @@ void try_decompression_base64(int base64_header_length) {
               if (line_case == 1) fout_fputc(base64_line_len[line_count - 1]);
             }
 
+            delete[] base64_line_len;
+            
             fout_fput32(identical_bytes);
             fout_fput32(identical_bytes_decomp);
 

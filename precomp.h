@@ -41,7 +41,7 @@ void try_decompression_base64(int gzip_header_length);
 
 void init_decompression_variables();
 unsigned char base64_char_decode(unsigned char c);
-void base64_reencode(FILE* file_in, FILE* file_out, int line_count, int max_in_count = 0x7FFFFFFF, int max_byte_count = 0x7FFFFFFF);
+void base64_reencode(FILE* file_in, FILE* file_out, int line_count, unsigned int* base64_line_len, int max_in_count = 0x7FFFFFFF, int max_byte_count = 0x7FFFFFFF);
 
 void packjpg_mp3_dll_msg();
 bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifCodeStruct* g, GifDiffStruct* gd);
