@@ -3687,7 +3687,7 @@ bool compress_file(float min_percent, float max_percent) {
 
         // parse frames until first invalid frame is found or end-of-file
         seek_64(fin, act_pos);
-        while (fread(in, 1, 3, fin) == 3) {
+        while (fread(in, 1, 4, fin) == 4) {
           // check syncword
           if ((in[0] != 0xFF) || ((in[1] & 0xE0) != 0xE0)) break;
           // compare data from header
@@ -3728,10 +3728,22 @@ bool compress_file(float min_percent, float max_percent) {
           n++;
           mp3_length += frame_size;
           act_pos += frame_size;
-          seek_64(fin, act_pos);
+
+          // if supported MP3 type, validate frames
+          if ((type == MPEG1_LAYER_III) && (frame_size > 4)) {
+            unsigned char header2 = in[2];
+            unsigned char header3 = in[3];
+            if (fread(in, 1, frame_size - 4, fin) != (unsigned int)(frame_size - 4)) break;
+            if (!is_valid_mp3_frame(in, header2, header3, protection)) {
+                n = 0;
+                break;
+            }
+          } else {
+            seek_64(fin, act_pos);
+          }
         }
 
-        // conditions for proper first frame: 5 consecutive frames,
+        // conditions for proper first frame: 5 consecutive frames
         if (n >= 5) {
           // type must be MPEG-1, Layer III, packMP3 won't process any other files
           if ( type == MPEG1_LAYER_III ) {
@@ -7530,6 +7542,75 @@ void try_decompression_mp3 (long long mp3_length) {
 
         if (mp3_mem_in != NULL) delete[] mp3_mem_in;
         if (mp3_mem_out != NULL) delete[] mp3_mem_out;
+}
+
+bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsigned char header3, int protection) {
+  unsigned char channels = (header3 >> 6) & 0x3;
+  int nch = (channels == MP3_MONO) ? 1 : 2;
+  int nsb, gr, ch;
+  unsigned short crc;
+  unsigned char* sideinfo;
+  
+  nsb = (nch == 1) ? 17 : 32;
+
+  sideinfo = frame_data;
+  if (protection == 0x0) {
+    sideinfo += 2;
+    // if there is a crc: check and discard
+    crc = (frame_data[0] << 8) + frame_data[1];
+    if (crc != mp3_calc_layer3_crc(header2, header3, sideinfo, nsb)) {
+      // crc checksum mismatch
+      return false;
+    }
+  }
+  
+  abitreader* side_reader = new abitreader(sideinfo, nsb);
+  
+  side_reader->read((nch == 1) ? 18 : 20);
+  
+  // granule specific side info
+  char window_switching, region0_size, region1_size;
+  for (gr = 0; gr < 2; gr++) {
+    for (ch = 0; ch < nch; ch++) {
+      side_reader->read(32);
+      side_reader->read(1);
+      window_switching = (char)side_reader->read(1);
+      if (window_switching == 0) {
+        side_reader->read(15);
+        region0_size = (char)side_reader->read(4);
+        region1_size = (char)side_reader->read(3);
+        if (region0_size + region1_size > 20) {
+          // region size out of bounds
+          return false;
+        }
+      } else {
+        side_reader->read(22);
+      }
+      side_reader->read(3);
+    }
+  }  
+  
+  delete(side_reader);
+  
+  return true;
+}
+
+/* -----------------------------------------------
+	calculate frame crc
+	----------------------------------------------- */
+inline unsigned short mp3_calc_layer3_crc(unsigned char header2, unsigned char header3, unsigned char* sideinfo, int sidesize)
+{
+	// crc has a start value of 0xFFFF
+	unsigned short crc = 0xFFFF;
+	
+	// process two last bytes from header...
+	crc = (crc << 8) ^ crc_table[(crc>>8) ^ header2];
+	crc = (crc << 8) ^ crc_table[(crc>>8) ^ header3];
+	// ... and all the bytes from the side information
+	for ( int i = 0; i < sidesize; i++ )
+		crc = (crc << 8) ^ crc_table[(crc>>8) ^ sideinfo[i]];
+	
+	return crc;
 }
 
 void try_decompression_zlib(int windowbits) {
