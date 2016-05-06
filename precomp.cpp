@@ -239,6 +239,7 @@ unsigned int* idat_crcs = NULL;
 int idat_count;
 
 long long suppress_mp3_type_until[16];
+long long suppress_mp3_big_value_pairs_sum;
 
 bool fast_mode = false;
 bool slow_mode = false;
@@ -487,10 +488,11 @@ int init(int argc, char* argv[]) {
     use_zlib_level[i] = true;
   }
 
-  // init MP3 suppress types
+  // init MP3 suppression
   for (i = 0; i < 16; i++) {
       suppress_mp3_type_until[i] = -1;
   }
+  suppress_mp3_big_value_pairs_sum = -1;
   
   bool valid_syntax = false;
   bool input_file_given = false;
@@ -3684,7 +3686,7 @@ bool compress_file(float min_percent, float max_percent) {
         saved_cb = cb;
 
         long long act_pos = input_file_pos;
-
+        
         // parse frames until first invalid frame is found or end-of-file
         seek_64(fin, act_pos);
         while (fread(in, 1, 4, fin) == 4) {
@@ -3745,11 +3747,16 @@ bool compress_file(float min_percent, float max_percent) {
 
         // conditions for proper first frame: 5 consecutive frames
         if (n >= 5) {
+          long long position_length_sum = saved_input_file_pos + mp3_length;
+            
           // type must be MPEG-1, Layer III, packMP3 won't process any other files
           if ( type == MPEG1_LAYER_III ) {
+            // sum of position and length of last "big value pairs out of bounds" error is suppressed to avoid slowdowns
+            if (suppress_mp3_big_value_pairs_sum != position_length_sum) {
               try_decompression_mp3(mp3_length);
+            }
           } else if (type > 0) {
-            suppress_mp3_type_until[type] = saved_input_file_pos + mp3_length;
+            suppress_mp3_type_until[type] = position_length_sum;
             if (DEBUG_MODE) {
               print_debug_percent();
               printf ("Unsupported MP3 type found at position ");
@@ -7466,6 +7473,13 @@ void try_decompression_mp3 (long long mp3_length) {
               }
             }
           }
+        } else if ((!recompress_success) && (strncmp(recompress_msg, "big value pairs out of bounds", 29) == 0)) {
+          suppress_mp3_big_value_pairs_sum = saved_input_file_pos + mp3_length;
+          if (DEBUG_MODE) {
+            printf("Ignoring following streams with position/length sum ");
+            print64(suppress_mp3_big_value_pairs_sum);
+            printf(" to avoid slowdown\n");
+          }
         }
           
         decompressed_streams_count++;
@@ -8729,6 +8743,7 @@ void recursion_push() {
   recursion_stack_push(&global_max_percent, sizeof(global_max_percent));
   recursion_stack_push(&comp_decomp_state, sizeof(comp_decomp_state));
   recursion_stack_push(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
+  recursion_stack_push(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
   
   recursion_stack_push(&compression_otf_method, sizeof(compression_otf_method));
   recursion_stack_push(&decompress_otf_end, sizeof(decompress_otf_end));
@@ -8738,6 +8753,7 @@ void recursion_pop() {
   recursion_stack_pop(&decompress_otf_end, sizeof(decompress_otf_end));
   recursion_stack_pop(&compression_otf_method, sizeof(compression_otf_method));
 
+  recursion_stack_pop(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
   recursion_stack_pop(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
   recursion_stack_pop(&comp_decomp_state, sizeof(comp_decomp_state));
   recursion_stack_pop(&global_max_percent, sizeof(global_max_percent));
@@ -8840,10 +8856,11 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   local_penalty_bytes = new char[MAX_PENALTY_BYTES];
   best_penalty_bytes = new char[MAX_PENALTY_BYTES];
 
-  // init MP3 suppress types
+  // init MP3 suppression
   for (int i = 0; i < 16; i++) {
       suppress_mp3_type_until[i] = -1;
   }
+  suppress_mp3_big_value_pairs_sum = -1;
 
   // disable compression-on-the-fly in recursion - we don't want compressed compressed streams
   compression_otf_method = 0;
