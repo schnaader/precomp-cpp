@@ -240,6 +240,9 @@ int idat_count;
 
 long long suppress_mp3_type_until[16];
 long long suppress_mp3_big_value_pairs_sum;
+long long mp3_parsing_cache_second_frame;
+long long mp3_parsing_cache_n;
+long long mp3_parsing_cache_mp3_length;
 
 bool fast_mode = false;
 bool slow_mode = false;
@@ -493,6 +496,7 @@ int init(int argc, char* argv[]) {
       suppress_mp3_type_until[i] = -1;
   }
   suppress_mp3_big_value_pairs_sum = -1;
+  mp3_parsing_cache_second_frame = -1;
   
   bool valid_syntax = false;
   bool input_file_given = false;
@@ -3679,6 +3683,8 @@ bool compress_file(float min_percent, float max_percent) {
         int padding;
         int frame_size;
         int n = 0;
+        long long mp3_parsing_cache_second_frame_candidate = -1;
+        long long mp3_parsing_cache_second_frame_candidate_size = -1;
 
         long long mp3_length = 0;
 
@@ -3705,6 +3711,10 @@ bool compress_file(float min_percent, float max_percent) {
                 break;
             }
           } else {
+            if (n == 1) {
+              mp3_parsing_cache_second_frame_candidate = act_pos;
+              mp3_parsing_cache_second_frame_candidate_size = act_pos - saved_input_file_pos;
+            }
             if (type == MPEG1_LAYER_III) { // supported MP3 type, all header information must be identical to the first frame
               if (
                 (mpeg       != ((in[1] >> 3) & 0x3)) ||
@@ -3727,6 +3737,21 @@ bool compress_file(float min_percent, float max_percent) {
           frame_size = frame_size_table[mpeg][layer][samples][bits];
           if (padding) frame_size += (layer == LAYER_I) ? 4 : 1;
 
+          // if this frame was part of a stream that already has been parsed, skip parsing
+          if (n == 0) {
+            if (act_pos == mp3_parsing_cache_second_frame) {
+              n = mp3_parsing_cache_n;
+              mp3_length = mp3_parsing_cache_mp3_length;
+              
+              // update values
+              mp3_parsing_cache_second_frame = act_pos + frame_size;
+              mp3_parsing_cache_n -= 1;
+              mp3_parsing_cache_mp3_length -= frame_size;
+              
+              break;
+            }
+          }          
+          
           n++;
           mp3_length += frame_size;
           act_pos += frame_size;
@@ -3747,6 +3772,12 @@ bool compress_file(float min_percent, float max_percent) {
 
         // conditions for proper first frame: 5 consecutive frames
         if (n >= 5) {
+          if (mp3_parsing_cache_second_frame_candidate > -1) {
+            mp3_parsing_cache_second_frame = mp3_parsing_cache_second_frame_candidate;
+            mp3_parsing_cache_n = n - 1;
+            mp3_parsing_cache_mp3_length = mp3_length - mp3_parsing_cache_second_frame_candidate_size;
+          }
+            
           long long position_length_sum = saved_input_file_pos + mp3_length;
             
           // type must be MPEG-1, Layer III, packMP3 won't process any other files
@@ -8744,6 +8775,9 @@ void recursion_push() {
   recursion_stack_push(&comp_decomp_state, sizeof(comp_decomp_state));
   recursion_stack_push(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
   recursion_stack_push(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
+  recursion_stack_push(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
+  recursion_stack_push(&mp3_parsing_cache_n, sizeof(mp3_parsing_cache_n));
+  recursion_stack_push(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
   
   recursion_stack_push(&compression_otf_method, sizeof(compression_otf_method));
   recursion_stack_push(&decompress_otf_end, sizeof(decompress_otf_end));
@@ -8753,6 +8787,9 @@ void recursion_pop() {
   recursion_stack_pop(&decompress_otf_end, sizeof(decompress_otf_end));
   recursion_stack_pop(&compression_otf_method, sizeof(compression_otf_method));
 
+  recursion_stack_pop(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
+  recursion_stack_pop(&mp3_parsing_cache_n, sizeof(mp3_parsing_cache_n));
+  recursion_stack_pop(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
   recursion_stack_pop(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
   recursion_stack_pop(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
   recursion_stack_pop(&comp_decomp_state, sizeof(comp_decomp_state));
@@ -8861,6 +8898,7 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
       suppress_mp3_type_until[i] = -1;
   }
   suppress_mp3_big_value_pairs_sum = -1;
+  mp3_parsing_cache_second_frame = -1;
 
   // disable compression-on-the-fly in recursion - we don't want compressed compressed streams
   compression_otf_method = 0;
