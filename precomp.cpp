@@ -2905,6 +2905,7 @@ void try_decompression_zip(int zip_header_length) {
 
               if (final_compression_found) break;
             }
+            if (final_compression_found) break;
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -6238,6 +6239,7 @@ void try_decompression_gzip(int gzip_header_length) {
 
               if (final_compression_found) break;
             }
+            if (final_compression_found) break;
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < identical_bytes_decomp)) {
@@ -7848,6 +7850,7 @@ void try_decompression_brute() {
 
               if (final_compression_found) break;
             }
+            if (final_compression_found) break;
           }
 
           if ((best_identical_bytes > min_ident_size_slow_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
