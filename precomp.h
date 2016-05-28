@@ -1,5 +1,5 @@
 int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel);
-int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowbits, int memlevel);
+int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used);
 int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out);
 int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out, int bmp_width);
 int inf(FILE *source, FILE *dest, int windowbits);
@@ -16,7 +16,7 @@ void denit_decompress();
 void denit();
 int inf_bzip2(FILE *source, FILE *dest);
 int def_bzip2(FILE *source, FILE *dest, int level);
-int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel);
+int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, int& decompressed_bytes_used, int& decompressed_bytes_total);
 int file_recompress_bzip2(FILE* origfile, int level);
 void write_decompressed_data(int byte_count, char* decompressed_file_name = tempfile1);
 unsigned int compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2);

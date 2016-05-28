@@ -1968,7 +1968,7 @@ int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel) {
 }
 
 #define DEF_COMPARE_CHUNK 512
-int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowbits, int memlevel) {
+int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used) {
 
   int ret, flush;
   unsigned have;
@@ -1976,6 +1976,7 @@ int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowb
   long long identical_bytes_compare = 0;
 
   int comp_pos = 0;
+  decompressed_bytes_used = 0;
 
   /* allocate deflate state */
   strm.zalloc = Z_NULL;
@@ -1996,6 +1997,7 @@ int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowb
     }
     flush = feof(source) ? Z_FINISH : Z_NO_FLUSH;
     strm.next_in = in;
+    decompressed_bytes_used += strm.avail_in;
 
     do {
       strm.avail_out = DEF_COMPARE_CHUNK;
@@ -2440,10 +2442,12 @@ int def_bzip2(FILE *source, FILE *dest, int level) {
   return BZ_OK;
 }
 
-int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel) {
+int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, int& decompressed_bytes_used, int& decompressed_bytes_total) {
   int retval;
 
   ftempout = fopen(tempfile1,"rb");
+  fseek(ftempout, 0, SEEK_END);
+  decompressed_bytes_total = ftell(ftempout);
   if (ftempout == NULL) {
     error(ERR_TEMP_FILE_DISAPPEARED);
   }
@@ -2452,7 +2456,7 @@ int file_recompress(FILE* origfile, int compression_level, int windowbits, int m
   frecomp = tryOpen(tempfile2,"w+b");
 
   fseek(ftempout, 0, SEEK_SET);
-  retval = def_compare(ftempout, frecomp, origfile, compression_level, windowbits, memlevel);
+  retval = def_compare(ftempout, frecomp, origfile, compression_level, windowbits, memlevel, decompressed_bytes_used);
 
   if (retval > -1) {
     if (origfile == fin) {
@@ -5582,7 +5586,8 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
 
             print_work_sign(true);
 
-            identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level);
+            int decomp_bytes_total;
+            identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level, identical_bytes_decomp, decomp_bytes_total);
             if (identical_bytes > -1) { // successfully recompressed?
 
               if (identical_bytes > best_identical_bytes) {
@@ -5600,46 +5605,13 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
                   safe_fclose(&fident);
                   safe_fclose(&frecomp);
 
-
-                  // decompress temp2.dat to temp3.dat for comparison with temp1.dat
-                  fident = tryOpen(tempfile2a,"rb");
-                  fseek(fident, 0, SEEK_SET);
-
-                  remove(tempfile3);
-                  fdecomp = tryOpen(tempfile3,"wb");
-
-                  inf(fident, fdecomp, windowbits);
-
-                  safe_fclose(&fdecomp);
-                  safe_fclose(&fident);
-
-                  ftempout = tryOpen(tempfile1,"rb");
-                  fseek(ftempout, 0, SEEK_END);
-                  int ftempout_size = ftell(ftempout);
-                  fdecomp = tryOpen(tempfile3,"rb");
-                  identical_bytes_decomp = compare_files(fdecomp, ftempout, 0, 0);
-                  safe_fclose(&fdecomp);
-                  safe_fclose(&ftempout);
-
                   if (DEBUG_MODE) {
-                  printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, ftempout_size);
+                  printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-                  final_compression_found = (identical_bytes_decomp == ftempout_size);
+                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total);
 
-                  if (!final_compression_found) {
-                    // recompress temp3.dat for comparison with input file
-                    remove(tempfile4);
-                    fdecomp = tryOpen(tempfile3,"rb");
-                    frecomp2 = tryOpen(tempfile4,"wb");
-                    retval = def(fdecomp, frecomp2, comp_level, windowbits, mem_level);
-                    safe_fclose(&frecomp2);
-                    safe_fclose(&fdecomp);
-
-                    frecomp2 = tryOpen(tempfile4,"rb");
-                  } else { // tempfile4 would be the same as tempfile2a, no need to recompress again
-                    frecomp2 = tryOpen(tempfile2a,"rb");
-                  }
+                  frecomp2 = tryOpen(tempfile2a,"rb");
 
                   if (origfile == fin) {
                     real_identical_bytes = compare_files_penalty(origfile, frecomp2, input_file_pos, 0);
