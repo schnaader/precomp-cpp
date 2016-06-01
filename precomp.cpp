@@ -7014,144 +7014,78 @@ void try_decompression_gif(unsigned char version[5]) {
     safe_fclose(&frecomp);
 
     if (best_identical_bytes < gif_length) {
-
       if (DEBUG_MODE) {
-        printf("Best identical bytes only %i instead of %i\n", best_identical_bytes, gif_length);
+      printf ("Recompression failed\n");
       }
-
-      int gif_length2 = -1;
-      int decomp_length2 = -1;
-      unsigned char block_size2 = 255;
-
-      // shorten temp2.dat to the identical bytes
-      frecomp = tryOpen(tempfile2,"rb");
-      fident = tryOpen(tempfile2a, "wb");
-      fast_copy(frecomp, fident, best_identical_bytes);
-      safe_fclose(&fident);
-      safe_fclose(&frecomp);
-
-      // decompress temp2.dat to temp3.dat for comparison with temp1.dat
-      fident = tryOpen(tempfile2a,"rb");
-      fseek(fident, 0, SEEK_SET);
-
-      remove(tempfile3);
-      fdecomp = tryOpen(tempfile3,"wb");
-
-      GifCodeFree(&gCode);
-      GifCodeInit(&gCode);
-      decompress_gif(fident, fdecomp, 0, gif_length2, decomp_length2, block_size2, &gCode);
-      // do not exit on failure as the GIF file was shortened, so
-      // we surely can't succeed in decompression
-
-      safe_fclose(&fdecomp);
-      safe_fclose(&fident);
-
-      ftempout = tryOpen(tempfile1,"rb");
-      fseek(ftempout, 0, SEEK_END);
-      int ftempout_size = ftell(ftempout);
-      fdecomp = tryOpen(tempfile3,"rb");
-      identical_bytes_decomp = compare_files(fdecomp, ftempout, 0, 0);
-      safe_fclose(&fdecomp);
-      safe_fclose(&ftempout);
-      decomp_length = identical_bytes_decomp;
-
-      if (DEBUG_MODE) {
-      printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, ftempout_size);
-      }
-
-      // recompress temp3.dat for comparison with input file
-      GifDiffFree(&gDiff);
-      GifDiffInit(&gDiff);
-
-      remove(tempfile4);
-      fdecomp = tryOpen(tempfile3,"rb");
-      frecomp2 = tryOpen(tempfile4,"wb");
-      recompress_success_needed = recompress_gif(fdecomp, frecomp2, block_size2, &gCode, &gDiff);
-      safe_fclose(&frecomp2);
-      safe_fclose(&fdecomp);
-
-      frecomp2 = tryOpen(tempfile4,"rb");
-      real_identical_bytes = compare_files_penalty(fin, frecomp2, input_file_pos, 0);
-      if (DEBUG_MODE) {
-      printf("Real identical bytes: %i\n", real_identical_bytes);
-      }
-      gif_length = real_identical_bytes;
-      safe_fclose(&frecomp2);
-      remove(tempfile4);
-
-      best_identical_bytes = real_identical_bytes;
-      block_size = block_size2;
     } else {
       if (DEBUG_MODE) {
       printf ("Recompression successful\n");
       }
       recompress_success_needed = true;
-    }
 
-    if (best_identical_bytes > min_ident_size) {
-      recompressed_streams_count++;
-      recompressed_gif_count++;
-      non_zlib_was_used = true;
+      if (best_identical_bytes > min_ident_size) {
+        recompressed_streams_count++;
+        recompressed_gif_count++;
+        non_zlib_was_used = true;
       
-      if (penalty_bytes != NULL) {
-        memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
-        best_penalty_bytes_len = penalty_bytes_len;
-      } else {
-        best_penalty_bytes_len = 0;
-      }
-
-      // end uncompressed data
-
-      compressed_data_found = true;
-      end_uncompressed_data();
-
-      // write compressed data header (GIF)
-
-      unsigned char add_bits = 0;
-      if (best_penalty_bytes_len != 0) add_bits += 2;
-      if (block_size == 254) add_bits += 4;
-      if (recompress_success_needed) add_bits += 128;
-
-      fout_fputc(1 + add_bits);
-      fout_fputc(5); // GIF
-
-      // store diff bytes
-      fout_fput32(gDiff.GIFDiffIndex);
-      if(DEBUG_MODE) {
-        if (gDiff.GIFDiffIndex > 0)
-          printf("Diff bytes were used: %i bytes\n", gDiff.GIFDiffIndex);
-      }
-      for (int dbc = 0; dbc < gDiff.GIFDiffIndex; dbc++) {
-        fout_fputc(gDiff.GIFDiff[dbc]);
-      }
-
-      // store penalty bytes, if any
-      if (best_penalty_bytes_len != 0) {
-        if (DEBUG_MODE) {
-          printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
+        if (penalty_bytes != NULL) {
+          memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
+          best_penalty_bytes_len = penalty_bytes_len;
+        } else {
+          best_penalty_bytes_len = 0;
         }
 
-        fout_fput32(best_penalty_bytes_len);
+        // end uncompressed data
 
-        for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
-          fout_fputc(best_penalty_bytes[pbc]);
+        compressed_data_found = true;
+        end_uncompressed_data();
+
+        // write compressed data header (GIF)
+        unsigned char add_bits = 0;
+        if (best_penalty_bytes_len != 0) add_bits += 2;
+        if (block_size == 254) add_bits += 4;
+        if (recompress_success_needed) add_bits += 128;
+
+        fout_fputc(1 + add_bits);
+        fout_fputc(5); // GIF
+
+        // store diff bytes
+        fout_fput32(gDiff.GIFDiffIndex);
+        if(DEBUG_MODE) {
+          if (gDiff.GIFDiffIndex > 0)
+            printf("Diff bytes were used: %i bytes\n", gDiff.GIFDiffIndex);
         }
+        for (int dbc = 0; dbc < gDiff.GIFDiffIndex; dbc++) {
+          fout_fputc(gDiff.GIFDiff[dbc]);
+        }
+
+        // store penalty bytes, if any
+        if (best_penalty_bytes_len != 0) {
+          if (DEBUG_MODE) {
+            printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
+          }
+
+          fout_fput32(best_penalty_bytes_len);
+
+          for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
+            fout_fputc(best_penalty_bytes[pbc]);
+          }
+        }
+
+        fout_fput32(best_identical_bytes);
+        fout_fput32(decomp_length);
+
+        // write decompressed data
+        write_decompressed_data(decomp_length);
+
+        // start new uncompressed data
+
+        // set input file pointer after recompressed data
+        input_file_pos += gif_length - 1;
+        cb += gif_length - 1;
       }
-
-      fout_fput32(best_identical_bytes);
-      fout_fput32(decomp_length);
-
-      // write decompressed data
-
-      write_decompressed_data(decomp_length);
-
-      // start new uncompressed data
-
-      // set input file pointer after recompressed data
-      input_file_pos += gif_length - 1;
-      cb += gif_length - 1;
-
     }
+
 
   } else {
 
