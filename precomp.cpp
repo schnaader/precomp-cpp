@@ -97,9 +97,7 @@ char metatempfile[18] = "~temp00000000.dat";
 char tempfile0[19] = "~temp000000000.dat";
 char tempfile1[19] = "~temp000000001.dat";
 char tempfile2[19] = "~temp000000002.dat";
-char tempfile2a[20] = "~temp000000002_.dat";
 char tempfile3[19] = "~temp000000003.dat";
-char tempfile4[19] = "~temp000000004.dat";
 char* tempfilelist;
 int tempfilelist_count = 0;
 
@@ -137,8 +135,6 @@ FILE* fin = NULL;
 FILE* fout = NULL;
 FILE* ftempout = NULL;
 FILE* frecomp = NULL;
-FILE* fident = NULL;
-FILE* frecomp2 = NULL;
 FILE* fdecomp = NULL;
 FILE* fpack = NULL;
 FILE* fpng = NULL;
@@ -1823,9 +1819,7 @@ void denit_compress() {
   remove(tempfile0);
   remove(tempfile1);
   remove(tempfile2);
-  remove(tempfile2a);
   remove(tempfile3);
-  remove(tempfile4);
 
   tempfilelist_count -= 8;
   tempfilelist = (char*)realloc(tempfilelist, 20 * tempfilelist_count * sizeof(char));
@@ -1865,9 +1859,7 @@ void denit_decompress() {
   remove(tempfile0);
   remove(tempfile1);
   remove(tempfile2);
-  remove(tempfile2a);
   remove(tempfile3);
-  remove(tempfile4);
 
   tempfilelist_count -= 8;
   tempfilelist = (char*)realloc(tempfilelist, 20 * tempfilelist_count * sizeof(char));
@@ -2678,7 +2670,6 @@ int best_mem_level = -1;
 int best_windowbits = -1;
 int best_penalty_bytes_len = 0;
 int identical_bytes_decomp = -1;
-int real_identical_bytes = -1;
 bool final_compression_found = false;
 
 void init_decompression_variables() {
@@ -2689,7 +2680,6 @@ void init_decompression_variables() {
   best_penalty_bytes_len = 0;
   best_identical_bytes_decomp = -1;
   identical_bytes_decomp = -1;
-  real_identical_bytes = -1;
   final_compression_found = false;
 }
 
@@ -8554,9 +8544,7 @@ void init_temp_files() {
     tempfile0[5+j] = '0' + (k % 10);
     tempfile1[5+j] = '0' + (k % 10);
     tempfile2[5+j] = '0' + (k % 10);
-    tempfile2a[5+j] = '0' + (k % 10);
     tempfile3[5+j] = '0' + (k % 10);
-    tempfile4[5+j] = '0' + (k % 10);
     k /= 10;
   }
 
@@ -8577,9 +8565,7 @@ void init_temp_files() {
   tempfilelist[(tempfilelist_count - 5) * 20 + 19] = 0;
 
   strcpy(tempfilelist + (tempfilelist_count - 4) * 20, tempfile2);
-  strcpy(tempfilelist + (tempfilelist_count - 3) * 20, tempfile2a);
   strcpy(tempfilelist + (tempfilelist_count - 2) * 20, tempfile3);
-  strcpy(tempfilelist + (tempfilelist_count - 1) * 20, tempfile4);
 }
 
 void recursion_stack_push(void* var, int var_size) {
@@ -8617,8 +8603,6 @@ void recursion_push() {
   recursion_stack_push(&fout, sizeof(fout));
   recursion_stack_push(&ftempout, sizeof(ftempout));
   recursion_stack_push(&frecomp, sizeof(frecomp));
-  recursion_stack_push(&fident, sizeof(fident));
-  recursion_stack_push(&frecomp2, sizeof(frecomp2));
   recursion_stack_push(&fdecomp, sizeof(fdecomp));
   recursion_stack_push(&fpack, sizeof(fpack));
   recursion_stack_push(&fpng, sizeof(fpng));
@@ -8629,9 +8613,7 @@ void recursion_push() {
   recursion_stack_push(&tempfile0[0], sizeof(tempfile0[0]) * 19);
   recursion_stack_push(&tempfile1[0], sizeof(tempfile1[0]) * 19);
   recursion_stack_push(&tempfile2[0], sizeof(tempfile2[0]) * 19);
-  recursion_stack_push(&tempfile2a[0], sizeof(tempfile2a[0]) * 20);
   recursion_stack_push(&tempfile3[0], sizeof(tempfile3[0]) * 19);
-  recursion_stack_push(&tempfile4[0], sizeof(tempfile4[0]) * 19);
   recursion_stack_push(&penalty_bytes, sizeof(penalty_bytes));
   recursion_stack_push(&local_penalty_bytes, sizeof(penalty_bytes));
   recursion_stack_push(&best_penalty_bytes, sizeof(penalty_bytes));
@@ -8644,7 +8626,6 @@ void recursion_push() {
   recursion_stack_push(&penalty_bytes_len, sizeof(penalty_bytes_len));
   recursion_stack_push(&best_penalty_bytes_len, sizeof(best_penalty_bytes_len));
   recursion_stack_push(&identical_bytes_decomp, sizeof(identical_bytes_decomp));
-  recursion_stack_push(&real_identical_bytes, sizeof(real_identical_bytes));
   recursion_stack_push(&final_compression_found, sizeof(final_compression_found));
 
   recursion_stack_push(&anything_was_used, sizeof(anything_was_used));
@@ -8680,7 +8661,6 @@ void recursion_pop() {
   recursion_stack_pop(&anything_was_used, sizeof(anything_was_used));
 
   recursion_stack_pop(&final_compression_found, sizeof(final_compression_found));
-  recursion_stack_pop(&real_identical_bytes, sizeof(real_identical_bytes));
   recursion_stack_pop(&identical_bytes_decomp, sizeof(identical_bytes_decomp));
   recursion_stack_pop(&best_penalty_bytes_len, sizeof(best_penalty_bytes_len));
   recursion_stack_pop(&penalty_bytes_len, sizeof(penalty_bytes_len));
@@ -8693,9 +8673,7 @@ void recursion_pop() {
   recursion_stack_pop(&best_penalty_bytes, sizeof(penalty_bytes));
   recursion_stack_pop(&local_penalty_bytes, sizeof(penalty_bytes));
   recursion_stack_pop(&penalty_bytes, sizeof(penalty_bytes));
-  recursion_stack_pop(&tempfile4[0], sizeof(tempfile4[0]) * 19);
   recursion_stack_pop(&tempfile3[0], sizeof(tempfile3[0]) * 19);
-  recursion_stack_pop(&tempfile2a[0], sizeof(tempfile2a[0]) * 20);
   recursion_stack_pop(&tempfile2[0], sizeof(tempfile2[0]) * 19);
   recursion_stack_pop(&tempfile1[0], sizeof(tempfile1[0]) * 19);
   recursion_stack_pop(&tempfile0[0], sizeof(tempfile0[0]) * 19);
@@ -8706,8 +8684,6 @@ void recursion_pop() {
   recursion_stack_pop(&fpng, sizeof(fpng));
   recursion_stack_pop(&fpack, sizeof(fpack));
   recursion_stack_pop(&fdecomp, sizeof(fdecomp));
-  recursion_stack_pop(&frecomp2, sizeof(frecomp2));
-  recursion_stack_pop(&fident, sizeof(fident));
   recursion_stack_pop(&frecomp, sizeof(frecomp));
   recursion_stack_pop(&ftempout, sizeof(ftempout));
   recursion_stack_pop(&fout, sizeof(fout));
