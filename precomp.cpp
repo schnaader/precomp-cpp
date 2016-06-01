@@ -5653,126 +5653,62 @@ int try_to_decompress_bzip2(FILE* file, int compression_level) {
 }
 
 void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits) {
-
             print_work_sign(true);
 
             int decomp_bytes_total;
             identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level, identical_bytes_decomp, decomp_bytes_total);
             if (identical_bytes > -1) { // successfully recompressed?
-
               if (identical_bytes > best_identical_bytes) {
-
                 if (identical_bytes > min_ident_size) {
-
                   if (DEBUG_MODE) {
                   printf("Identical recompressed bytes: %i\n", identical_bytes);
-                  }
-
-                  // shorten temp2.dat to the identical bytes
-                  frecomp = tryOpen(tempfile2,"rb");
-                  fident = tryOpen(tempfile2a, "wb");
-                  fast_copy(frecomp, fident, identical_bytes);
-                  safe_fclose(&fident);
-                  safe_fclose(&frecomp);
-
-                  if (DEBUG_MODE) {
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
                   final_compression_found = (identical_bytes_decomp == decomp_bytes_total);
-
-                  frecomp2 = tryOpen(tempfile2a,"rb");
-
-                  if (origfile == fin) {
-                    real_identical_bytes = compare_files_penalty(origfile, frecomp2, input_file_pos, 0);
-                  } else {
-                    real_identical_bytes = compare_files_penalty(origfile, frecomp2, 0, 0);
-                  }
-                  if (DEBUG_MODE) {
-                  printf("Real identical bytes: %i\n", real_identical_bytes);
-                  }
-                  safe_fclose(&frecomp2);
                 }
 
-                if (real_identical_bytes > best_identical_bytes) {
-
-                  best_identical_bytes_decomp = identical_bytes_decomp;
-                  best_identical_bytes = real_identical_bytes;
-                  best_compression = comp_level;
-                  best_mem_level = mem_level;
-                  best_windowbits = windowbits;
-                  if (penalty_bytes_len > 0) {
-                    memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
-                    best_penalty_bytes_len = penalty_bytes_len;
-                  } else {
-                    best_penalty_bytes_len = 0;
-                  }
-
+                best_identical_bytes_decomp = identical_bytes_decomp;
+                best_identical_bytes = identical_bytes;
+                best_compression = comp_level;
+                best_mem_level = mem_level;
+                best_windowbits = windowbits;
+                if (penalty_bytes_len > 0) {
+                  memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
+                  best_penalty_bytes_len = penalty_bytes_len;
+                } else {
+                  best_penalty_bytes_len = 0;
                 }
-
               }
             }
-
 }
 
 void try_recompress_bzip2(FILE* origfile, int level) {
-
             print_work_sign(true);
 
             int decomp_bytes_total;
             identical_bytes = file_recompress_bzip2(origfile, level, identical_bytes_decomp, decomp_bytes_total);
             if (identical_bytes > -1) { // successfully recompressed?
-
               if (identical_bytes > best_identical_bytes) {
-
                 if (identical_bytes > min_ident_size) {
-
                   if (DEBUG_MODE) {
                   printf("Identical recompressed bytes: %i\n", identical_bytes);
-                  }
-
-                  // shorten temp2.dat to the identical bytes
-                  frecomp = tryOpen(tempfile2,"rb");
-                  fident = tryOpen(tempfile2a, "wb");
-                  fast_copy(frecomp, fident, identical_bytes);
-                  safe_fclose(&fident);
-                  safe_fclose(&frecomp);
-
-                  if (DEBUG_MODE) {
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
                   final_compression_found = (identical_bytes_decomp == decomp_bytes_total);
-
-                  frecomp2 = tryOpen(tempfile2a,"rb");
-
-                  if (origfile == fin) {
-                    real_identical_bytes = compare_files_penalty(origfile, frecomp2, input_file_pos, 0);
-                  } else {
-                    real_identical_bytes = compare_files_penalty(origfile, frecomp2, 0, 0);
-                  }
-                  if (DEBUG_MODE) {
-                  printf("Real identical bytes: %i\n", real_identical_bytes);
-                  }
-                  safe_fclose(&frecomp2);
                 }
 
-                if (real_identical_bytes > best_identical_bytes) {
-
-                  best_identical_bytes_decomp = identical_bytes_decomp;
-                  best_identical_bytes = real_identical_bytes;
-                  if (penalty_bytes_len > 0) {
-                    memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
-                    best_penalty_bytes_len = penalty_bytes_len;
-                  } else {
-                    best_penalty_bytes_len = 0;
-                  }
-
+                best_identical_bytes_decomp = identical_bytes_decomp;
+                best_identical_bytes = identical_bytes;
+                if (penalty_bytes_len > 0) {
+                  memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
+                  best_penalty_bytes_len = penalty_bytes_len;
+                } else {
+                  best_penalty_bytes_len = 0;
                 }
-
               }
             }
-
 }
 
 
