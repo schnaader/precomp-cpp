@@ -21,7 +21,8 @@ int file_recompress(FILE* origfile, int compression_level, int windowbits, int m
 int file_recompress_bzip2(FILE* origfile, int level, int& decompressed_bytes_used, int& decompressed_bytes_total);
 void write_decompressed_data(int byte_count, char* decompressed_file_name = tempfile1);
 unsigned int compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2);
-long long compare_file_mem(FILE* file1, unsigned char* input_bytes2, long long pos1, long long bytecount);
+long long compare_file_mem_penalty(FILE* file1, unsigned char* input_bytes2, long long pos1, long long bytecount, long long& total_same_byte_count, long long& total_same_byte_count_penalty, long long& rek_same_byte_count, long long& rek_same_byte_count_penalty, long long& rek_penalty_bytes_len, long long& local_penalty_bytes_len, bool& use_penalty_bytes);
+long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long long pos2);
 void start_uncompressed_data();
 void end_uncompressed_data();
 void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc);

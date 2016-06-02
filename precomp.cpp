@@ -210,7 +210,6 @@ int comp_decomp_state = P_NONE;
 
 // penalty bytes
 #define MAX_PENALTY_BYTES 16384
-long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long long pos2);
 #ifndef PRECOMPDLL
 char* penalty_bytes = new char[MAX_PENALTY_BYTES];
 char* local_penalty_bytes = new char[MAX_PENALTY_BYTES];
@@ -1959,8 +1958,17 @@ int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel) {
   return Z_OK;
 }
 
+void copy_penalty_bytes(long long& rek_penalty_bytes_len, bool& use_penalty_bytes) {
+  if ((rek_penalty_bytes_len > 0) && (use_penalty_bytes)) {
+    memcpy(penalty_bytes, local_penalty_bytes, rek_penalty_bytes_len);
+    penalty_bytes_len = rek_penalty_bytes_len;
+  } else {
+    penalty_bytes_len = 0;
+  }
+}
+
 #define DEF_COMPARE_CHUNK 512
-int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used) {
+int def_compare(FILE *source, FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used) {
 
   int ret, flush;
   unsigned have;
@@ -1977,6 +1985,14 @@ int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowb
   ret = deflateInit2(&strm, level, Z_DEFLATED, windowbits, memlevel, Z_DEFAULT_STRATEGY);
   if (ret != Z_OK)
     return -1;
+
+  long long total_same_byte_count = 0;
+  long long total_same_byte_count_penalty = 0;
+  long long rek_same_byte_count = 0;
+  long long rek_same_byte_count_penalty = -1;
+  long long rek_penalty_bytes_len = 0;
+  long long local_penalty_bytes_len = 0;
+  bool use_penalty_bytes = false;
 
   /* compress until end of file */
   do {
@@ -1998,24 +2014,20 @@ int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowb
       ret = deflate(&strm, flush);
 
       have = DEF_COMPARE_CHUNK - strm.avail_out;
-
+      
       if (have > 0) {
         if (compfile == fin) {
-          identical_bytes_compare = compare_file_mem(compfile, out, input_file_pos + comp_pos, have);
+          identical_bytes_compare = compare_file_mem_penalty(compfile, out, input_file_pos + comp_pos, have, total_same_byte_count, total_same_byte_count_penalty, rek_same_byte_count, rek_same_byte_count_penalty, rek_penalty_bytes_len, local_penalty_bytes_len, use_penalty_bytes);
         } else {
-          identical_bytes_compare = compare_file_mem(compfile, out, comp_pos, have);
+          identical_bytes_compare = compare_file_mem_penalty(compfile, out, comp_pos, have, total_same_byte_count, total_same_byte_count_penalty, rek_same_byte_count, rek_same_byte_count_penalty, rek_penalty_bytes_len, local_penalty_bytes_len, use_penalty_bytes);
         }
-      }
-
-      if (own_fwrite(out, 1, have, dest) != have || ferror(dest)) {
-        (void)deflateEnd(&strm);
-        return -1;
       }
 
       if (have > 0) {
         if ((unsigned int)identical_bytes_compare < (have >> 1)) {
           (void)deflateEnd(&strm);
-          return (comp_pos + identical_bytes_compare);
+          copy_penalty_bytes(rek_penalty_bytes_len, use_penalty_bytes);
+          return rek_same_byte_count;
         }
       }
 
@@ -2026,10 +2038,11 @@ int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowb
   } while (flush != Z_FINISH);
 
   (void)deflateEnd(&strm);
-  return comp_pos;
+  copy_penalty_bytes(rek_penalty_bytes_len, use_penalty_bytes);
+  return rek_same_byte_count;
 }
 
-int def_compare_bzip2(FILE *source, FILE *dest, FILE *compfile, int level, int& decompressed_bytes_used) {
+int def_compare_bzip2(FILE *source, FILE *compfile, int level, int& decompressed_bytes_used) {
   int ret, flush;
   unsigned have;
   bz_stream strm;
@@ -2046,6 +2059,14 @@ int def_compare_bzip2(FILE *source, FILE *dest, FILE *compfile, int level, int& 
   if (ret != BZ_OK)
     return ret;
 
+  long long total_same_byte_count = 0;
+  long long total_same_byte_count_penalty = 0;
+  long long rek_same_byte_count = 0;
+  long long rek_same_byte_count_penalty = -1;
+  long long rek_penalty_bytes_len = 0;
+  long long local_penalty_bytes_len = 0;
+  bool use_penalty_bytes = false;
+  
   /* compress until end of file */
   do {
     print_work_sign(true);
@@ -2069,21 +2090,17 @@ int def_compare_bzip2(FILE *source, FILE *dest, FILE *compfile, int level, int& 
 
       if (have > 0) {
         if (compfile == fin) {
-          identical_bytes_compare = compare_file_mem(compfile, out, input_file_pos + comp_pos, have);
+          identical_bytes_compare = compare_file_mem_penalty(compfile, out, input_file_pos + comp_pos, have, total_same_byte_count, total_same_byte_count_penalty, rek_same_byte_count, rek_same_byte_count_penalty, rek_penalty_bytes_len, local_penalty_bytes_len, use_penalty_bytes);
         } else {
-          identical_bytes_compare = compare_file_mem(compfile, out, comp_pos, have);
+          identical_bytes_compare = compare_file_mem_penalty(compfile, out, comp_pos, have, total_same_byte_count, total_same_byte_count_penalty, rek_same_byte_count, rek_same_byte_count_penalty, rek_penalty_bytes_len, local_penalty_bytes_len, use_penalty_bytes);
         }
-      }
-
-      if (own_fwrite(out, 1, have, dest) != have || ferror(dest)) {
-        (void)BZ2_bzCompressEnd(&strm);
-        return BZ_DATA_ERROR;
       }
 
       if (have > 0) {
         if ((unsigned int)identical_bytes_compare < (have >> 1)) {
           (void)BZ2_bzCompressEnd(&strm);
-          return (comp_pos + identical_bytes_compare);
+          copy_penalty_bytes(rek_penalty_bytes_len, use_penalty_bytes);
+          return rek_same_byte_count;
         }
       }
 
@@ -2094,7 +2111,8 @@ int def_compare_bzip2(FILE *source, FILE *dest, FILE *compfile, int level, int& 
   } while (flush != BZ_FINISH);
 
   (void)BZ2_bzCompressEnd(&strm);
-  return comp_pos;
+  copy_penalty_bytes(rek_penalty_bytes_len, use_penalty_bytes);
+  return rek_same_byte_count;
 }
 
 int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out) {
@@ -2512,26 +2530,12 @@ int file_recompress(FILE* origfile, int compression_level, int windowbits, int m
     error(ERR_TEMP_FILE_DISAPPEARED);
   }
 
-  remove(tempfile2);
-  frecomp = tryOpen(tempfile2,"w+b");
-
   fseek(ftempout, 0, SEEK_SET);
-  retval = def_compare(ftempout, frecomp, origfile, compression_level, windowbits, memlevel, decompressed_bytes_used);
-
-  if (retval > -1) {
-    if (origfile == fin) {
-      retval = compare_files_penalty(origfile, frecomp, input_file_pos, 0);
-    } else {
-      retval = compare_files_penalty(origfile, frecomp, 0, 0);
-    }
-  } else {
-    safe_fclose(&ftempout);
-    safe_fclose(&frecomp);
-    return -1;
-  }
+  retval = def_compare(ftempout, origfile, compression_level, windowbits, memlevel, decompressed_bytes_used);
 
   safe_fclose(&ftempout);
-  safe_fclose(&frecomp);
+
+  if (retval < 0) return -1;
 
   return retval;
 }
@@ -2546,26 +2550,12 @@ int file_recompress_bzip2(FILE* origfile, int level, int& decompressed_bytes_use
     error(ERR_TEMP_FILE_DISAPPEARED);
   }
 
-  remove(tempfile2);
-  frecomp = tryOpen(tempfile2,"w+b");
-
   fseek(ftempout, 0, SEEK_SET);
-  retval = def_compare_bzip2(ftempout, frecomp, origfile, level, decompressed_bytes_used);
-
-  if (retval > -1) {
-    if (origfile == fin) {
-      retval = compare_files_penalty(origfile, frecomp, input_file_pos, 0);
-    } else {
-      retval = compare_files_penalty(origfile, frecomp, 0, 0);
-    }
-  } else {
-    safe_fclose(&ftempout);
-    safe_fclose(&frecomp);
-    return -1;
-  }
+  retval = def_compare_bzip2(ftempout, origfile, level, decompressed_bytes_used);
 
   safe_fclose(&ftempout);
-  safe_fclose(&frecomp);
+
+  if (retval < 0) return -1;
 
   return retval;
 }
@@ -2615,7 +2605,7 @@ unsigned int compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned
 
 unsigned char input_bytes1[DEF_COMPARE_CHUNK];
 
-long long compare_file_mem(FILE* file1, unsigned char* input_bytes2, long long pos1, long long bytecount) {
+long long compare_file_mem_penalty(FILE* file1, unsigned char* input_bytes2, long long pos1, long long bytecount, long long& total_same_byte_count, long long& total_same_byte_count_penalty, long long& rek_same_byte_count, long long& rek_same_byte_count_penalty, long long& rek_penalty_bytes_len, long long& local_penalty_bytes_len, bool& use_penalty_bytes) {
   int same_byte_count = 0;
   int size1;
   int i;
@@ -2625,10 +2615,36 @@ long long compare_file_mem(FILE* file1, unsigned char* input_bytes2, long long p
   seek_64(file1, pos1);
 
   size1 = fread(input_bytes1, 1, bytecount, file1);
-
+  
   for (i = 0; i < size1; i++) {
     if (input_bytes1[i] == input_bytes2[i]) {
       same_byte_count++;
+      total_same_byte_count_penalty++;
+    } else {
+      total_same_byte_count_penalty -= 5; // 4 bytes = position, 1 byte = new byte
+
+      // stop, if local_penalty_bytes_len gets too big
+      if ((local_penalty_bytes_len + 5) >= MAX_PENALTY_BYTES) {
+        break;
+      }
+
+      local_penalty_bytes_len += 5;
+      // position
+      local_penalty_bytes[local_penalty_bytes_len-5] = (total_same_byte_count >> 24) % 256;
+      local_penalty_bytes[local_penalty_bytes_len-4] = (total_same_byte_count >> 16) % 256; 
+      local_penalty_bytes[local_penalty_bytes_len-3] = (total_same_byte_count >> 8) % 256; 
+      local_penalty_bytes[local_penalty_bytes_len-2] = total_same_byte_count % 256;
+      // new byte
+      local_penalty_bytes[local_penalty_bytes_len-1] = input_bytes1[i];
+    }
+    total_same_byte_count++;
+    
+    if (total_same_byte_count_penalty > rek_same_byte_count_penalty) {
+      use_penalty_bytes = true;
+      rek_penalty_bytes_len = local_penalty_bytes_len;
+
+      rek_same_byte_count = total_same_byte_count;
+      rek_same_byte_count_penalty = total_same_byte_count_penalty;
     }
   }
 
