@@ -5664,14 +5664,14 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
             int decomp_bytes_total;
             identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level, identical_bytes_decomp, decomp_bytes_total);
             if (identical_bytes > -1) { // successfully recompressed?
-              if (identical_bytes > best_identical_bytes) {
+              if ((identical_bytes > best_identical_bytes) || ((identical_bytes == best_identical_bytes) && (penalty_bytes_len < best_penalty_bytes_len))) {
                 if (identical_bytes > min_ident_size) {
                   if (DEBUG_MODE) {
                   printf("Identical recompressed bytes: %i\n", identical_bytes);
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total);
+                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (penalty_bytes_len == 0);
                 }
 
                 best_identical_bytes_decomp = identical_bytes_decomp;
@@ -5695,14 +5695,14 @@ void try_recompress_bzip2(FILE* origfile, int level) {
             int decomp_bytes_total;
             identical_bytes = file_recompress_bzip2(origfile, level, identical_bytes_decomp, decomp_bytes_total);
             if (identical_bytes > -1) { // successfully recompressed?
-              if (identical_bytes > best_identical_bytes) {
+              if ((identical_bytes > best_identical_bytes)  || ((identical_bytes == best_identical_bytes) && (penalty_bytes_len < best_penalty_bytes_len))) {
                 if (identical_bytes > min_ident_size) {
                   if (DEBUG_MODE) {
                   printf("Identical recompressed bytes: %i\n", identical_bytes);
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total);
+                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (penalty_bytes_len == 0);
                 }
 
                 best_identical_bytes_decomp = identical_bytes_decomp;
