@@ -3,7 +3,7 @@ int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowb
 int def_compare_bzip2(FILE *source, FILE *dest, FILE *compfile, int level, int& decompressed_bytes_used);
 int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out);
 int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out, int bmp_width);
-int inf(FILE *source, FILE *dest, int windowbits);
+int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size);
 void zerr(int ret);
 #ifndef PRECOMPDLL
 #ifndef COMFORT
@@ -55,10 +55,10 @@ void show_used_levels();
 bool compress_file(float min_percent = 0, float max_percent = 100);
 void decompress_file();
 void convert_file();
-int try_to_decompress(FILE* file, int windowbits);
-int try_to_decompress_bzip2(FILE* file, int compression_level);
-void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits);
-void try_recompress_bzip2(FILE* origfile, int level);
+int try_to_decompress(FILE* file, int windowbits, int& compressed_stream_size);
+int try_to_decompress_bzip2(FILE* file, int compression_level, int& compressed_stream_size);
+void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits, int& compressed_stream_size);
+void try_recompress_bzip2(FILE* origfile, int level, int& compressed_stream_size);
 void write_header();
 void read_header();
 void convert_header();
