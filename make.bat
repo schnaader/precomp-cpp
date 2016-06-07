@@ -9,8 +9,8 @@ REM "make comfort 64" or "make 64 comfort" for a 64-bit compile of Precomp Comfo
 REM gcc/g++ 32-bit/64-bit commands - change them according to your environment
 set GCC32=gcc
 set GPP32=g++
-set GCC64=x86_64-w64-mingw32-gcc
-set GPP64=x86_64-w64-mingw32-g++
+set GCC64=gcc
+set GPP64=g++
 
 set EXE1=precomp
 set EXE2=
