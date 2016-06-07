@@ -7576,8 +7576,8 @@ void try_decompression_zlib(int windowbits) {
           printf("Possible zLib-Stream (intense mode) found at position ");
           print64(saved_input_file_pos);
           printf(", windowbits = %i\n", -windowbits);
-          }
           printf("Compressed size: %i\n", compressed_stream_size);
+          }
 
           ftempout = tryOpen(tempfile1, "rb");
           fseek(ftempout, 0, SEEK_END);
@@ -7723,8 +7723,8 @@ void try_decompression_brute() {
           printf("Possible zLib-Stream (brute mode) found at position ");
           print64(saved_input_file_pos);
           printf("\n");
-          }
           printf("Compressed size: %i\n", compressed_stream_size);
+          }
 
           ftempout = tryOpen(tempfile1, "rb");
           fseek(ftempout, 0, SEEK_END);
@@ -7864,8 +7864,8 @@ void try_decompression_swf(int windowbits) {
           printf("Possible zLib-Stream in SWF found at position ");
           print64(saved_input_file_pos);
           printf(", windowbits = %i\n", -windowbits);
-          }
           printf("Compressed size: %i\n", compressed_stream_size);
+          }
 
           if (DEBUG_MODE) {
           ftempout = tryOpen(tempfile1, "rb");
