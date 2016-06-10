@@ -2752,7 +2752,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
             recompressed_pdf_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with compression level %i: %i bytes, decompressed to %i bytes\n", best_compression, best_identical_bytes, best_identical_bytes_decomp);
+            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
             }
 
             if (img_bpc == 8) {
@@ -3004,7 +3004,7 @@ void try_decompression_zip(int zip_header_length) {
 
             windowbits = best_windowbits;
             if (DEBUG_MODE) {
-            printf("Best match with compression level %i, windowbits = %i: %i bytes, decompressed to %i bytes\n", best_compression, -windowbits, best_identical_bytes, best_identical_bytes_decomp);
+            printf("Best match with level combination %i%i, windowbits = %i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, -windowbits, best_identical_bytes, best_identical_bytes_decomp);
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -6209,7 +6209,7 @@ void try_decompression_gzip(int gzip_header_length) {
 
             windowbits = best_windowbits;
             if (DEBUG_MODE) {
-            printf("Best match with compression level %i, windowbits = %i: %i bytes, decompressed to %i bytes\n", best_compression, -windowbits, best_identical_bytes, best_identical_bytes_decomp);
+            printf("Best match with level combination %i%i, windowbits = %i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, -windowbits, best_identical_bytes, best_identical_bytes_decomp);
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -6342,7 +6342,7 @@ void try_decompression_png (int windowbits) {
             recompressed_png_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with compression level %i: %i bytes, decompressed to %i bytes\n", best_compression, best_identical_bytes, best_identical_bytes_decomp);
+            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -6460,7 +6460,7 @@ void try_decompression_png_multi(int windowbits) {
             recompressed_png_multi_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with compression level %i: %i bytes, decompressed to %i bytes\n", best_compression, best_identical_bytes, best_identical_bytes_decomp);
+            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -7611,7 +7611,7 @@ void try_decompression_zlib(int windowbits) {
             recompressed_zlib_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with compression level %i: %i bytes, decompressed to %i bytes\n", best_compression, best_identical_bytes, best_identical_bytes_decomp);
+            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -7762,7 +7762,7 @@ void try_decompression_brute() {
 
             windowbits = best_windowbits;
             if (DEBUG_MODE) {
-            printf("Best match with compression level %i, windowbits = %i: %i bytes, decompressed to %i bytes\n", best_compression, -windowbits, best_identical_bytes, best_identical_bytes_decomp);
+            printf("Best match with level combination %i%i, windowbits = %i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, -windowbits, best_identical_bytes, best_identical_bytes_decomp);
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -7889,7 +7889,7 @@ void try_decompression_swf(int windowbits) {
             recompressed_swf_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with compression level %i: %i bytes, decompressed to %i bytes\n", best_compression, best_identical_bytes, best_identical_bytes_decomp);
+            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
