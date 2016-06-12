@@ -1134,6 +1134,11 @@ int init_comfort(int argc, char* argv[]) {
 
   // precomf.ini in EXE directory?
   char precomf_ini[1024];
+#ifdef _MSC_VER
+#ifdef UNICODE
+#define GetModuleFileName GetModuleFileNameA
+#endif // UNICODE
+#endif // _MSC_VER
   GetModuleFileName(NULL, precomf_ini, 1024);
   // truncate to get directory of executable only
   char* lastslash = strrchr(precomf_ini, PATH_DELIM) + 1;

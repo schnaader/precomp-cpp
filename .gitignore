@@ -2,7 +2,6 @@
 *.slo
 *.lo
 *.o
-*.obj
 
 # Compiled Dynamic libraries
 *.so
@@ -23,6 +22,7 @@
 # Visual Studio specific files
 *.opensdf
 *.sdf
+*.ncb
 *.suo
 *.user
 *.log
@@ -31,5 +31,9 @@
 *.lastbuildstate
 
 # Visual Studio output directories
+vs2012/Debug
+vs2012/Release
+vs2012/paq8o8pre/Debug
+vs2012/paq8o8pre/Release
 vs2012/Precomp/Debug
 vs2012/Precomp/Release
