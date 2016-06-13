@@ -286,6 +286,18 @@
 					>
 				</File>
 			</Filter>
+			<Filter
+				Name="liblzma"
+				>
+				<File
+					RelativePath="..\..\contrib\liblzma\compress_easy_mt.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\..\contrib\liblzma\decompress.cpp"
+					>
+				</File>
+			</Filter>
 		</Filter>
 		<Filter
 			Name="Header"
