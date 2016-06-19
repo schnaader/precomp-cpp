@@ -125,7 +125,17 @@ float global_max_percent = 100;
 // compression-on-the-fly
 unsigned char bz2_in[CHUNK];
 unsigned char bz2_out[CHUNK];
+
+//#ifdef COMFORT
+#include "contrib/liblzma/precomp_xz.h"
+lzma_stream otf_xz_stream_c = LZMA_STREAM_INIT, otf_xz_stream_d = LZMA_STREAM_INIT;
+//#endif // COMFORT
+
+#ifdef LZMA_H
+int compression_otf_method = 4; // 0 = uncompressed, 1 = bZip2, 2 = lzma, 3 = xz(lzma2), 4 = xz_MT
+#else
 int compression_otf_method = 1; // 0 = uncompressed, 1 = bZip2
+#endif // LZMA_H
 int conversion_from_method;     // 0 = uncompressed, 1 = bZip2
 int conversion_to_method;       // 0 = uncompressed, 1 = bZip2
 bool decompress_otf_end = false;
@@ -768,6 +778,17 @@ int init(int argc, char* argv[]) {
               case 'B': // bZip2
                 compression_otf_method = 1;
                 break;
+#ifdef LZMA_H
+              case 'L': // lzma
+                compression_otf_method = 2;
+                break;
+              case 'X': // xz(lzma2)
+                compression_otf_method = 3;
+                break;
+              case 'M': // xz: Multi-Threaded
+                compression_otf_method = 4;
+                break;
+#endif // LZMA_H
               default:
                 printf("ERROR: Invalid compression method %c\n", argv[i][2]);
                 exit(1);
@@ -1157,8 +1178,8 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,";; Precomp Comfort v%i.%i.%i - %s version - INI file\n",V_MAJOR,V_MINOR,V_MINOR2,V_STATE);
       fprintf(fnewini,";; Use a semicolon (;) for comments\n\n");
       fprintf(fnewini,";; Compression method to use\n");
-      fprintf(fnewini,";; 0 = none, 1 = bZip2\n");
-      fprintf(fnewini,"Compression_Method=1\n\n");
+      fprintf(fnewini,";; 0 = none, 1 = bZip2, 2 = lzma, 3 = xz(lzma2), 4 = xz Multi-Threaded\n");
+      fprintf(fnewini,"Compression_Method=4\n\n");
       fprintf(fnewini,";; Fast mode (on/off)\n");
       fprintf(fnewini,"Fast_Mode=off\n\n");
       fprintf(fnewini,";; Intense mode (on/off)\n");
@@ -1318,6 +1339,24 @@ int init_comfort(int argc, char* argv[]) {
           if (strcmp(value, "1") == 0) {
             printf("INI: Using bZip2 compression method\n");
             compression_otf_method = 1;
+            valid_param = true;
+          }
+
+          if (strcmp(value, "2") == 0) {
+            printf("INI: Using lzma compression method\n");
+            compression_otf_method = 2;
+            valid_param = true;
+          }
+
+          if (strcmp(value, "3") == 0) {
+            printf("INI: Using xz(lzma2) compression method\n");
+            compression_otf_method = 3;
+            valid_param = true;
+          }
+
+          if (strcmp(value, "4") == 0) {
+            printf("INI: Using xz Multi-Threaded compression method\n");
+            compression_otf_method = 4;
             valid_param = true;
           }
 
@@ -5988,6 +6027,60 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
         result = size * count;
         break;
       }
+#ifdef LZMA_H
+      case 4: // xz_MT
+      case 2: // lzma
+      case 3: { // xz
+        if (size != 1 || count > 512) {
+          printf("\b\nown_fwrite(xz%i: %i * %i = %i\n-", compression_otf_method, size, count, size * count);
+        }
+        lzma_action action = (final_byte == 1) ? LZMA_FINISH : LZMA_RUN;
+        lzma_ret ret;
+        unsigned have;
+
+        otf_xz_stream_c.avail_in = size * count;
+        otf_xz_stream_c.next_in = (uint8_t *)ptr;
+        do {
+          print_work_sign(true);
+          otf_xz_stream_c.avail_out = CHUNK;
+          otf_xz_stream_c.next_out = (uint8_t *)bz2_out;
+          ret = lzma_code(&otf_xz_stream_c, action);
+          have = CHUNK - otf_xz_stream_c.avail_out;
+          if (fwrite(bz2_out, 1, have, stream) != have || ferror(stream)) {
+            result = 0;
+            error(ERR_DISK_FULL);
+          }
+          if (ret != LZMA_OK && ret != LZMA_STREAM_END) {
+            const char *msg;
+            switch (ret) {
+            case LZMA_MEM_ERROR:
+              msg = "Memory allocation failed";
+              break;
+
+            case LZMA_DATA_ERROR:
+              msg = "File size limits exceeded";
+              break;
+
+            default:
+              msg = "Unknown error, possibly a bug";
+              break;
+            }
+
+            fprintf(stderr, "\nERROR: liblzma error: %s (error code %u)\n", msg, ret);
+#ifdef COMFORT
+            ctrl_c_handler(9);
+            wait_for_key();
+#endif // COMFORT
+            exit(1);
+          } // .avail_out == 0
+          if (otf_xz_stream_c.avail_in > 0) {
+            Sleep(110);
+          }
+        } while (otf_xz_stream_c.avail_in > 0 || final_byte == 1 && ret != LZMA_STREAM_END);
+        result = size * count;
+        break;
+      }
+#endif // LZMA_H
     }
   }
   
@@ -6043,6 +6136,12 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
         bytes_read = (size * count - otf_bz2_stream_d.avail_out);
 
         return bytes_read;
+      }
+      case 4: // xz_MT
+      case 2: // lzma
+      case 3: { // xz
+        printf("\b\nown_fread(xz%i: %i * %i = %i\n-", compression_otf_method, size, count, size * count);
+        return size * count;
       }
     }
   }
@@ -8426,6 +8525,7 @@ void wait_for_key() {
   printf("\nPress any key to continue\n");
   // wait for key
   do {
+    Sleep(55); // lower CPU cost
   } while (!kbhit());
 }
 #endif
@@ -8931,6 +9031,9 @@ void fout_fputc(char c) {
       fputc(c, fout);
       break;
     }
+    case 4: // xz_MT
+    case 2: // lzma
+    case 3: // xz
     case 1: { // bZip2
       unsigned char temp_buf[1];
       temp_buf[0] = c;
@@ -9002,6 +9105,9 @@ unsigned char fin_fgetc() {
       return fgetc(fin);
       break;
     }
+    case 4: // xz_MT
+    case 2: // lzma
+    case 3: // xz
     case 1: { // bZip2
       unsigned char temp_buf[1];
       own_fread(temp_buf, 1, 1, fin);
@@ -9027,14 +9133,36 @@ void init_compress_otf() {
       }
       break;
     }
+#ifdef LZMA_H
+    case 2: { // lzma
+      if (!init_lzma1(&otf_xz_stream_c)) {
+        printf("ERROR: liblzma1 init failed\n");
+        exit(1);
+      }
+      break;
+    }
+    case 3: { // xz
+      if (!init_lzma2(&otf_xz_stream_c)) {
+        printf("ERROR: liblzma2 init failed\n");
+        exit(1);
+      }
+      break;
+    }
+    case 4: { // xz_MT
+      if (!init_encoder_mt(&otf_xz_stream_c)) {
+        printf("ERROR: xz Multi-Threaded init failed\n");
+        exit(1);
+      }
+      break;
+    }
+#endif // LZMA_H
   }
 }
 
 void denit_compress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_to_method;
 
-  switch (compression_otf_method) {
-    case 1: { // bZip2
+  if (compression_otf_method > 0) {
 
       // uncompressed data of length 0 ends bZip2 compress-on-the-fly data
       char final_buf[9];
@@ -9042,10 +9170,22 @@ void denit_compress_otf() {
         final_buf[i] = 0;
       }
       own_fwrite(final_buf, 1, 9, fout, 1);
+  }
+
+  switch (compression_otf_method) {
+    case 1: { // bZip2
 
       (void)BZ2_bzCompressEnd(&otf_bz2_stream_c);
       break;
     }
+#ifdef LZMA_H
+    case 4: // xz_MT
+    case 2: // lzma
+    case 3: { // xz
+      (void)lzma_end(&otf_xz_stream_c);
+      break;
+    }
+#endif // LZMA_H
   }
 }
 
@@ -9065,6 +9205,16 @@ void init_decompress_otf() {
       }
       break;
     }
+#ifdef LZMA_H
+    case 4: // xz_MT
+    case 2: // lzma
+    case 3: { // xz
+      if (!init_decoder(&otf_xz_stream_d)) {
+        printf("ERROR: liblzma init failed\n");
+        exit(1);
+      }
+    }
+#endif // LZMA_H
   }
   decompress_otf_end = false;
 }
@@ -9078,6 +9228,15 @@ void denit_decompress_otf() {
       (void)BZ2_bzDecompressEnd(&otf_bz2_stream_d);
       break;
     }
+#ifdef LZMA_H
+    case 4: // xz_MT
+    case 2: // lzma
+    case 3: { // xz
+
+      (void)lzma_end(&otf_xz_stream_d);
+      break;
+    }
+#endif // LZMA_H
   }
 }
 
@@ -9152,6 +9311,12 @@ void ctrl_c_handler(int sig) {
     }
   }
   (void) signal(SIGINT, SIG_DFL);
+#ifdef LZMA_H
+  if (compression_otf_method >=2 && compression_otf_method <= 4) {
+    (void)lzma_end(&otf_xz_stream_c);
+    (void)lzma_end(&otf_xz_stream_d);
+  }
+#endif // LZMA_H
 
   error(ERR_CTRL_C);
 }
