@@ -35,13 +35,19 @@ goto parse
 :endparse
 
 set GIF=contrib\giflib\gifalloc.c contrib\giflib\gif_err.c contrib\giflib\dgif_lib_gcc.c contrib\giflib\egif_lib_gcc.c
+set GIF_O=gifalloc.o gif_err.o dgif_lib_gcc.o egif_lib_gcc.o
 set BZIP=contrib\bzip2\bzlib.c contrib\bzip2\blocksort.c contrib\bzip2\crctable.c contrib\bzip2\compress.c contrib\bzip2\decompress.c contrib\bzip2\huffman.c contrib\bzip2\randtable.c 
+set BZIP_O=bzlib.o blocksort.o crctable.o compress.o decompress.o huffman.o randtable.o
 set ZLIB=contrib\zlib\adler32.c contrib\zlib\crc32.c contrib\zlib\zutil.c contrib\zlib\trees.c contrib\zlib\inftrees.c contrib\zlib\inffast.c contrib\zlib\inflate.c contrib\zlib\deflate.c
 set ZLIB_O=adler32.o crc32.o zutil.o trees.o inftrees.o inffast.o inflate.o deflate.o
-set JPG=aricoder.o bitops.o packjpg.o
-SET MP3=packmp3.o huffmp3.o
+set JPG_O=aricoder.o bitops.o packjpg.o
+SET MP3_O=packmp3.o huffmp3.o
+echo Building giflib...
+%GCC% %MPARAM% -c -O2 -s -fomit-frame-pointer -Wall %GIF%
 echo Building zlib...
 %GCC% %MPARAM% -c -O2 -s -fomit-frame-pointer -Wno-attributes %ZLIB%
+echo Building bzip...
+%GCC% %MPARAM% -c -O2 -s -fomit-frame-pointer -Wall %BZIP%
 echo Building packJPG...
 pushd contrib\packjpg
 %GPP% %MPARAM% -c -O3 -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer aricoder.cpp bitops.cpp packjpg.cpp
@@ -99,7 +105,7 @@ set LIBLZMA_CPP=contrib\liblzma\compress_easy_mt.cpp
 move /Y *.o ..\..\ > nul
 popd
 echo Building precomp...
-%GPP% %DCOMFORT% %MPARAM% -static -static-libgcc -static-libstdc++ -lpthread -Wall precomp.cpp %JPG% %MP3% %GIF% %BZIP% %ZLIB_O% %LIBLZMA_CPP% %LIBLZMA_O% -O2 -fomit-frame-pointer -s -o%EXE1%%EXE2%.exe
+%GPP% %DCOMFORT% %MPARAM% -static -static-libgcc -static-libstdc++ -lpthread -Wall precomp.cpp %JPG_O% %MP3_O% %GIF_O% %BZIP_O% %ZLIB_O% %LIBLZMA_CPP% %LIBLZMA_O% -O2 -fomit-frame-pointer -s -o%EXE1%%EXE2%.exe
 if not %ERRORLEVEL% == 0 echo ERROR!!!
 if %ERRORLEVEL% == 0 echo.
 if %ERRORLEVEL% == 0 echo Build successful.
@@ -108,10 +114,12 @@ set LIBLZMA_O=
 set LIBLZMA=
 set ZLIB_O=
 set ZLIB=
+set BZIP_O=
 set BZIP=
+set GIF_O=
 set GIF=
-set JPG=
-set MP3=
+set JPG_O=
+set MP3_O=
 set GPP=
 set GCC=
 set GPP32=
