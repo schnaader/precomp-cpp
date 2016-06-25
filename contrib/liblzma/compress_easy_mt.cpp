@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include "lzma.h"
+#include "api/lzma.h"
 
 bool check(lzma_ret ret) {
 	if (ret == LZMA_OK)

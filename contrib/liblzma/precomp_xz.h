@@ -1,7 +1,7 @@
 #ifndef PRECOMP_XZ_H
 #define PRECOMP_XZ_H
 
-#include "lzma.h"
+#include "api/lzma.h"
 
 bool init_lzma1(lzma_stream *strm);
 bool init_lzma2(lzma_stream *strm);
