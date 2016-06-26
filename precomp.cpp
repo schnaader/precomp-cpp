@@ -6076,7 +6076,7 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
           if (otf_xz_stream_c.avail_in > 0) {
             Sleep(110);
           }
-        } while (otf_xz_stream_c.avail_in > 0 || final_byte == 1 && ret != LZMA_STREAM_END);
+        } while ((otf_xz_stream_c.avail_in > 0) || ((final_byte == 1) && (ret != LZMA_STREAM_END)));
         result = size * count;
         break;
       }
