@@ -5,6 +5,8 @@ REM "make" for a 32-bit compile of Precomp
 REM "make 64" for a 64-bit compile of Precomp
 REM "make comfort" for a 32-bit compile of Precomp Comfort
 REM "make comfort 64" or "make 64 comfort" for a 64-bit compile of Precomp Comfort
+REM "nocontrib" parameter to build only Precomp, can be used for a much faster build
+REM   if nothing was changed in the "contrib" folder
 
 REM gcc/g++ 32-bit/64-bit commands - change them according to your environment
 set GCC32=gcc
@@ -18,6 +20,7 @@ set DCOMFORT=
 set MPARAM=-march=pentiumpro
 set GCC=%GCC32%
 set GPP=%GPP32%
+set NOCONTRIB=
 :parse
 if "%1%"=="" goto endparse
 if "%1%"=="64" (
@@ -30,18 +33,37 @@ if "%1%"=="comfort" (
   set EXE1=precomf
   set DCOMFORT=-DCOMFORT
 )
+if "%1"=="nocontrib" (
+  set NOCONTRIB=1
+)
 SHIFT
 goto parse
 :endparse
 
-set GIF=contrib\giflib\gifalloc.c contrib\giflib\gif_err.c contrib\giflib\dgif_lib_gcc.c contrib\giflib\egif_lib_gcc.c
 set GIF_O=gifalloc.o gif_err.o dgif_lib_gcc.o egif_lib_gcc.o
-set BZIP=contrib\bzip2\bzlib.c contrib\bzip2\blocksort.c contrib\bzip2\crctable.c contrib\bzip2\compress.c contrib\bzip2\decompress.c contrib\bzip2\huffman.c contrib\bzip2\randtable.c 
 set BZIP_O=bzlib.o blocksort.o crctable.o compress.o decompress.o huffman.o randtable.o
-set ZLIB=contrib\zlib\adler32.c contrib\zlib\crc32.c contrib\zlib\zutil.c contrib\zlib\trees.c contrib\zlib\inftrees.c contrib\zlib\inffast.c contrib\zlib\inflate.c contrib\zlib\deflate.c
 set ZLIB_O=adler32.o crc32.o zutil.o trees.o inftrees.o inffast.o inflate.o deflate.o
 set JPG_O=aricoder.o bitops.o packjpg.o
 SET MP3_O=packmp3.o huffmp3.o
+set LIBLZMA_O=alone_decoder.o alone_encoder.o arm.o armthumb.o auto_decoder.o block_buffer_decoder.o block_buffer_encoder.o
+set LIBLZMA_O=%LIBLZMA_O% block_decoder.o block_encoder.o block_header_decoder.o block_header_encoder.o block_util.o
+set LIBLZMA_O=%LIBLZMA_O% check.o common.o crc32_table.o crc32_x86.o crc64_table.o crc64_x86.o
+set LIBLZMA_O=%LIBLZMA_O% delta_common.o delta_decoder.o delta_encoder.o easy_buffer_encoder.o easy_decoder_memusage.o
+set LIBLZMA_O=%LIBLZMA_O% easy_encoder.o easy_encoder_memusage.o easy_preset.o fastpos_table.o filter_buffer_decoder.o
+set LIBLZMA_O=%LIBLZMA_O% filter_buffer_encoder.o filter_common.o filter_decoder.o filter_encoder.o filter_flags_decoder.o
+set LIBLZMA_O=%LIBLZMA_O% filter_flags_encoder.o hardware_cputhreads.o hardware_physmem.o ia64.o index.o index_decoder.o
+set LIBLZMA_O=%LIBLZMA_O% index_encoder.o index_hash.o lzma2_decoder.o lzma2_encoder.o lzma_decoder.o lzma_encoder.o
+set LIBLZMA_O=%LIBLZMA_O% lzma_encoder_optimum_fast.o lzma_encoder_optimum_normal.o lzma_encoder_presets.o lz_decoder.o
+set LIBLZMA_O=%LIBLZMA_O% lz_encoder.o lz_encoder_mf.o outqueue.o powerpc.o price_table.o sha256.o simple_coder.o
+set LIBLZMA_O=%LIBLZMA_O% simple_decoder.o simple_encoder.o sparc.o stream_decoder.o stream_buffer_encoder.o stream_buffer_decoder.o
+set LIBLZMA_O=%LIBLZMA_O% stream_encoder.o stream_flags_decoder.o stream_encoder_mt.o stream_flags_common.o stream_flags_encoder.o
+set LIBLZMA_O=%LIBLZMA_O% tuklib_cpucores.o tuklib_physmem.o vli_decoder.o vli_encoder.o vli_size.o x86.o
+set LIBLZMA_CPP=contrib\liblzma\compress_easy_mt.cpp
+
+if "%NOCONTRIB%" == "1" goto nocontrib
+set GIF=contrib\giflib\gifalloc.c contrib\giflib\gif_err.c contrib\giflib\dgif_lib_gcc.c contrib\giflib\egif_lib_gcc.c
+set BZIP=contrib\bzip2\bzlib.c contrib\bzip2\blocksort.c contrib\bzip2\crctable.c contrib\bzip2\compress.c contrib\bzip2\decompress.c contrib\bzip2\huffman.c contrib\bzip2\randtable.c 
+set ZLIB=contrib\zlib\adler32.c contrib\zlib\crc32.c contrib\zlib\zutil.c contrib\zlib\trees.c contrib\zlib\inftrees.c contrib\zlib\inffast.c contrib\zlib\inflate.c contrib\zlib\deflate.c
 echo Building giflib...
 %GCC% %MPARAM% -c -O2 -s -fomit-frame-pointer -Wall %GIF%
 echo Building zlib...
@@ -87,23 +109,10 @@ set LIBLZMA=%LIBLZMA% lzma\lzma_decoder.c lzma\lzma2_encoder.c lzma\lzma2_decode
 set LIBLZMA=%LIBLZMA% delta\delta_common.c delta\delta_encoder.c delta\delta_decoder.c simple\simple_coder.c
 set LIBLZMA=%LIBLZMA% simple\simple_encoder.c simple\simple_decoder.c simple\x86.c simple\powerpc.c simple\ia64.c
 set LIBLZMA=%LIBLZMA% simple\arm.c simple\armthumb.c simple\sparc.c
-set LIBLZMA_O=alone_decoder.o alone_encoder.o arm.o armthumb.o auto_decoder.o block_buffer_decoder.o block_buffer_encoder.o
-set LIBLZMA_O=%LIBLZMA_O% block_decoder.o block_encoder.o block_header_decoder.o block_header_encoder.o block_util.o
-set LIBLZMA_O=%LIBLZMA_O% check.o common.o crc32_table.o crc32_x86.o crc64_table.o crc64_x86.o
-set LIBLZMA_O=%LIBLZMA_O% delta_common.o delta_decoder.o delta_encoder.o easy_buffer_encoder.o easy_decoder_memusage.o
-set LIBLZMA_O=%LIBLZMA_O% easy_encoder.o easy_encoder_memusage.o easy_preset.o fastpos_table.o filter_buffer_decoder.o
-set LIBLZMA_O=%LIBLZMA_O% filter_buffer_encoder.o filter_common.o filter_decoder.o filter_encoder.o filter_flags_decoder.o
-set LIBLZMA_O=%LIBLZMA_O% filter_flags_encoder.o hardware_cputhreads.o hardware_physmem.o ia64.o index.o index_decoder.o
-set LIBLZMA_O=%LIBLZMA_O% index_encoder.o index_hash.o lzma2_decoder.o lzma2_encoder.o lzma_decoder.o lzma_encoder.o
-set LIBLZMA_O=%LIBLZMA_O% lzma_encoder_optimum_fast.o lzma_encoder_optimum_normal.o lzma_encoder_presets.o lz_decoder.o
-set LIBLZMA_O=%LIBLZMA_O% lz_encoder.o lz_encoder_mf.o outqueue.o powerpc.o price_table.o sha256.o simple_coder.o
-set LIBLZMA_O=%LIBLZMA_O% simple_decoder.o simple_encoder.o sparc.o stream_decoder.o stream_buffer_encoder.o stream_buffer_decoder.o
-set LIBLZMA_O=%LIBLZMA_O% stream_encoder.o stream_flags_decoder.o stream_encoder_mt.o stream_flags_common.o stream_flags_encoder.o
-set LIBLZMA_O=%LIBLZMA_O% tuklib_cpucores.o tuklib_physmem.o vli_decoder.o vli_encoder.o vli_size.o x86.o
-set LIBLZMA_CPP=contrib\liblzma\compress_easy_mt.cpp
 %GCC% %MPARAM% -c -O2 -s -fomit-frame-pointer -Iapi\ -Icheck\ -Icommon\ -Idelta\ -Ilz\ -Ilzma\ -Irangecoder\ -Isimple\ -Wno-implicit-function-declaration -DHAVE__BOOL %LIBLZMA%
 move /Y *.o ..\..\ > nul
 popd
+:nocontrib
 echo Building precomp...
 %GPP% %DCOMFORT% %MPARAM% -static -static-libgcc -static-libstdc++ -lpthread -Wall precomp.cpp %JPG_O% %MP3_O% %GIF_O% %BZIP_O% %ZLIB_O% %LIBLZMA_CPP% %LIBLZMA_O% -O2 -fomit-frame-pointer -s -o%EXE1%%EXE2%.exe
 if not %ERRORLEVEL% == 0 echo ERROR!!!
