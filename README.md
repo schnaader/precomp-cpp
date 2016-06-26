@@ -59,7 +59,7 @@ Legal stuff
 - bZip2 1.0.6 (http://www.bzip.org) by Julian Seward is used for compression/decompression of bZip2 streams.
 - zLib 1.2.8 (http://www.zlib.net) by Jean-loup Gailly and Mark Adler is used for compression/decompression of zLib streams.
 - GifLib 4.1.4 (http://sourceforge.net/projects/giflib) is used for compression/decompression of GIF files. The GIFLIB distribution is Copyright (c) 1997 Eric S. Raymond
-- liblzma from XZ Utils (http://tukaani.org/xz) is used for compression/decompresson of lzma streams.
+- liblzma from XZ Utils 5.2.2 (http://tukaani.org/xz) is used for compression/decompresson of lzma streams.
 
 License
 -------
