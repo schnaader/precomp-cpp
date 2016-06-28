@@ -1,0 +1,174 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source\contrib">
+      <UniqueIdentifier>{026486a2-caec-45f1-bb06-253064ab62b6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\contrib\zlib\adler32.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\packjpg\aricoder.cpp">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\packjpg\bitops.cpp">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\bzip2\blocksort.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\bzip2\bzlib.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\bzip2\compress.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\zlib\crc32.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\bzip2\crctable.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\bzip2\decompress.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\zlib\deflate.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\giflib\dgif_lib_gcc.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\giflib\egif_lib_gcc.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\giflib\gif_err.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\giflib\gifalloc.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\bzip2\huffman.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\packmp3\huffmp3.cpp">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\zlib\inffast.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\zlib\inflate.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\zlib\inftrees.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\packjpg\packjpg.cpp">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\packmp3\packmp3.cpp">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\bzip2\randtable.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\zlib\trees.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\zlib\zutil.c">
+      <Filter>Source\contrib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\precomp.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\liblzma\compress_easy_mt.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\contrib\bzip2\bzlib.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\bzip2\bzlib_private.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\giflib\gif_lib.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\giflib\gif_lib_private.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packjpg\aricoder.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packjpg\bitops.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packjpg\dct8x8.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packjpg\htables.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packjpg\packJPGlib.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\crc32.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\deflate.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\inffast.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\inffixed.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\inflate.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\inftrees.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\trees.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\zconf.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\zlib.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\zlib\zutil.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\huffmp3.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\huffmp3tbl.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\packmp3lib.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\pmp3bitlen.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\contrib\packmp3\pmp3tbl.h">
+      <Filter>Header</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
