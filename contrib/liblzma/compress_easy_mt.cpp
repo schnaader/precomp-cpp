@@ -90,7 +90,7 @@ bool init_lzma2(lzma_stream *strm) {
 bool init_decoder(lzma_stream *strm)
 {
 	lzma_ret ret = lzma_auto_decoder(
-		strm, UINT64_MAX, LZMA_CONCATENATED);
+		strm, UINT64_MAX, 0);
 	return check(ret);
 }
 

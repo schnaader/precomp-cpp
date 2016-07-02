@@ -6073,9 +6073,6 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
 #endif // COMFORT
             exit(1);
           } // .avail_out == 0
-          if (otf_xz_stream_c.avail_in > 0) {
-            Sleep(110);
-          }
         } while ((otf_xz_stream_c.avail_in > 0) || ((final_byte == 1) && (ret != LZMA_STREAM_END)));
         result = size * count;
         break;
@@ -6140,8 +6137,62 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
       case 4: // xz_MT
       case 2: // lzma
       case 3: { // xz
-        printf("\b\nown_fread(xz%i: %i * %i = %i\n-", compression_otf_method, size, count, size * count);
-        return size * count;
+        lzma_action action = LZMA_RUN;
+        lzma_ret ret;
+
+        otf_xz_stream_d.avail_out = size * count;
+        otf_xz_stream_d.next_out = (uint8_t *)ptr;
+        
+        do {
+          print_work_sign(true);
+          if ((otf_xz_stream_d.avail_in == 0) && !feof(fin)) {
+            otf_xz_stream_d.next_in = (uint8_t *)bz2_in;
+            otf_xz_stream_d.avail_in = fread(bz2_in, 1, CHUNK, fin);
+              
+            if (ferror(fin)) {
+              fprintf(stderr, "\nERROR: Could not read input file\n");
+              exit(1);
+            }
+          }
+
+          ret = lzma_code(&otf_xz_stream_d, action);
+
+          if (ret == LZMA_STREAM_END) {
+              decompress_otf_end = true;
+              break;
+          }
+          
+          if (ret != LZMA_OK) {
+            const char *msg;
+            switch (ret) {
+            case LZMA_MEM_ERROR:
+              msg = "Memory allocation failed";
+              break;
+            case LZMA_FORMAT_ERROR:
+              msg = "Wrong file format";
+              break;
+            case LZMA_OPTIONS_ERROR:
+              msg = "Unsupported compression options";
+              break;
+            case LZMA_DATA_ERROR:
+            case LZMA_BUF_ERROR:
+              msg = "Compressed file is corrupt";
+              break;
+            default:
+              msg = "Unknown error, possibly a bug";
+              break;
+            }
+
+            fprintf(stderr, "\nERROR: liblzma error: %s (error code %u)\n", msg, ret);
+#ifdef COMFORT
+            ctrl_c_handler(9);
+            wait_for_key();
+#endif // COMFORT
+            exit(1);
+          }
+        } while (otf_xz_stream_d.avail_out > 0);
+
+        return size * count - otf_xz_stream_d.avail_out;
       }
     }
   }
