@@ -82,7 +82,6 @@ bool init_lzma2(lzma_stream *strm) {
 		{ LZMA_FILTER_LZMA2, &opt_lzma },
 		{ LZMA_VLI_UNKNOWN, NULL },
 	};
-	printf("0x%i%i, %i, dict: %i MB\n", opt_lzma.mf / 16, opt_lzma.mf % 16, opt_lzma.mode, opt_lzma.dict_size / 1048576);
 	return check(lzma_stream_encoder(strm, filters, LZMA_CHECK_CRC32));
 }
 
