@@ -2,8 +2,11 @@
 
 #define SCHNAADER_SYSDEFS_H
 
-
+#ifdef _MSC_VER
+#include "inttypes.h"
+#else
 #include <inttypes.h>
+#endif
 
 #define MYTHREAD_WIN95
 
