@@ -68,7 +68,6 @@ bool init_lzma1(lzma_stream *strm)
     opt_lzma.dict_size *= dict;
     //opt_lzma.mf = LZMA_MF_HC4;
     //opt_lzma.mode = LZMA_MODE_FAST;
-    printf("0x%i%i, %i, dict: %i MB\n", opt_lzma.mf/16, opt_lzma.mf%16, opt_lzma.mode, opt_lzma.dict_size/1048576);
     return check(lzma_alone_encoder(strm, &opt_lzma));
 }
 
