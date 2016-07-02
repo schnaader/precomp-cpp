@@ -131,11 +131,7 @@ unsigned char bz2_out[CHUNK];
 lzma_stream otf_xz_stream_c = LZMA_STREAM_INIT, otf_xz_stream_d = LZMA_STREAM_INIT;
 //#endif // COMFORT
 
-#ifdef LZMA_H
 int compression_otf_method = 4; // 0 = uncompressed, 1 = bZip2, 2 = lzma, 3 = xz(lzma2), 4 = xz_MT
-#else
-int compression_otf_method = 1; // 0 = uncompressed, 1 = bZip2
-#endif // LZMA_H
 int conversion_from_method;     // 0 = uncompressed, 1 = bZip2
 int conversion_to_method;       // 0 = uncompressed, 1 = bZip2
 bool decompress_otf_end = false;
@@ -778,7 +774,6 @@ int init(int argc, char* argv[]) {
               case 'B': // bZip2
                 compression_otf_method = 1;
                 break;
-#ifdef LZMA_H
               case 'L': // lzma
                 compression_otf_method = 2;
                 break;
@@ -788,7 +783,6 @@ int init(int argc, char* argv[]) {
               case 'M': // xz: Multi-Threaded
                 compression_otf_method = 4;
                 break;
-#endif // LZMA_H
               default:
                 printf("ERROR: Invalid compression method %c\n", argv[i][2]);
                 exit(1);
@@ -6027,7 +6021,6 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
         result = size * count;
         break;
       }
-#ifdef LZMA_H
       case 4: // xz_MT
       case 2: // lzma
       case 3: { // xz
@@ -6068,7 +6061,6 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
 
             fprintf(stderr, "\nERROR: liblzma error: %s (error code %u)\n", msg, ret);
 #ifdef COMFORT
-            ctrl_c_handler(9);
             wait_for_key();
 #endif // COMFORT
             exit(1);
@@ -6077,7 +6069,6 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
         result = size * count;
         break;
       }
-#endif // LZMA_H
     }
   }
   
@@ -6185,7 +6176,6 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
 
             fprintf(stderr, "\nERROR: liblzma error: %s (error code %u)\n", msg, ret);
 #ifdef COMFORT
-            ctrl_c_handler(9);
             wait_for_key();
 #endif // COMFORT
             exit(1);
@@ -9184,7 +9174,6 @@ void init_compress_otf() {
       }
       break;
     }
-#ifdef LZMA_H
     case 2: { // lzma
       if (!init_lzma1(&otf_xz_stream_c)) {
         printf("ERROR: liblzma1 init failed\n");
@@ -9206,7 +9195,6 @@ void init_compress_otf() {
       }
       break;
     }
-#endif // LZMA_H
   }
 }
 
@@ -9229,14 +9217,12 @@ void denit_compress_otf() {
       (void)BZ2_bzCompressEnd(&otf_bz2_stream_c);
       break;
     }
-#ifdef LZMA_H
     case 4: // xz_MT
     case 2: // lzma
     case 3: { // xz
       (void)lzma_end(&otf_xz_stream_c);
       break;
     }
-#endif // LZMA_H
   }
 }
 
@@ -9256,7 +9242,6 @@ void init_decompress_otf() {
       }
       break;
     }
-#ifdef LZMA_H
     case 4: // xz_MT
     case 2: // lzma
     case 3: { // xz
@@ -9265,7 +9250,6 @@ void init_decompress_otf() {
         exit(1);
       }
     }
-#endif // LZMA_H
   }
   decompress_otf_end = false;
 }
@@ -9279,15 +9263,12 @@ void denit_decompress_otf() {
       (void)BZ2_bzDecompressEnd(&otf_bz2_stream_d);
       break;
     }
-#ifdef LZMA_H
     case 4: // xz_MT
     case 2: // lzma
     case 3: { // xz
-
       (void)lzma_end(&otf_xz_stream_d);
       break;
     }
-#endif // LZMA_H
   }
 }
 
@@ -9362,12 +9343,6 @@ void ctrl_c_handler(int sig) {
     }
   }
   (void) signal(SIGINT, SIG_DFL);
-#ifdef LZMA_H
-  if (compression_otf_method >=2 && compression_otf_method <= 4) {
-    (void)lzma_end(&otf_xz_stream_c);
-    (void)lzma_end(&otf_xz_stream_d);
-  }
-#endif // LZMA_H
 
   error(ERR_CTRL_C);
 }
