@@ -126,10 +126,8 @@ float global_max_percent = 100;
 unsigned char bz2_in[CHUNK];
 unsigned char bz2_out[CHUNK];
 
-//#ifdef COMFORT
 #include "contrib/liblzma/precomp_xz.h"
 lzma_stream otf_xz_stream_c = LZMA_STREAM_INIT, otf_xz_stream_d = LZMA_STREAM_INIT;
-//#endif // COMFORT
 
 int compression_otf_method = OTF_XZ_MT;
 int conversion_from_method;
