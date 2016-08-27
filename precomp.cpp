@@ -1357,7 +1357,7 @@ int init_comfort(int argc, char* argv[]) {
 
           if (strcmp(value, "4") == 0) {
             printf("INI: Using xz multithreaded compression method\n");
-            compression_otf_method = OFT_XZ_MT;
+            compression_otf_method = OTF_XZ_MT;
             valid_param = true;
           }
 
