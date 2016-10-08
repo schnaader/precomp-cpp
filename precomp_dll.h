@@ -1,6 +1,3 @@
-DLL void get_copyright_msg(char* msg);
-DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches switches);
-DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches switches);
 
 // Switches class
 class Switches {
@@ -32,6 +29,7 @@ class Switches {
     bool use_png;
     bool use_gif;
     bool use_jpg;
+    bool use_mp3;
     bool use_swf;
     bool use_base64;
     bool use_bzip2;
@@ -59,6 +57,7 @@ Switches::Switches() {
   use_png = true;
   use_gif = true;
   use_jpg = true;
+  use_mp3 = true;
   use_swf = true;
   use_base64 = true;
   use_bzip2 = true;
@@ -67,3 +66,7 @@ Switches::Switches() {
     use_zlib_level[i] = true;
   }
 }
+
+DLL void get_copyright_msg(char* msg);
+DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches switches);
+DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches switches);
