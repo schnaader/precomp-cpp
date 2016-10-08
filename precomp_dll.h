@@ -1,6 +1,3 @@
-DLL void get_copyright_msg(char* msg);
-DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches switches);
-DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches switches);
 
 // Switches class
 class Switches {
@@ -67,3 +64,7 @@ Switches::Switches() {
     use_zlib_level[i] = true;
   }
 }
+
+DLL void get_copyright_msg(char* msg);
+DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches switches);
+DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches switches);
