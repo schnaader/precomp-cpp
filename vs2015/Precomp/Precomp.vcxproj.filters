@@ -306,6 +306,12 @@
     <ClCompile Include="..\..\contrib\liblzma\simple\x86.c">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\contrib\liblzma\check\crc32_fast.c">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\liblzma\check\crc64_fast.c">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\contrib\bzip2\bzlib.h">
@@ -569,19 +575,5 @@
     <ClInclude Include="..\..\contrib\liblzma\simple\simple_private.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
-    <ClInclude Include="msinttypes\inttypes.h">
-      <Filter>Headerdateien</Filter>
-    </ClInclude>
-    <ClInclude Include="msinttypes\stdint.h">
-      <Filter>Headerdateien</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\contrib\liblzma\check\crc32_x86.S">
-      <Filter>Quelldateien</Filter>
-    </None>
-    <None Include="..\..\contrib\liblzma\check\crc64_x86.S">
-      <Filter>Quelldateien</Filter>
-    </None>
   </ItemGroup>
 </Project>

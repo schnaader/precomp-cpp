@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -19,19 +19,18 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v140</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -90,7 +89,9 @@
     <ClCompile Include="..\..\contrib\giflib\gifalloc.c" />
     <ClCompile Include="..\..\contrib\giflib\gif_err.c" />
     <ClCompile Include="..\..\contrib\liblzma\check\check.c" />
+    <ClCompile Include="..\..\contrib\liblzma\check\crc32_fast.c" />
     <ClCompile Include="..\..\contrib\liblzma\check\crc32_table.c" />
+    <ClCompile Include="..\..\contrib\liblzma\check\crc64_fast.c" />
     <ClCompile Include="..\..\contrib\liblzma\check\crc64_table.c" />
     <ClCompile Include="..\..\contrib\liblzma\check\sha256.c" />
     <ClCompile Include="..\..\contrib\liblzma\common\alone_decoder.c" />
@@ -264,14 +265,7 @@
     <ClInclude Include="..\..\contrib\zlib\zconf.h" />
     <ClInclude Include="..\..\contrib\zlib\zlib.h" />
     <ClInclude Include="..\..\contrib\zlib\zutil.h" />
-    <ClInclude Include="msinttypes\inttypes.h" />
-    <ClInclude Include="msinttypes\stdint.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\contrib\liblzma\check\crc32_x86.S" />
-    <None Include="..\..\contrib\liblzma\check\crc64_x86.S" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

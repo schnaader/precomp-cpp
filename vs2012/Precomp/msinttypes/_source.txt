@@ -1,3 +1,0 @@
-These are inttypes.h and stdint.h for MSVC, necessary because liblzma relies on them.
-
-https://code.google.com/archive/p/msinttypes/downloads

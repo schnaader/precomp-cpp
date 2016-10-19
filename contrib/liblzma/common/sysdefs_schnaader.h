@@ -2,10 +2,10 @@
 
 #define SCHNAADER_SYSDEFS_H
 
-#ifdef _MSC_VER
-#include "inttypes.h"
-#else
 #include <inttypes.h>
+
+#ifdef _MSC_VER
+#define HAVE_STDBOOL_H
 #endif
 
 #define MYTHREAD_WIN95
