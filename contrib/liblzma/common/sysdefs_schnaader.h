@@ -8,7 +8,12 @@
 #define HAVE_STDBOOL_H
 #endif
 
-#define MYTHREAD_WIN95
+#ifdef UNIX
+  #include <string.h>
+  #define MYTHREAD_POSIX
+#else
+  #define MYTHREAD_WIN95
+#endif
 
 #define HAVE_ENCODER_LZMA1 1
 #define HAVE_ENCODER_LZMA2 1
