@@ -123,8 +123,8 @@ float global_min_percent = 0;
 float global_max_percent = 100;
 
 // compression-on-the-fly
-unsigned char bz2_in[CHUNK];
-unsigned char bz2_out[CHUNK];
+unsigned char otf_in[CHUNK];
+unsigned char otf_out[CHUNK];
 
 #include "contrib/liblzma/precomp_xz.h"
 lzma_stream otf_xz_stream_c = LZMA_STREAM_INIT, otf_xz_stream_d = LZMA_STREAM_INIT;
@@ -6013,10 +6013,10 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
         otf_bz2_stream_c.next_in = (char*)ptr;
         do {
           otf_bz2_stream_c.avail_out = CHUNK;
-          otf_bz2_stream_c.next_out = (char*)bz2_out;
+          otf_bz2_stream_c.next_out = (char*)otf_out;
           ret = BZ2_bzCompress(&otf_bz2_stream_c, flush);
           have = CHUNK - otf_bz2_stream_c.avail_out;
-          if (fwrite(bz2_out, 1, have, stream) != have || ferror(stream)) {
+          if (fwrite(otf_out, 1, have, stream) != have || ferror(stream)) {
             result = 0;
             error(ERR_DISK_FULL);
           }
@@ -6040,10 +6040,10 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
         do {
           print_work_sign(true);
           otf_xz_stream_c.avail_out = CHUNK;
-          otf_xz_stream_c.next_out = (uint8_t *)bz2_out;
+          otf_xz_stream_c.next_out = (uint8_t *)otf_out;
           ret = lzma_code(&otf_xz_stream_c, action);
           have = CHUNK - otf_xz_stream_c.avail_out;
-          if (fwrite(bz2_out, 1, have, stream) != have || ferror(stream)) {
+          if (fwrite(otf_out, 1, have, stream) != have || ferror(stream)) {
             result = 0;
             error(ERR_DISK_FULL);
           }
@@ -6109,8 +6109,8 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
         do {
 
           if (otf_bz2_stream_d.avail_in == 0) {
-            otf_bz2_stream_d.avail_in = fread(bz2_in, 1, CHUNK, fin);
-            otf_bz2_stream_d.next_in = (char*)bz2_in;
+            otf_bz2_stream_d.avail_in = fread(otf_in, 1, CHUNK, fin);
+            otf_bz2_stream_d.next_in = (char*)otf_in;
             if (otf_bz2_stream_d.avail_in == 0) break;
           }
 
@@ -6141,8 +6141,8 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
         do {
           print_work_sign(true);
           if ((otf_xz_stream_d.avail_in == 0) && !feof(fin)) {
-            otf_xz_stream_d.next_in = (uint8_t *)bz2_in;
-            otf_xz_stream_d.avail_in = fread(bz2_in, 1, CHUNK, fin);
+            otf_xz_stream_d.next_in = (uint8_t *)otf_in;
+            otf_xz_stream_d.avail_in = fread(otf_in, 1, CHUNK, fin);
               
             if (ferror(fin)) {
               fprintf(stderr, "\nERROR: Could not read input file\n");
