@@ -45,4 +45,6 @@
 #define HAVE_CHECK_CRC64 1
 #define HAVE_CHECK_SHA256 1
 
+#define NDEBUG 1
+
 #endif
