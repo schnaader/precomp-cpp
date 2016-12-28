@@ -49,6 +49,10 @@
 #include <sstream>
 #include <string>
 #include <signal.h>
+#include <thread>
+#ifdef MINGW
+#include "contrib\mingw_std_threads\mingw.thread.h"
+#endif
 #ifdef _MSC_VER
 #include <io.h>
 #define ftruncate _chsize
@@ -9175,10 +9179,16 @@ void init_compress_otf() {
       break;
     }
     case OTF_XZ_MT: {
-      if (!init_encoder_mt(&otf_xz_stream_c)) {
+      uint64_t memory_usage = 0;
+      int threads = std::thread::hardware_concurrency();
+      if (threads == 0) threads = 2;
+      if (!init_encoder_mt(&otf_xz_stream_c, threads, memory_usage)) {
         printf("ERROR: xz Multi-Threaded init failed\n");
         exit(1);
       }
+      printf("Using LZMA for compression, %i threads, memory usage: ", threads);
+      print64(memory_usage / 1000000);
+      printf(" MB\n");
       break;
     }
   }

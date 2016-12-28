@@ -114,7 +114,7 @@ move /Y *.o ..\..\ > nul
 popd
 :nocontrib
 echo Building precomp...
-%GPP% %DCOMFORT% %MPARAM% -static -static-libgcc -static-libstdc++ -lpthread -Wall precomp.cpp %JPG_O% %MP3_O% %GIF_O% %BZIP_O% %ZLIB_O% %LIBLZMA_CPP% %LIBLZMA_O% -O2 -fomit-frame-pointer -s -o%EXE1%%EXE2%.exe
+%GPP% %DCOMFORT% %MPARAM% -static -static-libgcc -static-libstdc++ -DMINGW -lpthread -Wall precomp.cpp %JPG_O% %MP3_O% %GIF_O% %BZIP_O% %ZLIB_O% %LIBLZMA_CPP% %LIBLZMA_O% -O2 -fomit-frame-pointer -s -o%EXE1%%EXE2%.exe
 if not %ERRORLEVEL% == 0 echo ERROR!!!
 if %ERRORLEVEL% == 0 echo.
 if %ERRORLEVEL% == 0 echo Build successful.
