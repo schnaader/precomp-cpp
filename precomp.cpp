@@ -24,6 +24,16 @@
 #define V_STATE "DEVELOPMENT"
 //#define V_MSG "USE FOR TESTING ONLY"
 #define V_MSG "USE AT YOUR OWN RISK!"
+#ifdef UNIX
+  #define V_OS "Unix"
+#else
+  #define V_OS "Windows"
+#endif
+#ifdef BIT64
+  #define V_BIT "64-bit"
+#else
+  #define V_BIT "32-bit"
+#endif
 
 // batch error levels
 #define RETURN_NOTHING_DECOMPRESSED 2
@@ -479,9 +489,9 @@ int init(int argc, char* argv[]) {
 
   printf("\n");
   if (V_MINOR2 == 0) {
-    printf("Precomp v%i.%i - %s version",V_MAJOR,V_MINOR,V_STATE);
+    printf("Precomp v%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_OS,V_BIT,V_STATE);
   } else {
-    printf("Precomp v%i.%i.%i - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_STATE);
+    printf("Precomp v%i.%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
   }
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2016 by Christian Schneider\n\n");
@@ -1098,9 +1108,9 @@ int init_comfort(int argc, char* argv[]) {
 
   printf("\n");
   if (V_MINOR2 == 0) {
-    printf("Precomp Comfort v%i.%i - %s version",V_MAJOR,V_MINOR,V_STATE);
+    printf("Precomp Comfort v%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_OS,V_BIT,V_STATE);
   } else {
-    printf("Precomp Comfort v%i.%i.%i - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_STATE);
+    printf("Precomp Comfort v%i.%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
   }
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2016 by Christian Schneider\n\n");
@@ -1180,7 +1190,7 @@ int init_comfort(int argc, char* argv[]) {
       exit(1);
     } else {
       FILE* fnewini = fopen(precomf_ini,"w");
-      fprintf(fnewini,";; Precomp Comfort v%i.%i.%i - %s version - INI file\n",V_MAJOR,V_MINOR,V_MINOR2,V_STATE);
+      fprintf(fnewini,";; Precomp Comfort v%i.%i.%i %s %s - %s version - INI file\n",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
       fprintf(fnewini,";; Use a semicolon (;) for comments\n\n");
       fprintf(fnewini,";; Compression method to use\n");
       fprintf(fnewini,";; 0 = none, 1 = bZip2, 2 = lzma, 3 = xz(lzma2), 4 = xz Multi-Threaded\n");

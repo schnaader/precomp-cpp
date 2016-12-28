@@ -17,6 +17,7 @@ set GPP64=g++
 set EXE1=precomp
 set EXE2=
 set DCOMFORT=
+set DBIT=
 set MPARAM=-march=pentiumpro
 set GCC=%GCC32%
 set GPP=%GPP32%
@@ -27,6 +28,7 @@ if "%1%"=="64" (
   set GCC=%GCC64%
   set GPP=%GPP64%
   set EXE2=64
+  set DBIT=-DBIT64
   set MPARAM=-march=x86-64 -m64
 )
 if "%1%"=="comfort" (
@@ -114,7 +116,7 @@ move /Y *.o ..\..\ > nul
 popd
 :nocontrib
 echo Building precomp...
-%GPP% %DCOMFORT% %MPARAM% -static -static-libgcc -static-libstdc++ -DMINGW -lpthread -Wall precomp.cpp %JPG_O% %MP3_O% %GIF_O% %BZIP_O% %ZLIB_O% %LIBLZMA_CPP% %LIBLZMA_O% -O2 -fomit-frame-pointer -s -o%EXE1%%EXE2%.exe
+%GPP% %DCOMFORT% %MPARAM% -static -static-libgcc -static-libstdc++ -DMINGW %DBIT% -lpthread -Wall precomp.cpp %JPG_O% %MP3_O% %GIF_O% %BZIP_O% %ZLIB_O% %LIBLZMA_CPP% %LIBLZMA_O% -O2 -fomit-frame-pointer -s -o%EXE1%%EXE2%.exe
 if not %ERRORLEVEL% == 0 echo ERROR!!!
 if %ERRORLEVEL% == 0 echo.
 if %ERRORLEVEL% == 0 echo Build successful.

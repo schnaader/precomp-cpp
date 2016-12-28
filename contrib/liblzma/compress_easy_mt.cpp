@@ -38,7 +38,7 @@ bool check(lzma_ret ret) {
 	return false;
 }
 
-#if _WIN64 || __amd64__
+#ifdef BIT64
 const uint32_t dict = 4;
 #else
 const uint32_t dict = 2;
