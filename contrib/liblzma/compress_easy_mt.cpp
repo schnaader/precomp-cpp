@@ -78,7 +78,7 @@ bool init_decoder(lzma_stream *strm)
 	return check(ret);
 }
 
-bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t &memory_usage)
+bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64_t &memory_usage)
 {
 	// The threaded encoder takes the options as pointer to
 	// a lzma_mt structure.
@@ -88,7 +88,7 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t &memory_usage)
 	mt	.flags = 0;
 
 	// Let liblzma determine a sane block size.
-	mt	.block_size = 16 * 1024 * 1024;
+	mt	.block_size = 0;
 
 	// Use no timeout for lzma_code() calls by setting timeout
 	// to zero. That is, sometimes lzma_code() might block for
@@ -109,6 +109,20 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t &memory_usage)
 
 	mt.threads = threads;
 
+    uint64_t preset_memory_usage;
+    int preset_to_use = 0;
+    for (int preset = 1; preset <= 9; preset++) {
+        mt.preset = preset;
+        preset_memory_usage = lzma_stream_encoder_mt_memusage(&mt);
+        if (preset_memory_usage > max_memory) break;
+        memory_usage = preset_memory_usage;
+        preset_to_use = preset;
+    }
+    
+    if (preset_to_use == 0) return false;
+    
+    mt.preset = preset_to_use;
+    
 	// Initialize the threaded encoder.
 	lzma_ret ret = lzma_stream_encoder_mt(strm, &mt);
 

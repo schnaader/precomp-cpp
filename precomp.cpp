@@ -9190,9 +9190,16 @@ void init_compress_otf() {
     }
     case OTF_XZ_MT: {
       uint64_t memory_usage = 0;
+      // As default, use 2 GB memory for LZMA, only 1 GB in the 32-bit windows variant
+      uint64_t max_memory = 2 * 1024 * 1024 * 1024LL;
+      #ifndef UNIX
+      #ifndef BIT64
+      max_memory = 1 * 1024 * 1024 * 1024LL;
+      #endif
+      #endif
       int threads = std::thread::hardware_concurrency();
       if (threads == 0) threads = 2;
-      if (!init_encoder_mt(&otf_xz_stream_c, threads, memory_usage)) {
+      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage)) {
         printf("ERROR: xz Multi-Threaded init failed\n");
         exit(1);
       }
