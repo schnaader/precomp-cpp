@@ -74,7 +74,7 @@ echo Building bzip...
 %GCC% %MPARAM% -c -O2 -s -fomit-frame-pointer -Wall %BZIP%
 echo Building packJPG...
 pushd contrib\packjpg
-%GPP% %MPARAM% -c -O3 -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer aricoder.cpp bitops.cpp packjpg.cpp
+%GPP% %MPARAM% -c -O3 -DBUILD_LIB -Wall -Wno-misleading-indentation -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer aricoder.cpp bitops.cpp packjpg.cpp
 move /Y aricoder.o ..\..\ > nul
 move /Y bitops.o ..\..\ > nul
 move /Y packjpg.o ..\..\ > nul
@@ -83,7 +83,7 @@ echo Building packMP3...
 pushd contrib\packmp3
 copy ..\packjpg\aricoder.* > nul
 copy ..\packjpg\bitops.* > nul
-%GPP% %MPARAM% -c -O3 -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer aricoder.cpp bitops.cpp huffmp3.cpp packmp3.cpp
+%GPP% %MPARAM% -c -O3 -DBUILD_LIB -Wall -Wno-misleading-indentation -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer aricoder.cpp bitops.cpp huffmp3.cpp packmp3.cpp
 move /Y huffmp3.o ..\..\ > nul
 move /Y packmp3.o ..\..\ > nul
 if exist aricoder.* del aricoder.*
