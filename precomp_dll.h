@@ -1,4 +1,3 @@
-
 // Switches class
 class Switches {
   public:
@@ -33,6 +32,7 @@ class Switches {
     bool use_swf;
     bool use_base64;
     bool use_bzip2;
+    bool use_mp3;
 
     bool level_switch;            //level switch used? (default: no)
     bool use_zlib_level[81];      //compression levels to use (default: all)
@@ -61,11 +61,16 @@ Switches::Switches() {
   use_swf = true;
   use_base64 = true;
   use_bzip2 = true;
+  use_mp3 = true;
   level_switch = false;
   for (int i = 0; i < 81; i++) {
     use_zlib_level[i] = true;
   }
 }
+
+#ifndef DLL
+#define DLL __declspec(dllexport)
+#endif
 
 DLL void get_copyright_msg(char* msg);
 DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches switches);
