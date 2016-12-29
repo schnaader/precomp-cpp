@@ -786,13 +786,7 @@ int init(int argc, char* argv[]) {
               case 'B': // bZip2
                 compression_otf_method = OTF_BZIP2;
                 break;
-              case 'L': // lzma
-                compression_otf_method = OTF_LZMA;
-                break;
-              case 'X': // xz (lzma2)
-                compression_otf_method = OTF_XZ;
-                break;
-              case 'M': // xz multithreaded
+              case 'L': // lzma2 multithreaded
                 compression_otf_method = OTF_XZ_MT;
                 break;
               default:
@@ -811,13 +805,7 @@ int init(int argc, char* argv[]) {
               case 'B': // bZip2
                 conversion_to_method = OTF_BZIP2;
                 break;
-              case 'L': // lzma
-                conversion_to_method = OTF_LZMA;
-                break;
-              case 'X': // xz (lzma2)
-                conversion_to_method = OTF_XZ;
-                break;
-              case 'M': // xz multithreaded
+              case 'L': // lzma2 multithreaded
                 conversion_to_method = OTF_XZ_MT;
                 break;
               default:
@@ -992,8 +980,8 @@ int init(int argc, char* argv[]) {
     }
     printf("  r            \"Recompress\" PCF file (restore original file)\n");
     printf("  o[filename]  Write output to [filename] <[input_file].pcf or file in header>\n");
-    printf("  c[bn]        Compression method to use, b = bZip2, n = none <b>\n");
-    printf("  n[bn]        Convert a PCF file to use this compression, b = bZip2, n = none\n");
+    printf("  c[lbn]       Compression method to use, l = lzma2, b = bZip2, n = none <l>\n");
+    printf("  n[lbn]       Convert a PCF file to this compression (same as above)\n");
     printf("  v            Verbose (debug) mode <off>\n");
     printf("  d[depth]     Set maximal recursion depth <10>\n");
     printf("  zl[1..9][1..9] zLib levels to try for compression (comma separated) <all>\n");
@@ -1193,7 +1181,7 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,";; Precomp Comfort v%i.%i.%i %s %s - %s version - INI file\n",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
       fprintf(fnewini,";; Use a semicolon (;) for comments\n\n");
       fprintf(fnewini,";; Compression method to use\n");
-      fprintf(fnewini,";; 0 = none, 1 = bZip2, 2 = lzma, 3 = xz(lzma2), 4 = xz Multi-Threaded\n");
+      fprintf(fnewini,";; 0 = none, 1 = bZip2, 2 = lzma2 multi-threaded\n");
       fprintf(fnewini,"Compression_Method=4\n\n");
       fprintf(fnewini,";; Fast mode (on/off)\n");
       fprintf(fnewini,"Fast_Mode=off\n\n");
@@ -1358,19 +1346,7 @@ int init_comfort(int argc, char* argv[]) {
           }
 
           if (strcmp(value, "2") == 0) {
-            printf("INI: Using lzma compression method\n");
-            compression_otf_method = OTF_LZMA;
-            valid_param = true;
-          }
-
-          if (strcmp(value, "3") == 0) {
-            printf("INI: Using xz (lzma2) compression method\n");
-            compression_otf_method = OTF_XZ;
-            valid_param = true;
-          }
-
-          if (strcmp(value, "4") == 0) {
-            printf("INI: Using xz multithreaded compression method\n");
+            printf("INI: Using lzma2 multithreaded compression method\n");
             compression_otf_method = OTF_XZ_MT;
             valid_param = true;
           }
@@ -6042,8 +6018,6 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
         result = size * count;
         break;
       }
-      case OTF_LZMA:
-      case OTF_XZ:
       case OTF_XZ_MT: {
         lzma_action action = (final_byte == 1) ? LZMA_FINISH : LZMA_RUN;
         lzma_ret ret;
@@ -6077,7 +6051,7 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
               break;
             }
 
-            fprintf(stderr, "\nERROR: liblzma error: %s (error code %u)\n", msg, ret);
+            printf("ERROR: liblzma error: %s (error code %u)\n", msg, ret);
 #ifdef COMFORT
             wait_for_key();
 #endif // COMFORT
@@ -6143,8 +6117,6 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
 
         return bytes_read;
       }
-      case OTF_LZMA:
-      case OTF_XZ:
       case OTF_XZ_MT: {
         lzma_action action = LZMA_RUN;
         lzma_ret ret;
@@ -6159,7 +6131,7 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
             otf_xz_stream_d.avail_in = fread(otf_in, 1, CHUNK, fin);
               
             if (ferror(fin)) {
-              fprintf(stderr, "\nERROR: Could not read input file\n");
+              printf("ERROR: Could not read input file\n");
               exit(1);
             }
           }
@@ -6192,7 +6164,7 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
               break;
             }
 
-            fprintf(stderr, "\nERROR: liblzma error: %s (error code %u)\n", msg, ret);
+            printf("ERROR: liblzma error: %s (error code %u)\n", msg, ret);
 #ifdef COMFORT
             wait_for_key();
 #endif // COMFORT
@@ -9174,20 +9146,6 @@ void init_compress_otf() {
       }
       break;
     }
-    case OTF_LZMA: {
-      if (!init_lzma1(&otf_xz_stream_c)) {
-        printf("ERROR: liblzma1 init failed\n");
-        exit(1);
-      }
-      break;
-    }
-    case OTF_XZ: {
-      if (!init_lzma2(&otf_xz_stream_c)) {
-        printf("ERROR: liblzma2 init failed\n");
-        exit(1);
-      }
-      break;
-    }
     case OTF_XZ_MT: {
       uint64_t memory_usage = 0;
       // As default, use 2 GB memory for LZMA, only 1 GB in the 32-bit windows variant
@@ -9230,8 +9188,6 @@ void denit_compress_otf() {
       (void)BZ2_bzCompressEnd(&otf_bz2_stream_c);
       break;
     }
-    case OTF_LZMA:
-    case OTF_XZ:
     case OTF_XZ_MT: {
       (void)lzma_end(&otf_xz_stream_c);
       break;
@@ -9255,8 +9211,6 @@ void init_decompress_otf() {
       }
       break;
     }
-    case OTF_LZMA:
-    case OTF_XZ:
     case OTF_XZ_MT: {
       if (!init_decoder(&otf_xz_stream_d)) {
         printf("ERROR: liblzma init failed\n");
@@ -9276,9 +9230,7 @@ void denit_decompress_otf() {
       (void)BZ2_bzDecompressEnd(&otf_bz2_stream_d);
       break;
     }
-    case OTF_LZMA: // lzma
-    case OTF_XZ: // xz
-    case OTF_XZ_MT: { // xz multithreaded
+    case OTF_XZ_MT: { // lzma2 multithreaded
       (void)lzma_end(&otf_xz_stream_d);
       break;
     }

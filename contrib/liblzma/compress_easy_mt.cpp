@@ -38,39 +38,6 @@ bool check(lzma_ret ret) {
 	return false;
 }
 
-#ifdef BIT64
-const uint32_t dict = 4;
-#else
-const uint32_t dict = 2;
-#endif
-
-bool init_lzma1(lzma_stream *strm)
-{
-    lzma_options_lzma opt_lzma;
-	if (lzma_lzma_preset(&opt_lzma, UINT32_C(9))) { // LZMA_PRESET_DEFAULT
-		fprintf(stderr, "Unsupported preset, possibly a bug\n");
-		return false;
-	}
-    opt_lzma.dict_size *= dict;
-    //opt_lzma.mf = LZMA_MF_HC4;
-    //opt_lzma.mode = LZMA_MODE_FAST;
-    return check(lzma_alone_encoder(strm, &opt_lzma));
-}
-
-bool init_lzma2(lzma_stream *strm) {
-	lzma_options_lzma opt_lzma;
-	if (lzma_lzma_preset(&opt_lzma, UINT32_C(9))) { // LZMA_PRESET_DEFAULT
-		fprintf(stderr, "Unsupported preset, possibly a bug\n");
-		return false;
-	}
-	opt_lzma.dict_size *= dict;
-	lzma_filter filters[] = {
-		{ LZMA_FILTER_LZMA2, &opt_lzma },
-		{ LZMA_VLI_UNKNOWN, NULL },
-	};
-	return check(lzma_stream_encoder(strm, filters, LZMA_CHECK_CRC32));
-}
-
 bool init_decoder(lzma_stream *strm)
 {
 	lzma_ret ret = lzma_auto_decoder(
