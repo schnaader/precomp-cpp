@@ -24,6 +24,16 @@
 #define V_STATE "DEVELOPMENT"
 //#define V_MSG "USE FOR TESTING ONLY"
 #define V_MSG "USE AT YOUR OWN RISK!"
+#ifdef UNIX
+  #define V_OS "Unix"
+#else
+  #define V_OS "Windows"
+#endif
+#ifdef BIT64
+  #define V_BIT "64-bit"
+#else
+  #define V_BIT "32-bit"
+#endif
 
 // batch error levels
 #define RETURN_NOTHING_DECOMPRESSED 2
@@ -49,6 +59,10 @@
 #include <sstream>
 #include <string>
 #include <signal.h>
+#include <thread>
+#ifdef MINGW
+#include "contrib\mingw_std_threads\mingw.thread.h"
+#endif
 #ifdef _MSC_VER
 #include <io.h>
 #define ftruncate _chsize
@@ -123,11 +137,15 @@ float global_min_percent = 0;
 float global_max_percent = 100;
 
 // compression-on-the-fly
-unsigned char bz2_in[CHUNK];
-unsigned char bz2_out[CHUNK];
-int compression_otf_method = 1; // 0 = uncompressed, 1 = bZip2
-int conversion_from_method;     // 0 = uncompressed, 1 = bZip2
-int conversion_to_method;       // 0 = uncompressed, 1 = bZip2
+unsigned char otf_in[CHUNK];
+unsigned char otf_out[CHUNK];
+
+#include "contrib/liblzma/precomp_xz.h"
+lzma_stream otf_xz_stream_c = LZMA_STREAM_INIT, otf_xz_stream_d = LZMA_STREAM_INIT;
+
+int compression_otf_method = OTF_XZ_MT;
+int conversion_from_method;
+int conversion_to_method;
 bool decompress_otf_end = false;
 bz_stream otf_bz2_stream_c, otf_bz2_stream_d;
 
@@ -471,9 +489,9 @@ int init(int argc, char* argv[]) {
 
   printf("\n");
   if (V_MINOR2 == 0) {
-    printf("Precomp v%i.%i - %s version",V_MAJOR,V_MINOR,V_STATE);
+    printf("Precomp v%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_OS,V_BIT,V_STATE);
   } else {
-    printf("Precomp v%i.%i.%i - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_STATE);
+    printf("Precomp v%i.%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
   }
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2016 by Christian Schneider\n\n");
@@ -763,10 +781,13 @@ int init(int argc, char* argv[]) {
           {
             switch (toupper(argv[i][2])) {
               case 'N': // no compression
-                compression_otf_method = 0;
+                compression_otf_method = OTF_NONE;
                 break;
               case 'B': // bZip2
-                compression_otf_method = 1;
+                compression_otf_method = OTF_BZIP2;
+                break;
+              case 'L': // lzma2 multithreaded
+                compression_otf_method = OTF_XZ_MT;
                 break;
               default:
                 printf("ERROR: Invalid compression method %c\n", argv[i][2]);
@@ -779,10 +800,13 @@ int init(int argc, char* argv[]) {
           {
             switch (toupper(argv[i][2])) {
               case 'N': // no compression
-                conversion_to_method = 0;
+                conversion_to_method = OTF_NONE;
                 break;
               case 'B': // bZip2
-                conversion_to_method = 1;
+                conversion_to_method = OTF_BZIP2;
+                break;
+              case 'L': // lzma2 multithreaded
+                conversion_to_method = OTF_XZ_MT;
                 break;
               default:
                 printf("ERROR: Invalid conversion method %c\n", argv[i][2]);
@@ -956,8 +980,8 @@ int init(int argc, char* argv[]) {
     }
     printf("  r            \"Recompress\" PCF file (restore original file)\n");
     printf("  o[filename]  Write output to [filename] <[input_file].pcf or file in header>\n");
-    printf("  c[bn]        Compression method to use, b = bZip2, n = none <b>\n");
-    printf("  n[bn]        Convert a PCF file to use this compression, b = bZip2, n = none\n");
+    printf("  c[lbn]       Compression method to use, l = lzma2, b = bZip2, n = none <l>\n");
+    printf("  n[lbn]       Convert a PCF file to this compression (same as above)\n");
     printf("  v            Verbose (debug) mode <off>\n");
     printf("  d[depth]     Set maximal recursion depth <10>\n");
     printf("  zl[1..9][1..9] zLib levels to try for compression (comma separated) <all>\n");
@@ -1072,9 +1096,9 @@ int init_comfort(int argc, char* argv[]) {
 
   printf("\n");
   if (V_MINOR2 == 0) {
-    printf("Precomp Comfort v%i.%i - %s version",V_MAJOR,V_MINOR,V_STATE);
+    printf("Precomp Comfort v%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_OS,V_BIT,V_STATE);
   } else {
-    printf("Precomp Comfort v%i.%i.%i - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_STATE);
+    printf("Precomp Comfort v%i.%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
   }
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2016 by Christian Schneider\n\n");
@@ -1134,6 +1158,11 @@ int init_comfort(int argc, char* argv[]) {
 
   // precomf.ini in EXE directory?
   char precomf_ini[1024];
+#ifdef _MSC_VER
+#ifdef UNICODE
+#define GetModuleFileName GetModuleFileNameA
+#endif // UNICODE
+#endif // _MSC_VER
   GetModuleFileName(NULL, precomf_ini, 1024);
   // truncate to get directory of executable only
   char* lastslash = strrchr(precomf_ini, PATH_DELIM) + 1;
@@ -1149,11 +1178,11 @@ int init_comfort(int argc, char* argv[]) {
       exit(1);
     } else {
       FILE* fnewini = fopen(precomf_ini,"w");
-      fprintf(fnewini,";; Precomp Comfort v%i.%i.%i - %s version - INI file\n",V_MAJOR,V_MINOR,V_MINOR2,V_STATE);
+      fprintf(fnewini,";; Precomp Comfort v%i.%i.%i %s %s - %s version - INI file\n",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
       fprintf(fnewini,";; Use a semicolon (;) for comments\n\n");
       fprintf(fnewini,";; Compression method to use\n");
-      fprintf(fnewini,";; 0 = none, 1 = bZip2\n");
-      fprintf(fnewini,"Compression_Method=1\n\n");
+      fprintf(fnewini,";; 0 = none, 1 = bZip2, 2 = lzma2 multi-threaded\n");
+      fprintf(fnewini,"Compression_Method=4\n\n");
       fprintf(fnewini,";; Fast mode (on/off)\n");
       fprintf(fnewini,"Fast_Mode=off\n\n");
       fprintf(fnewini,";; Intense mode (on/off)\n");
@@ -1306,13 +1335,19 @@ int init_comfort(int argc, char* argv[]) {
         if (strcmp(param, "compression_method") == 0) {
           if (strcmp(value, "0") == 0) {
             printf("INI: Using no compression method\n");
-            compression_otf_method = 0;
+            compression_otf_method = OTF_NONE;
             valid_param = true;
           }
 
           if (strcmp(value, "1") == 0) {
             printf("INI: Using bZip2 compression method\n");
-            compression_otf_method = 1;
+            compression_otf_method = OTF_BZIP2;
+            valid_param = true;
+          }
+
+          if (strcmp(value, "2") == 0) {
+            printf("INI: Using lzma2 multithreaded compression method\n");
+            compression_otf_method = OTF_XZ_MT;
             valid_param = true;
           }
 
@@ -1745,7 +1780,7 @@ int init_comfort(int argc, char* argv[]) {
 
 void denit_compress() {
 
-  if (compression_otf_method != 0) {
+  if (compression_otf_method != OTF_NONE) {
     denit_compress_otf();
   }
 
@@ -1850,7 +1885,7 @@ void denit_decompress() {
    }
   #endif
 
-  if (compression_otf_method != 0) {
+  if (compression_otf_method != OTF_NONE) {
     denit_decompress_otf();
   }
 
@@ -3126,7 +3161,7 @@ void sort_comp_mem_levels() {
 void show_used_levels() {
   if (!anything_was_used) {
     if (!non_zlib_was_used) {
-      if (compression_otf_method == 0) {
+      if (compression_otf_method == OTF_NONE) {
         printf("\nNone of the given compression and memory levels could be used.\n");
         printf("There will be no gain compressing the output file.\n");
       }
@@ -4060,7 +4095,7 @@ void decompress_file() {
   comp_decomp_state = P_DECOMPRESS;
 
   init_temp_files();
-  if (compression_otf_method != 0) {
+  if (compression_otf_method != OTF_NONE) {
     init_decompress_otf();
   }
 
@@ -5540,7 +5575,7 @@ while (fin_pos < fin_length) {
   }
 
   fin_pos = tell_64(fin);
-  if (compression_otf_method != 0) {
+  if (compression_otf_method != OTF_NONE) {
     if (decompress_otf_end) break;
     if (fin_pos >= fin_length) fin_pos = fin_length - 1;
   }
@@ -5574,8 +5609,8 @@ void convert_file() {
 
   for (;;) {
     bytes_read = own_fread(copybuf, 1, COPY_BUF_SIZE, fin);
-    // truncate by 9 bytes (Precomp bZip2 delimiter) if converting from bZip2
-    if ((conversion_from_method == 1) && (bytes_read < COPY_BUF_SIZE)) {
+    // truncate by 9 bytes (Precomp on-the-fly delimiter) if converting from compressed data
+    if ((conversion_from_method > OTF_NONE) && (bytes_read < COPY_BUF_SIZE)) {
       bytes_read -= 9;
       if (bytes_read < 0) {
         conv_bytes += bytes_read;
@@ -5755,7 +5790,7 @@ void write_header() {
   delete[] input_file_name_without_path;
 
   // initialize compression-on-the-fly now
-  if (compression_otf_method != 0) {
+  if (compression_otf_method != OTF_NONE) {
     init_compress_otf();
   }
 }
@@ -5939,10 +5974,10 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
   bool use_otf = false;
 
   if (comp_decomp_state == P_CONVERT) {
-    use_otf = (conversion_to_method > 0);
+    use_otf = (conversion_to_method > OTF_NONE);
     if (use_otf) compression_otf_method = conversion_to_method;
   } else {
-    if ((stream != fout) || (compression_otf_method == 0) || (comp_decomp_state != P_COMPRESS)) {
+    if ((stream != fout) || (compression_otf_method == OTF_NONE) || (comp_decomp_state != P_COMPRESS)) {
       use_otf = false;
     } else {
       use_otf = true;
@@ -5956,7 +5991,7 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
     }
   } else {
     switch (compression_otf_method) {
-      case 1: { // bZip2
+      case OTF_BZIP2: { // bZip2
         int flush, ret;
         unsigned have;
 
@@ -5968,10 +6003,10 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
         otf_bz2_stream_c.next_in = (char*)ptr;
         do {
           otf_bz2_stream_c.avail_out = CHUNK;
-          otf_bz2_stream_c.next_out = (char*)bz2_out;
+          otf_bz2_stream_c.next_out = (char*)otf_out;
           ret = BZ2_bzCompress(&otf_bz2_stream_c, flush);
           have = CHUNK - otf_bz2_stream_c.avail_out;
-          if (fwrite(bz2_out, 1, have, stream) != have || ferror(stream)) {
+          if (fwrite(otf_out, 1, have, stream) != have || ferror(stream)) {
             result = 0;
             error(ERR_DISK_FULL);
           }
@@ -5980,6 +6015,49 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
           printf("ERROR: bZip2 compression failed - return value %i\n", ret);
           exit(1);
         }
+        result = size * count;
+        break;
+      }
+      case OTF_XZ_MT: {
+        lzma_action action = (final_byte == 1) ? LZMA_FINISH : LZMA_RUN;
+        lzma_ret ret;
+        unsigned have;
+
+        otf_xz_stream_c.avail_in = size * count;
+        otf_xz_stream_c.next_in = (uint8_t *)ptr;
+        do {
+          print_work_sign(true);
+          otf_xz_stream_c.avail_out = CHUNK;
+          otf_xz_stream_c.next_out = (uint8_t *)otf_out;
+          ret = lzma_code(&otf_xz_stream_c, action);
+          have = CHUNK - otf_xz_stream_c.avail_out;
+          if (fwrite(otf_out, 1, have, stream) != have || ferror(stream)) {
+            result = 0;
+            error(ERR_DISK_FULL);
+          }
+          if (ret != LZMA_OK && ret != LZMA_STREAM_END) {
+            const char *msg;
+            switch (ret) {
+            case LZMA_MEM_ERROR:
+              msg = "Memory allocation failed";
+              break;
+
+            case LZMA_DATA_ERROR:
+              msg = "File size limits exceeded";
+              break;
+
+            default:
+              msg = "Unknown error, possibly a bug";
+              break;
+            }
+
+            printf("ERROR: liblzma error: %s (error code %u)\n", msg, ret);
+#ifdef COMFORT
+            wait_for_key();
+#endif // COMFORT
+            exit(1);
+          } // .avail_out == 0
+        } while ((otf_xz_stream_c.avail_in > 0) || ((final_byte == 1) && (ret != LZMA_STREAM_END)));
         result = size * count;
         break;
       }
@@ -5993,10 +6071,10 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
   bool use_otf = false;
 
   if (comp_decomp_state == P_CONVERT) {
-    use_otf = (conversion_from_method > 0);
+    use_otf = (conversion_from_method > OTF_NONE);
     if (use_otf) compression_otf_method = conversion_from_method;
   } else {
-    if ((stream != fin) || (compression_otf_method == 0) || (comp_decomp_state != P_DECOMPRESS)) {
+    if ((stream != fin) || (compression_otf_method == OTF_NONE) || (comp_decomp_state != P_DECOMPRESS)) {
       use_otf = false;
     } else {
       use_otf = true;
@@ -6019,8 +6097,8 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
         do {
 
           if (otf_bz2_stream_d.avail_in == 0) {
-            otf_bz2_stream_d.avail_in = fread(bz2_in, 1, CHUNK, fin);
-            otf_bz2_stream_d.next_in = (char*)bz2_in;
+            otf_bz2_stream_d.avail_in = fread(otf_in, 1, CHUNK, fin);
+            otf_bz2_stream_d.next_in = (char*)otf_in;
             if (otf_bz2_stream_d.avail_in == 0) break;
           }
 
@@ -6038,6 +6116,63 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
         bytes_read = (size * count - otf_bz2_stream_d.avail_out);
 
         return bytes_read;
+      }
+      case OTF_XZ_MT: {
+        lzma_action action = LZMA_RUN;
+        lzma_ret ret;
+
+        otf_xz_stream_d.avail_out = size * count;
+        otf_xz_stream_d.next_out = (uint8_t *)ptr;
+        
+        do {
+          print_work_sign(true);
+          if ((otf_xz_stream_d.avail_in == 0) && !feof(fin)) {
+            otf_xz_stream_d.next_in = (uint8_t *)otf_in;
+            otf_xz_stream_d.avail_in = fread(otf_in, 1, CHUNK, fin);
+              
+            if (ferror(fin)) {
+              printf("ERROR: Could not read input file\n");
+              exit(1);
+            }
+          }
+
+          ret = lzma_code(&otf_xz_stream_d, action);
+
+          if (ret == LZMA_STREAM_END) {
+              decompress_otf_end = true;
+              break;
+          }
+          
+          if (ret != LZMA_OK) {
+            const char *msg;
+            switch (ret) {
+            case LZMA_MEM_ERROR:
+              msg = "Memory allocation failed";
+              break;
+            case LZMA_FORMAT_ERROR:
+              msg = "Wrong file format";
+              break;
+            case LZMA_OPTIONS_ERROR:
+              msg = "Unsupported compression options";
+              break;
+            case LZMA_DATA_ERROR:
+            case LZMA_BUF_ERROR:
+              msg = "Compressed file is corrupt";
+              break;
+            default:
+              msg = "Unknown error, possibly a bug";
+              break;
+            }
+
+            printf("ERROR: liblzma error: %s (error code %u)\n", msg, ret);
+#ifdef COMFORT
+            wait_for_key();
+#endif // COMFORT
+            exit(1);
+          }
+        } while (otf_xz_stream_d.avail_out > 0);
+
+        return size * count - otf_xz_stream_d.avail_out;
       }
     }
   }
@@ -8421,6 +8556,7 @@ void wait_for_key() {
   printf("\nPress any key to continue\n");
   // wait for key
   do {
+    Sleep(55); // lower CPU cost
   } while (!kbhit());
 }
 #endif
@@ -8795,7 +8931,7 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   mp3_parsing_cache_second_frame = -1;
 
   // disable compression-on-the-fly in recursion - we don't want compressed compressed streams
-  compression_otf_method = 0;
+  compression_otf_method = OTF_NONE;
 
   recursion_depth++;
   if (DEBUG_MODE) {
@@ -8876,7 +9012,7 @@ recursion_result recursion_decompress(long long recursion_data_length) {
   best_penalty_bytes = new char[MAX_PENALTY_BYTES];
 
   // disable compression-on-the-fly in recursion - we don't want compressed compressed streams
-  compression_otf_method = 0;
+  compression_otf_method = OTF_NONE;
 
   recursion_depth++;
   if (DEBUG_MODE) {
@@ -8903,10 +9039,10 @@ void own_fputc(char c, FILE* f) {
   bool use_otf = false;
 
   if (comp_decomp_state == P_CONVERT) {
-    use_otf = (conversion_to_method > 0);
+    use_otf = (conversion_to_method > OTF_NONE);
     if (use_otf) compression_otf_method = conversion_to_method;
   } else {
-    if ((f != fout) || (compression_otf_method == 0)) {
+    if ((f != fout) || (compression_otf_method == OTF_NONE)) {
       use_otf = false;
     } else {
       use_otf = true;
@@ -8921,17 +9057,12 @@ void own_fputc(char c, FILE* f) {
 }
 
 void fout_fputc(char c) {
-  switch (compression_otf_method) {
-    case 0: { // uncompressed
-      fputc(c, fout);
-      break;
-    }
-    case 1: { // bZip2
-      unsigned char temp_buf[1];
-      temp_buf[0] = c;
-      own_fwrite(temp_buf, 1, 1, fout);
-      break;
-    }
+  if (compression_otf_method == OTF_NONE) { // uncompressed
+    fputc(c, fout);
+  } else {
+    unsigned char temp_buf[1];
+    temp_buf[0] = c;
+    own_fwrite(temp_buf, 1, 1, fout);
   }
 }
 
@@ -8992,27 +9123,20 @@ void fout_fput64(unsigned long long v) {
 unsigned char fin_fgetc() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_from_method;
 
-  switch (compression_otf_method) {
-    case 0: { // uncompressed
-      return fgetc(fin);
-      break;
-    }
-    case 1: { // bZip2
-      unsigned char temp_buf[1];
-      own_fread(temp_buf, 1, 1, fin);
-      return temp_buf[0];
-      break;
-    }
+  if (compression_otf_method == OTF_NONE) {
+    return fgetc(fin);
+  } else {
+    unsigned char temp_buf[1];
+    own_fread(temp_buf, 1, 1, fin);
+    return temp_buf[0];
   }
-
-  return 0;
 }
 
 void init_compress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_to_method;
 
   switch (compression_otf_method) {
-    case 1: { // bZip2
+    case OTF_BZIP2: { // bZip2
       otf_bz2_stream_c.bzalloc = NULL;
       otf_bz2_stream_c.bzfree = NULL;
       otf_bz2_stream_c.opaque = NULL;
@@ -9022,23 +9146,50 @@ void init_compress_otf() {
       }
       break;
     }
+    case OTF_XZ_MT: {
+      uint64_t memory_usage = 0;
+      // As default, use 2 GB memory for LZMA, only 1 GB in the 32-bit windows variant
+      uint64_t max_memory = 2 * 1024 * 1024 * 1024LL;
+      #ifndef UNIX
+      #ifndef BIT64
+      max_memory = 1 * 1024 * 1024 * 1024LL;
+      #endif
+      #endif
+      int threads = std::thread::hardware_concurrency();
+      if (threads == 0) threads = 2;
+      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage)) {
+        printf("ERROR: xz Multi-Threaded init failed\n");
+        exit(1);
+      }
+      printf("Using LZMA for compression, %i threads, memory usage: ", threads);
+      print64(memory_usage / (1024 * 1024));
+      printf(" MiB\n\n");
+      break;
+    }
   }
 }
 
 void denit_compress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_to_method;
 
-  switch (compression_otf_method) {
-    case 1: { // bZip2
+  if (compression_otf_method > OTF_NONE) {
 
-      // uncompressed data of length 0 ends bZip2 compress-on-the-fly data
+      // uncompressed data of length 0 ends compress-on-the-fly data
       char final_buf[9];
       for (int i = 0; i < 9; i++) {
         final_buf[i] = 0;
       }
       own_fwrite(final_buf, 1, 9, fout, 1);
+  }
+
+  switch (compression_otf_method) {
+    case OTF_BZIP2: { // bZip2
 
       (void)BZ2_bzCompressEnd(&otf_bz2_stream_c);
+      break;
+    }
+    case OTF_XZ_MT: {
+      (void)lzma_end(&otf_xz_stream_c);
       break;
     }
   }
@@ -9048,7 +9199,7 @@ void init_decompress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_from_method;
 
   switch (compression_otf_method) {
-    case 1: { // bZip2
+    case OTF_BZIP2: {
       otf_bz2_stream_d.bzalloc = NULL;
       otf_bz2_stream_d.bzfree = NULL;
       otf_bz2_stream_d.opaque = NULL;
@@ -9060,6 +9211,12 @@ void init_decompress_otf() {
       }
       break;
     }
+    case OTF_XZ_MT: {
+      if (!init_decoder(&otf_xz_stream_d)) {
+        printf("ERROR: liblzma init failed\n");
+        exit(1);
+      }
+    }
   }
   decompress_otf_end = false;
 }
@@ -9068,9 +9225,13 @@ void denit_decompress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_from_method;
 
   switch (compression_otf_method) {
-    case 1: { // bZip2
+    case OTF_BZIP2: { // bZip2
 
       (void)BZ2_bzDecompressEnd(&otf_bz2_stream_d);
+      break;
+    }
+    case OTF_XZ_MT: { // lzma2 multithreaded
+      (void)lzma_end(&otf_xz_stream_d);
       break;
     }
   }
