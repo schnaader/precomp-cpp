@@ -9162,8 +9162,8 @@ void init_compress_otf() {
         exit(1);
       }
       printf("Using LZMA for compression, %i threads, memory usage: ", threads);
-      print64(memory_usage / 1000000);
-      printf(" MB\n");
+      print64(memory_usage / (1024 * 1024));
+      printf(" MiB\n\n");
       break;
     }
   }
