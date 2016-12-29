@@ -23,13 +23,20 @@
 # Visual Studio specific files
 *.opensdf
 *.sdf
+*.ncb
 *.suo
 *.user
 *.log
 *.tlog
 *.pdb
 *.lastbuildstate
+*.VC.db
+*.VC.VC.opendb
 
 # Visual Studio output directories
-vs2012/Precomp/Debug
-vs2012/Precomp/Release
+vs2015/Debug
+vs2015/Release
+vs2015/paq8o8pre/Debug
+vs2015/paq8o8pre/Release
+vs2015/Precomp/Debug
+vs2015/Precomp/Release
