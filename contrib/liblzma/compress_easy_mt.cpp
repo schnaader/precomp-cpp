@@ -99,10 +99,7 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64
 	// information how to choose a reasonable timeout.
 	mt	.timeout = 110;
 
-	// Use the default preset (6) for LZMA2.
 	// To use a preset, filters must be set to NULL.
-	mt	.preset = //LZMA_PRESET_DEFAULT; //UINT32_C(8);
-        UINT32_C(6);// | LZMA_PRESET_EXTREME; // 9 OR 9e
 	mt.filters = NULL;
 
 	mt.check = LZMA_CHECK_CRC32;
