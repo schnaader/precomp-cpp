@@ -11,8 +11,8 @@ REM   if nothing was changed in the "contrib" folder
 REM gcc/g++ 32-bit/64-bit commands - change them according to your environment
 set GCC32=gcc
 set GPP32=g++
-set GCC64=gcc
-set GPP64=g++
+set GCC64=x86_64-w64-mingw32-gcc
+set GPP64=x86_64-w64-mingw32-g++
 
 set EXE1=precomp
 set EXE2=
@@ -74,7 +74,7 @@ echo Building bzip...
 %GCC% %MPARAM% -c -O2 -s -fomit-frame-pointer -Wall %BZIP%
 echo Building packJPG...
 pushd contrib\packjpg
-%GPP% %MPARAM% -c -O3 -DBUILD_LIB -Wall -Wno-misleading-indentation -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer aricoder.cpp bitops.cpp packjpg.cpp
+%GPP% %MPARAM% -c -O3 -DBUILD_LIB -Wall -Wno-misleading-indentation -pedantic -funroll-loops -ffast-math -fomit-frame-pointer aricoder.cpp bitops.cpp packjpg.cpp
 move /Y aricoder.o ..\..\ > nul
 move /Y bitops.o ..\..\ > nul
 move /Y packjpg.o ..\..\ > nul
@@ -83,7 +83,7 @@ echo Building packMP3...
 pushd contrib\packmp3
 copy ..\packjpg\aricoder.* > nul
 copy ..\packjpg\bitops.* > nul
-%GPP% %MPARAM% -c -O3 -DBUILD_LIB -Wall -Wno-misleading-indentation -pedantic -funroll-loops -ffast-math -fsched-spec-load -fomit-frame-pointer aricoder.cpp bitops.cpp huffmp3.cpp packmp3.cpp
+%GPP% %MPARAM% -c -O3 -DBUILD_LIB -Wall -Wno-misleading-indentation -pedantic -funroll-loops -ffast-math -fomit-frame-pointer aricoder.cpp bitops.cpp huffmp3.cpp packmp3.cpp
 move /Y huffmp3.o ..\..\ > nul
 move /Y packmp3.o ..\..\ > nul
 if exist aricoder.* del aricoder.*
@@ -111,12 +111,12 @@ set LIBLZMA=%LIBLZMA% lzma\lzma_decoder.c lzma\lzma2_encoder.c lzma\lzma2_decode
 set LIBLZMA=%LIBLZMA% delta\delta_common.c delta\delta_encoder.c delta\delta_decoder.c simple\simple_coder.c
 set LIBLZMA=%LIBLZMA% simple\simple_encoder.c simple\simple_decoder.c simple\x86.c simple\powerpc.c simple\ia64.c
 set LIBLZMA=%LIBLZMA% simple\arm.c simple\armthumb.c simple\sparc.c
-%GCC% %MPARAM% -c -O2 -s -fomit-frame-pointer -Iapi\ -Icheck\ -Icommon\ -Idelta\ -Ilz\ -Ilzma\ -Irangecoder\ -Isimple\ -Wno-implicit-function-declaration -DHAVE__BOOL %LIBLZMA%
+%GCC% %MPARAM% -std=c99 -c -O2 -s -fomit-frame-pointer -Iapi\ -Icheck\ -Icommon\ -Idelta\ -Ilz\ -Ilzma\ -Irangecoder\ -Isimple\ -Wno-implicit-function-declaration -DHAVE__BOOL %LIBLZMA%
 move /Y *.o ..\..\ > nul
 popd
 :nocontrib
 echo Building precomp...
-%GPP% %DCOMFORT% %MPARAM% -static -static-libgcc -static-libstdc++ -DMINGW %DBIT% -lpthread -Wall precomp.cpp %JPG_O% %MP3_O% %GIF_O% %BZIP_O% %ZLIB_O% %LIBLZMA_CPP% %LIBLZMA_O% -O2 -fomit-frame-pointer -s -o%EXE1%%EXE2%.exe
+%GPP% %DCOMFORT% %MPARAM% -std=c++11 -static -static-libgcc -static-libstdc++ -DMINGW %DBIT% -lpthread -Wall precomp.cpp %JPG_O% %MP3_O% %GIF_O% %BZIP_O% %ZLIB_O% %LIBLZMA_CPP% %LIBLZMA_O% -O2 -fomit-frame-pointer -s -o%EXE1%%EXE2%.exe
 if not %ERRORLEVEL% == 0 echo ERROR!!!
 if %ERRORLEVEL% == 0 echo.
 if %ERRORLEVEL% == 0 echo Build successful.
