@@ -96,6 +96,7 @@ using namespace std;
 #define FAST_COPY_WORK_SIGN_DIST 64 // update work sign after (FAST_COPY_WORK_SIGN_DIST * COPY_BUF_SIZE) bytes
 #define COMP_CHUNK 512
 #define IN_BUF_SIZE 65536 //input buffer
+#define PENALTY_BYTES_TOLERANCE 160
 
 unsigned char copybuf[COPY_BUF_SIZE];
 
@@ -5716,7 +5717,7 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (penalty_bytes_len == 0) && (identical_bytes == compressed_stream_size);
+                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
                 }
 
                 best_identical_bytes_decomp = identical_bytes_decomp;
@@ -5747,7 +5748,7 @@ void try_recompress_bzip2(FILE* origfile, int level, int& compressed_stream_size
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (penalty_bytes_len == 0) && (identical_bytes == compressed_stream_size);
+                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
                 }
 
                 best_identical_bytes_decomp = identical_bytes_decomp;
