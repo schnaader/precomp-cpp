@@ -4722,10 +4722,10 @@ while (fin_pos < fin_length) {
 
       frecomp = tryOpen(tempfile2,"rb");
 
-      unsigned int remaining_bytes = recompressed_data_length;
+      int remaining_bytes = recompressed_data_length;
       unsigned int act_idat_chunk = 0;
       for (;;) {
-        if ((remaining_bytes + 2) > idat_lengths[act_idat_chunk]) {
+        if ((remaining_bytes + 2) > (int)idat_lengths[act_idat_chunk]) {
           fast_copy(frecomp, fout, idat_lengths[act_idat_chunk]);
           remaining_bytes -= idat_lengths[act_idat_chunk];
 
