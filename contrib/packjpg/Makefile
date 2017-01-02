@@ -1,5 +1,5 @@
 OBJECTS = bitops.o aricoder.o packjpg.o
-CFLAGS  = -O3 -DUNIX -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fomit-frame-pointer
+CFLAGS  = -m64 -O3 -DUNIX -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fomit-frame-pointer
 
 .PHONY: all
 all: $(OBJECTS)

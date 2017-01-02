@@ -1,10 +1,10 @@
 @echo off
 
 REM Usage:
-REM "make" for a 32-bit compile of Precomp
-REM "make 64" for a 64-bit compile of Precomp
-REM "make comfort" for a 32-bit compile of Precomp Comfort
-REM "make comfort 64" or "make 64 comfort" for a 64-bit compile of Precomp Comfort
+REM "make" for a 64-bit compile of Precomp
+REM "make 32" for a 32-bit compile of Precomp
+REM "make comfort" for a 64-bit compile of Precomp Comfort
+REM "make comfort 32" or "make 32 comfort" for a 64-bit compile of Precomp Comfort
 REM "nocontrib" parameter to build only Precomp, can be used for a much faster build
 REM   if nothing was changed in the "contrib" folder
 
@@ -17,19 +17,19 @@ set GPP64=x86_64-w64-mingw32-g++
 set EXE1=precomp
 set EXE2=
 set DCOMFORT=
-set DBIT=
-set MPARAM=-march=pentiumpro
-set GCC=%GCC32%
-set GPP=%GPP32%
+set DBIT=-DBIT64
+set MPARAM=-march=x86-64 -m64
+set GCC=%GCC64%
+set GPP=%GPP64%
 set NOCONTRIB=
 :parse
 if "%1%"=="" goto endparse
-if "%1%"=="64" (
-  set GCC=%GCC64%
-  set GPP=%GPP64%
-  set EXE2=64
-  set DBIT=-DBIT64
-  set MPARAM=-march=x86-64 -m64
+if "%1%"=="32" (
+  set GCC=%GCC32%
+  set GPP=%GPP32%
+  set MPARAM=-march=pentiumpro
+  set EXE2=32
+  set DBIT=
 )
 if "%1%"=="comfort" (
   set EXE1=precomf
