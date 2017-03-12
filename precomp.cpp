@@ -3887,7 +3887,12 @@ bool compress_file(float min_percent, float max_percent) {
           if ((type == MPEG1_LAYER_III) && (frame_size > 4)) {
             unsigned char header2 = in[2];
             unsigned char header3 = in[3];
-            if (fread(in, 1, frame_size - 4, fin) != (unsigned int)(frame_size - 4)) break;
+			if (fread(in, 1, frame_size - 4, fin) != (unsigned int)(frame_size - 4)) {
+				// discard incomplete frame
+				n--;
+				mp3_length -= frame_size;
+				break;
+			}
             if (!is_valid_mp3_frame(in, header2, header3, protection)) {
                 n = 0;
                 break;
