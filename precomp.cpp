@@ -252,6 +252,7 @@ unsigned int* idat_lengths = NULL;
 unsigned int* idat_crcs = NULL;
 int idat_count;
 
+long long suppress_jpg_parsing_until;
 long long suppress_mp3_type_until[16];
 long long suppress_mp3_big_value_pairs_sum;
 long long mp3_parsing_cache_second_frame;
@@ -505,6 +506,9 @@ int init(int argc, char* argv[]) {
     use_zlib_level[i] = true;
   }
 
+  // init JPG suppression
+  suppress_jpg_parsing_until = -1;
+  
   // init MP3 suppression
   for (i = 0; i < 16; i++) {
       suppress_mp3_type_until[i] = -1;
@@ -3713,7 +3717,7 @@ bool compress_file(float min_percent, float max_percent) {
       }
     }
 
-    if ((!compressed_data_found) && (use_jpg)) { // no GIF header -> JPG header?
+    if ((!compressed_data_found) && (use_jpg) && (input_file_pos > suppress_jpg_parsing_until)) { // no GIF header -> JPG header?
       if ((in_buf[cb] == 0xFF) && (in_buf[cb + 1] == 0xD8)) { // SOI (FF D8)
         if ((in_buf[cb + 2] == 0xFF)) {
           saved_input_file_pos = input_file_pos;
@@ -3792,6 +3796,16 @@ bool compress_file(float min_percent, float max_percent) {
               input_file_pos = saved_input_file_pos;
               cb = saved_cb;
             }
+          } else if (eoi_count >= 256) {
+              // more than 255 nested images -> seems to be other data
+              // skip until eoi_count is guaranteed to be under 16 to speed
+              // up the parsing
+              suppress_jpg_parsing_until = saved_input_file_pos + (eoi_count - 16) * 2;
+              if (DEBUG_MODE) {
+                printf("Ignoring following JPG streams until position ");
+                print64(suppress_jpg_parsing_until);
+                printf(" to avoid slowdown\n");
+              }              
           }
         }
       }
@@ -8814,6 +8828,7 @@ void recursion_push() {
   recursion_stack_push(&global_min_percent, sizeof(global_min_percent));
   recursion_stack_push(&global_max_percent, sizeof(global_max_percent));
   recursion_stack_push(&comp_decomp_state, sizeof(comp_decomp_state));
+  recursion_stack_push(&suppress_jpg_parsing_until, sizeof(suppress_jpg_parsing_until));
   recursion_stack_push(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
   recursion_stack_push(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
   recursion_stack_push(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
@@ -8833,6 +8848,7 @@ void recursion_pop() {
   recursion_stack_pop(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
   recursion_stack_pop(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
   recursion_stack_pop(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
+  recursion_stack_pop(&suppress_jpg_parsing_until, sizeof(suppress_jpg_parsing_until));
   recursion_stack_pop(&comp_decomp_state, sizeof(comp_decomp_state));
   recursion_stack_pop(&global_max_percent, sizeof(global_max_percent));
   recursion_stack_pop(&global_min_percent, sizeof(global_min_percent));
@@ -8928,6 +8944,9 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   penalty_bytes = new char[MAX_PENALTY_BYTES];
   local_penalty_bytes = new char[MAX_PENALTY_BYTES];
   best_penalty_bytes = new char[MAX_PENALTY_BYTES];
+
+  // init JPG suppression
+  suppress_jpg_parsing_until = -1;
 
   // init MP3 suppression
   for (int i = 0; i < 16; i++) {
