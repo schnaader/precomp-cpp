@@ -5611,6 +5611,9 @@ void convert_file() {
 
   comp_decomp_state = P_CONVERT;
 
+  init_compress_otf();
+  init_decompress_otf();
+  
   sec_time = get_time_ms();
   #ifndef PRECOMPDLL
    if (!DEBUG_MODE) {
@@ -5623,9 +5626,6 @@ void convert_file() {
      print_work_sign(false);
    }
   #endif
-
-  init_compress_otf();
-  init_decompress_otf();
 
   for (;;) {
     bytes_read = own_fread(copybuf, 1, COPY_BUF_SIZE, fin);
