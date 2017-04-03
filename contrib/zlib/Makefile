@@ -1,12 +1,5 @@
-OBJECTS = adler32.o crc32.o zutil.o trees.o inftrees.o inffast.o inflate.o deflate.o
-CFLAGS  = -m64 -DLINUX -D_FILE_OFFSET_BITS=64 -O2 -Wall
+all:
+	-@echo "Please use ./configure first.  Thank you."
 
-.PHONY: all
-all: $(OBJECTS)
-
-.PHONY: clean
-clean:
-	rm -f *.o
-
-%.o: %.c
-	gcc -g -c $(CFLAGS) $<
+distclean:
+	make -f Makefile.in distclean
