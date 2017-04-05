@@ -578,5 +578,8 @@
     <ClInclude Include="..\..\precomp.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\contrib\liblzma\precomp_xz.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -237,6 +237,7 @@
     <ClInclude Include="..\..\contrib\liblzma\lz\lz_encoder.h" />
     <ClInclude Include="..\..\contrib\liblzma\lz\lz_encoder_hash.h" />
     <ClInclude Include="..\..\contrib\liblzma\lz\lz_encoder_hash_table.h" />
+    <ClInclude Include="..\..\contrib\liblzma\precomp_xz.h" />
     <ClInclude Include="..\..\contrib\liblzma\rangecoder\price.h" />
     <ClInclude Include="..\..\contrib\liblzma\rangecoder\range_common.h" />
     <ClInclude Include="..\..\contrib\liblzma\rangecoder\range_decoder.h" />
