@@ -74,16 +74,14 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64
 	mt.threads = threads;
 
     uint64_t preset_memory_usage;
-    int preset_to_use = 0;
-    for (int preset = 1; preset <= 9; preset++) {
+    int preset_to_use = 1; // Always use at least preset 1, even if it exceeds the given memory limit
+    for (int preset = 2; preset <= 9; preset++) {
         mt.preset = preset;
         preset_memory_usage = lzma_stream_encoder_mt_memusage(&mt, &block_size);
         if (preset_memory_usage > max_memory) break;
         memory_usage = preset_memory_usage;
         preset_to_use = preset;
     }
-    
-    if (preset_to_use == 0) return false;
     
     mt.preset = preset_to_use;
     

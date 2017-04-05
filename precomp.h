@@ -113,3 +113,5 @@ void init_compress_otf();
 void denit_compress_otf();
 void init_decompress_otf();
 void denit_decompress_otf();
+int auto_detected_thread_count();
+int lzma_max_memory_default();

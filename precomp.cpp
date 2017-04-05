@@ -50,6 +50,8 @@
 #define ERR_CTRL_C 13
 #define ERR_INTENSE_MODE_LIMIT_TOO_BIG 14
 #define ERR_BRUTE_MODE_LIMIT_TOO_BIG 15
+#define ERR_ONLY_SET_LZMA_MEMORY_ONCE 16
+#define ERR_ONLY_SET_LZMA_THREAD_ONCE 17
 
 #include <stdio.h>
 #include <string.h>
@@ -146,7 +148,7 @@ lzma_stream otf_xz_stream_c = LZMA_STREAM_INIT, otf_xz_stream_d = LZMA_STREAM_IN
 
 int compression_otf_method = OTF_XZ_MT;
 uint64_t compression_otf_max_memory = 0;
-uint64_t compression_otf_threadcount = 0;
+int compression_otf_thread_count = 0;
 int conversion_from_method;
 int conversion_to_method;
 bool decompress_otf_end = false;
@@ -309,6 +311,8 @@ void setSwitches(Switches switches) {
   prog_only = switches.prog_only;
   DEBUG_MODE = switches.debug_mode;
   min_ident_size = switches.min_ident_size;
+  compression_otf_max_memory = switches.compression_otf_max_memory;
+  compression_otf_thread_count = switches.compression_otf_thread_count;
   use_pdf = switches.use_pdf;
   use_zip = switches.use_zip;
   use_gzip = switches.use_gzip;
@@ -526,6 +530,8 @@ int init(int argc, char* argv[]) {
   bool level_switch = false;
   bool min_ident_size_set = false;
   bool recursion_depth_set = false;
+  bool lzma_max_memory_set = false;
+  bool lzma_thread_count_set = false;
   bool long_help = false;
 
   for (i = 1; (i < argc) && (parse_on); i++) {
@@ -668,7 +674,41 @@ int init(int argc, char* argv[]) {
             if ((toupper(argv[i][2]) == 'O') && (toupper(argv[i][3]) == 'N') && (toupper(argv[i][4]) == 'G')
              && (toupper(argv[i][5]) == 'H') && (toupper(argv[i][6]) == 'E') && (toupper(argv[i][7]) == 'L')
              && (toupper(argv[i][8]) == 'P')) {
-              long_help = true;
+              long_help = true;              
+            } else if (toupper(argv[i][2]) == 'M') { // LZMA max. memory
+              if (lzma_max_memory_set) {
+                error(ERR_ONLY_SET_LZMA_MEMORY_ONCE);
+              }
+              int multiplicator = 1;
+              for (j = (strlen(argv[i]) - 4); j >= 0; j--) {
+                if ((argv[i][j+3] < '0') || (argv[i][j+3] > '9')) {
+                  printf("ERROR: Only numbers allowed for LZMA maximal memory\n");
+                  exit(1);
+                }
+                compression_otf_max_memory += ((unsigned int)(argv[i][j+3])-'0') * multiplicator;
+                if ((multiplicator * 10) < multiplicator) {
+                  exit(1);
+                }
+                multiplicator *= 10;
+              }
+              lzma_max_memory_set = true;
+            } else if (toupper(argv[i][2]) == 'T') { // LZMA thread count
+              if (lzma_thread_count_set) {
+                error(ERR_ONLY_SET_LZMA_THREAD_ONCE);
+              }
+              int multiplicator = 1;
+              for (j = (strlen(argv[i]) - 4); j >= 0; j--) {
+                if ((argv[i][j+3] < '0') || (argv[i][j+3] > '9')) {
+                  printf("ERROR: Only numbers allowed for LZMA thread count\n");
+                  exit(1);
+                }
+                compression_otf_thread_count += ((unsigned int)(argv[i][j+3])-'0') * multiplicator;
+                if ((multiplicator * 10) < multiplicator) {
+                  exit(1);
+                }
+                multiplicator *= 10;
+              }               
+              lzma_thread_count_set = true;
             } else {
               printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
               exit(1);
@@ -988,6 +1028,8 @@ int init(int argc, char* argv[]) {
     printf("  r            \"Recompress\" PCF file (restore original file)\n");
     printf("  o[filename]  Write output to [filename] <[input_file].pcf or file in header>\n");
     printf("  c[lbn]       Compression method to use, l = lzma2, b = bZip2, n = none <l>\n");
+    printf("  lm[amount]   Set maximal LZMA memory in MiB <%i>\n", lzma_max_memory_default());
+    printf("  lt[count]    Set LZMA thread count <auto-detect: %i>\n", auto_detected_thread_count());
     printf("  n[lbn]       Convert a PCF file to this compression (same as above)\n");
     printf("  v            Verbose (debug) mode <off>\n");
     printf("  d[depth]     Set maximal recursion depth <10>\n");
@@ -1000,6 +1042,7 @@ int init(int argc, char* argv[]) {
     printf("              t+ = enable these types only, t- = enable all types except these\n");
     printf("              P = PDF, Z = ZIP, G = GZip, N = PNG, F = GIF, J = JPG\n");
     printf("              S = SWF, M = MIME Base64, B = bZip2, 3 = MP3\n");
+    
     if (!long_help) {
       printf("  longhelp     Show long help\n");
     } else {
@@ -1100,6 +1143,8 @@ int init_comfort(int argc, char* argv[]) {
   bool min_ident_size_set = false;
   bool recursion_depth_set = false;
   bool level_switch = false;
+  bool lzma_max_memory_set = false;
+  bool lzma_thread_count_set = false;
 
   printf("\n");
   if (V_MINOR2 == 0) {
@@ -1189,7 +1234,12 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,";; Use a semicolon (;) for comments\n\n");
       fprintf(fnewini,";; Compression method to use\n");
       fprintf(fnewini,";; 0 = none, 1 = bZip2, 2 = lzma2 multi-threaded\n");
-      fprintf(fnewini,"Compression_Method=4\n\n");
+      fprintf(fnewini,"Compression_Method=2\n");
+      fprintf(fnewini,";; Maximal memory (in MiB) for LZMA compression method\n");
+      fprintf(fnewini,"LZMA_Maximal_Memory=2048\n");
+      fprintf(fnewini,";; Thread count for LZMA compression method\n");
+      fprintf(fnewini,";; 0 = auto-detect\n");
+      fprintf(fnewini,"LZMA_Thread_Count=0\n");
       fprintf(fnewini,";; Fast mode (on/off)\n");
       fprintf(fnewini,"Fast_Mode=off\n\n");
       fprintf(fnewini,";; Intense mode (on/off)\n");
@@ -1220,6 +1270,9 @@ int init_comfort(int argc, char* argv[]) {
       safe_fclose(&fnewini);
       min_ident_size = 4;
       min_ident_size_set = true;
+      compression_otf_max_memory = 2048;
+      lzma_max_memory_set = true;
+      lzma_thread_count_set = true;      
       parse_ini_file = false;
     }
   }
@@ -1364,7 +1417,49 @@ int init_comfort(int argc, char* argv[]) {
             exit(1);
           }
         }
+        
+        if (strcmp(param, "lzma_maximal_memory") == 0) {
+          if (lzma_max_memory_set) {
+            error(ERR_ONLY_SET_LZMA_MEMORY_ONCE);
+          }
+          unsigned int multiplicator = 1;
+          for (j = (strlen(value)-1); j >= 0; j--) {
+            compression_otf_max_memory += ((unsigned int)(value[j])-'0') * multiplicator;
+            if ((multiplicator * 10) < multiplicator) {
+              exit(1);
+            }
+            multiplicator *= 10;
+          }
+          lzma_max_memory_set = true;
 
+          if (compression_otf_max_memory > 0) {
+            printf("INI: Set LZMA maximal memory to %i MiB\n", (int)compression_otf_max_memory);
+          }
+          
+          valid_param = true;
+        }
+        
+        if (strcmp(param, "lzma_thread_count") == 0) {
+          if (lzma_thread_count_set) {
+            error(ERR_ONLY_SET_LZMA_THREAD_ONCE);
+          }
+          unsigned int multiplicator = 1;
+          for (j = (strlen(value)-1); j >= 0; j--) {
+            compression_otf_thread_count += ((unsigned int)(value[j])-'0') * multiplicator;
+            if ((multiplicator * 10) < multiplicator) {
+              exit(1);
+            }
+            multiplicator *= 10;
+          }
+          lzma_thread_count_set = true;
+
+          if (compression_otf_thread_count > 0) {
+            printf("INI: Set LZMA thread count to %i\n", compression_otf_thread_count);
+          }
+          
+          valid_param = true;
+        }
+        
         if (strcmp(param, "fast_mode") == 0) {
           if (strcmp(value, "off") == 0) {
             printf("INI: Disabled fast mode\n");
@@ -8628,6 +8723,12 @@ void error(int error_nr) {
     case ERR_BRUTE_MODE_LIMIT_TOO_BIG:
       printf("Brute mode level limit too big");
       break;
+    case ERR_ONLY_SET_LZMA_MEMORY_ONCE:
+      printf("LZMA maximal memory can only be set once");
+      break;
+    case ERR_ONLY_SET_LZMA_THREAD_ONCE:
+      printf("LZMA thread count can only be set once");
+      break;      
     default:
       printf("Unknown error");
   }
@@ -9176,22 +9277,14 @@ void init_compress_otf() {
     case OTF_XZ_MT: {
       uint64_t memory_usage = 0;
 	  uint64_t block_size = 0;
-      uint64_t max_memory = compression_otf_max_memory;
-      int threads = compression_otf_threadcount;
+      uint64_t max_memory = compression_otf_max_memory * 1024 * 1024LL;
+      int threads = compression_otf_thread_count;
       
       if (max_memory == 0) {
-        // As default, use 2 GB memory for LZMA, only 1 GB in the 32-bit windows variant
-        max_memory = 2 * 1024 * 1024 * 1024LL;
-        #ifndef UNIX
-        #ifndef BIT64
-        max_memory = 1 * 1024 * 1024 * 1024LL;
-        #endif
-        #endif
+        max_memory = lzma_max_memory_default() * 1024 * 1024LL;
       }
-      
       if (threads == 0) {
-        threads = std::thread::hardware_concurrency();
-        if (threads == 0) threads = 2;
+        threads = auto_detected_thread_count();
       }
       
       if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage, block_size)) {
@@ -9199,7 +9292,11 @@ void init_compress_otf() {
         exit(1);
       }
       
-      printf("Compressing with LZMA, %i threads, memory usage: ", threads);
+      string plural = "";
+      if (threads > 1) {
+        plural = "s";
+      }
+      printf("Compressing with LZMA, %i thread%s, memory usage: ", threads, plural.c_str());
       print64(memory_usage / (1024 * 1024));
       printf(" MiB, block size: ");
 	  print64(block_size / (1024 * 1024));
@@ -9207,6 +9304,26 @@ void init_compress_otf() {
       break;
     }
   }
+}
+
+int auto_detected_thread_count() {
+  int threads = std::thread::hardware_concurrency();
+  if (threads == 0) threads = 2;
+  
+  return threads;
+}
+
+// Return maximal memory to use per default for LZMA in MiB
+// Use only 1 GiB in the 32-bit windows variant
+// because of the 2 or 3 GiB limit on these systems
+int lzma_max_memory_default() {
+  int max_memory = 2048;
+  #ifndef UNIX
+  #ifndef BIT64
+  max_memory = 1024;
+  #endif
+  #endif
+  return max_memory;
 }
 
 void denit_compress_otf() {

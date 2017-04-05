@@ -4,6 +4,9 @@ class Switches {
     Switches();
 
     int compression_method;        //compression method to use (default: none)
+    unsigned int compression_otf_max_memory;    // max. memory for LZMA compression method (default: 2 GiB)
+    unsigned int compression_otf_thread_count;  // max. thread count for LZMA compression method (default: auto-detect)
+
     //byte positions to ignore (default: none)
     long long* ignore_list;
     int ignore_list_len;
@@ -32,7 +35,6 @@ class Switches {
     bool use_swf;
     bool use_base64;
     bool use_bzip2;
-    bool use_mp3;
 
     bool level_switch;            //level switch used? (default: no)
     bool use_zlib_level[81];      //compression levels to use (default: all)
@@ -40,7 +42,13 @@ class Switches {
 
 //Switches constructor
 Switches::Switches() {
-  compression_method = 0;
+  compression_method = 2;
+  compression_otf_max_memory = 2048;
+  compression_otf_thread_count = std::thread::hardware_concurrency();
+  if (compression_otf_thread_count == 0) {
+    compression_otf_thread_count = 2;
+  }
+
   ignore_list = NULL;
   ignore_list_len = 0;
   slow_mode = false;
@@ -51,6 +59,7 @@ Switches::Switches() {
   use_mjpeg = true;
   debug_mode = false;
   min_ident_size = 4;
+  
   use_pdf = true;
   use_zip = true;
   use_gzip = true;
@@ -61,7 +70,6 @@ Switches::Switches() {
   use_swf = true;
   use_base64 = true;
   use_bzip2 = true;
-  use_mp3 = true;
   level_switch = false;
   for (int i = 0; i < 81; i++) {
     use_zlib_level[i] = true;
