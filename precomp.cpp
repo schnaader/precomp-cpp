@@ -1030,7 +1030,7 @@ int init(int argc, char* argv[]) {
     printf("  c[lbn]       Compression method to use, l = lzma2, b = bZip2, n = none <l>\n");
     printf("  lm[amount]   Set maximal LZMA memory in MiB <%i>\n", lzma_max_memory_default());
     printf("  lt[count]    Set LZMA thread count <auto-detect: %i>\n", auto_detected_thread_count());
-    printf("  n[lbn]       Convert a PCF file to this compression (same as above)\n");
+    printf("  n[lbn]       Convert a PCF file to this compression (same as above) <off>\n");
     printf("  v            Verbose (debug) mode <off>\n");
     printf("  d[depth]     Set maximal recursion depth <10>\n");
     printf("  zl[1..9][1..9] zLib levels to try for compression (comma separated) <all>\n");
