@@ -45,7 +45,7 @@ bool init_decoder(lzma_stream *strm)
 	return check(ret);
 }
 
-bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64_t &memory_usage)
+bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64_t &memory_usage, uint64_t &block_size)
 {
 	// The threaded encoder takes the options as pointer to
 	// a lzma_mt structure.
@@ -77,7 +77,7 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64
     int preset_to_use = 0;
     for (int preset = 1; preset <= 9; preset++) {
         mt.preset = preset;
-        preset_memory_usage = lzma_stream_encoder_mt_memusage(&mt);
+        preset_memory_usage = lzma_stream_encoder_mt_memusage(&mt, &block_size);
         if (preset_memory_usage > max_memory) break;
         memory_usage = preset_memory_usage;
         preset_to_use = preset;
@@ -90,7 +90,8 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64
 	// Initialize the threaded encoder.
 	lzma_ret ret = lzma_stream_encoder_mt(strm, &mt);
 
-    memory_usage = lzma_stream_encoder_mt_memusage(&mt);    
+    // Determine memory usage and block size
+    memory_usage = lzma_stream_encoder_mt_memusage(&mt, &block_size);
     
     return check(ret);
 }

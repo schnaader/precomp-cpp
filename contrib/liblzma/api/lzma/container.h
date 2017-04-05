@@ -331,8 +331,9 @@ extern LZMA_API(lzma_ret) lzma_stream_encoder(lzma_stream *strm,
  *              given options. If an error occurs, for example due to
  *              unsupported preset or filter chain, UINT64_MAX is returned.
  */
+ // schnaader: modified to report block size, too
 extern LZMA_API(uint64_t) lzma_stream_encoder_mt_memusage(
-		const lzma_mt *options) lzma_nothrow lzma_attr_pure;
+		const lzma_mt *options, uint64_t *block_size) lzma_nothrow lzma_attr_pure;
 
 
 /**

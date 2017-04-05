@@ -9173,6 +9173,7 @@ void init_compress_otf() {
     }
     case OTF_XZ_MT: {
       uint64_t memory_usage = 0;
+	  uint64_t block_size = 0;
       // As default, use 2 GB memory for LZMA, only 1 GB in the 32-bit windows variant
       uint64_t max_memory = 2 * 1024 * 1024 * 1024LL;
       #ifndef UNIX
@@ -9182,13 +9183,15 @@ void init_compress_otf() {
       #endif
       int threads = std::thread::hardware_concurrency();
       if (threads == 0) threads = 2;
-      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage)) {
+      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage, block_size)) {
         printf("ERROR: xz Multi-Threaded init failed\n");
         exit(1);
       }
-      printf("Using LZMA for compression, %i threads, memory usage: ", threads);
+      printf("Compressing with LZMA, %i threads, memory usage: ", threads);
       print64(memory_usage / (1024 * 1024));
-      printf(" MiB\n\n");
+      printf(" MiB, block size: ");
+	  print64(block_size / (1024 * 1024));
+	  printf(" MiB\n\n");
       break;
     }
   }

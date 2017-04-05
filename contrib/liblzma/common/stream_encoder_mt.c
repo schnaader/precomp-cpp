@@ -1083,19 +1083,19 @@ lzma_stream_encoder_mt(lzma_stream *strm, const lzma_mt *options)
 // monster names. :-( 31 chars is the max that C99 requires so in that
 // sense it's not too long. ;-)
 extern LZMA_API(uint64_t)
-lzma_stream_encoder_mt_memusage(const lzma_mt *options)
+lzma_stream_encoder_mt_memusage(const lzma_mt *options, uint64_t *block_size)
 {
 	lzma_options_easy easy;
 	const lzma_filter *filters;
-	uint64_t block_size;
+	*block_size = 0;
 	uint64_t outbuf_size_max;
 
-	if (get_options(options, &easy, &filters, &block_size,
+	if (get_options(options, &easy, &filters, block_size,
 			&outbuf_size_max) != LZMA_OK)
 		return UINT64_MAX;
 
 	// Memory usage of the input buffers
-	const uint64_t inbuf_memusage = options->threads * block_size;
+	const uint64_t inbuf_memusage = options->threads * (*block_size);
 
 	// Memory usage of the filter encoders
 	uint64_t filters_memusage = lzma_raw_encoder_memusage(filters);
