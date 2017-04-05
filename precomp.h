@@ -1,6 +1,6 @@
 int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel);
-int def_compare(FILE *source, FILE *dest, FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used);
-int def_compare_bzip2(FILE *source, FILE *dest, FILE *compfile, int level, int& decompressed_bytes_used);
+int def_compare(FILE *source, FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used);
+int def_compare_bzip2(FILE *source, FILE *compfile, int level, int& decompressed_bytes_used);
 int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out);
 int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out, int bmp_width);
 int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size);
