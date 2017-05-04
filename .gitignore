@@ -32,6 +32,7 @@
 *.lastbuildstate
 *.VC.db
 *.VC.VC.opendb
+.vs
 
 # Visual Studio output directories
 vs2015/Debug

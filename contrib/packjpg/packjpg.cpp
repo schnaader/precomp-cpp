@@ -297,7 +297,7 @@ packJPG by Matthias Stirner, 01/2016
 // #define DEV_INFOS // uncomment to include developer information
 
 #define QUANT(cm,bp)	( cmpnfo[cm].qtable[ bp ] )
-#define MAX_V(cm,bp)	( ( QUANT(cm,bp) > 0 ) ? ( ( freqmax[bp] + QUANT(cm,bp) - 1 ) /  QUANT(cm,bp) ) : 0 )
+#define MAX_V(cm,bp)	( ( QUANT(cm,bp) > 0 ) ? ( ( freqmax[bp] + QUANT(cm,bp) - 1 ) / QUANT(cm,bp) + 1 ) : 0 )
 // #define QUN_V(v,cm,bp)	( ( QUANT(cm,bp) > 0 ) ? ( ( v > 0 ) ? ( v + (QUANT(cm,bp)/2) ) /  QUANT(cm,bp) : ( v - (QUANT(cm,bp)/2) ) /  QUANT(cm,bp) ) : 0 )
 
 #define ENVLI(s,v)		( ( v > 0 ) ? v : ( v - 1 ) + ( 1 << s ) )
