@@ -6972,7 +6972,15 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
         }
 
         // this does send a clear code, so we pass g and gd
-        EGifPutImageDesc(newGifFile, g, gd, Row, Col, Width, Height, myGifFile->Image.Interlace, myGifFile->Image.ColorMap);
+        if (EGifPutImageDesc(newGifFile, g, gd, Row, Col, Width, Height, myGifFile->Image.Interlace, myGifFile->Image.ColorMap) == GIF_ERROR) {
+          for (i = 0; i < myGifFile->SHeight; i++) {
+            delete[] ScreenBuff[i];
+          }
+          delete[] ScreenBuff;
+          DGifCloseFile(myGifFile);
+          EGifCloseFile(newGifFile);
+          return false;
+        }
 
         newgif_may_write = true;
 
