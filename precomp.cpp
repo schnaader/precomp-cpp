@@ -3339,22 +3339,7 @@ bool compress_file(float min_percent, float max_percent) {
   if (recursion_depth == 0) write_header();
   uncompressed_length = -1;
 
- sec_time = get_time_ms();
- #ifndef PRECOMPDLL
-   if (!DEBUG_MODE) {
-     if (recursion_depth > 0) 
-       printf("\b\b\b\b\b\b\b\b\b");
-     printf("%6.2f%% ", min_percent);
-     print_work_sign(false);
-   }
- #else
-   if (!DEBUG_MODE) {
-     if (recursion_depth > 0) 
-       printf("\b\b\b\b\b\b\b\b\b");
-     printf("Precompressing: %6.2f%% ", min_percent);
-     print_work_sign(false);
-   }
- #endif
+  if (!DEBUG_MODE) show_progress(min_percent, "Precompressing", (recursion_depth > 0), false);
 
   seek_64(fin, 0);
   fread(in_buf, 1, IN_BUF_SIZE, fin);
@@ -3376,25 +3361,10 @@ bool compress_file(float min_percent, float max_percent) {
     in_buf_pos = input_file_pos;
     cb = 0;
 
-    #ifndef PRECOMPDLL
-     if (!DEBUG_MODE) {
-       if ((get_time_ms() - sec_time) >= 1000) {
-         printf("\b\b\b\b\b\b\b\b\b");
-         printf("%6.2f%% ", (input_file_pos / (float)fin_length) * (max_percent - min_percent) + min_percent);
-         print_work_sign(false);
-         sec_time = get_time_ms();
-       }
-     }
-    #else
-     if (!DEBUG_MODE) {
-      if ((get_time_ms() - sec_time) >= 1000) {
-       printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-       printf("Precompressing: %6.2f%% ", (input_file_pos / (float)fin_length) * (max_percent - min_percent) + min_percent);
-       print_work_sign(false);
-       sec_time = get_time_ms();
-      }
-     }
-    #endif
+    if (!DEBUG_MODE) {
+      float percent = (input_file_pos / (float)fin_length) * (max_percent - min_percent) + min_percent;
+      show_progress(percent, "Precompressing", true, true);
+    }
   } else {
     cb++;
   }
@@ -4216,54 +4186,20 @@ void decompress_file() {
     init_decompress_otf();
   }
 
-  #ifndef PRECOMPDLL
-  if (recursion_depth == 0)  {
-    if (!DEBUG_MODE) {
-      sec_time = get_time_ms();
-      printf("%6.2f%% ", 0.0f);
-      print_work_sign(false);
-    }
+  if (recursion_depth == 0) {
+    if (!DEBUG_MODE) show_progress(0, "Recompressing", false, false);
+    read_header();
   }
-  #else
-  if (recursion_depth == 0)  {
-    if (!DEBUG_MODE) {
-    sec_time = get_time_ms();
-    printf("Recompressing: %6.2f%% ", 0.0f);
-    print_work_sign(false);
-    }
-  }
-  #endif
 
-  if (recursion_depth == 0) read_header();
-  
   fin_pos = tell_64(fin);
 
 while (fin_pos < fin_length) {
 
-  #ifndef PRECOMPDLL
-  if (recursion_depth == 0) {
-  if (!DEBUG_MODE) {
-    if ((get_time_ms() - sec_time) >= 1000) {
-      printf("\b\b\b\b\b\b\b\b\b");
-      printf("%6.2f%% ", (fin_pos / (float)fin_length) * 100);
-      print_work_sign(false);
-      sec_time = get_time_ms();
-    }
+  if ((recursion_depth == 0) && (!DEBUG_MODE)) {
+    float percent = (fin_pos / (float)fin_length) * 100;
+    show_progress(percent, "Recompressing", true, true);
   }
-  }
-  #else
-  if (recursion_depth == 0) {
-    if (!DEBUG_MODE) {
-    if ((get_time_ms() - sec_time) >= 1000) {
-      printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-      printf("Recompressing: %6.2f%% ", (fin_pos / (float)fin_length) * 100);
-      print_work_sign(false);
-      sec_time = get_time_ms();
-    }
-    }
-  }
-  #endif
-
+  
   unsigned char header1 = fin_fgetc();
   if (header1 == 0) { // uncompressed data
     long long uncompressed_data_length;
@@ -5711,18 +5647,7 @@ void convert_file() {
   init_compress_otf();
   init_decompress_otf();
   
-  sec_time = get_time_ms();
-  #ifndef PRECOMPDLL
-   if (!DEBUG_MODE) {
-     printf("%6.2f%% ", 0.0f);
-     print_work_sign(false);
-   }
-  #else
-   if (!DEBUG_MODE) {
-     printf("Converting: %6.2f%% ", 0.0f);
-     print_work_sign(false);
-   }
-  #endif
+  if (!DEBUG_MODE) show_progress(0, "Converting", false, false);
 
   for (;;) {
     bytes_read = own_fread(copybuf, 1, COPY_BUF_SIZE, fin);
@@ -5745,26 +5670,10 @@ void convert_file() {
 
     input_file_pos = tell_64(fin);
     print_work_sign(true);
-    #ifndef PRECOMPDLL
-     if (!DEBUG_MODE) {
-       if ((get_time_ms() - sec_time) >= 1000) {
-         printf("\b\b\b\b\b\b\b\b\b");
-         printf("%6.2f%% ", (input_file_pos / (float)fin_length) * 100);
-         print_work_sign(false);
-         sec_time = get_time_ms();
-       }
-     }
-    #else
-     if (!DEBUG_MODE) {
-      if ((get_time_ms() - sec_time) >= 1000) {
-       printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-       printf("Converting: %6.2f%% ", (input_file_pos / (float)fin_length) * 100);
-       print_work_sign(false);
-       sec_time = get_time_ms();
-      }
-     }
-    #endif
-
+    if (!DEBUG_MODE) {
+      float percent = (input_file_pos / (float)fin_length) * 100;
+      show_progress(percent, "Converting", true, true);
+    }
   }
   own_fwrite(convbuf, 1, conv_bytes, fout); 
 
@@ -9460,6 +9369,24 @@ void print_work_sign(bool with_backspace) {
 
 void print_debug_percent() {
   printf("(%.2f%%) ", (input_file_pos / (float)fin_length) * (global_max_percent - global_min_percent) + global_min_percent);
+}
+
+void show_progress(float percent, const char* status_string, bool use_backspaces, bool check_time) {
+  if (!check_time || ((get_time_ms() - sec_time) >= 1000)) {
+#ifdef PRECOMPDLL
+    if (use_backspaces) {
+      printf("%s", string(strlen(status_string).c_str(), '\b'); // backspaces to remove status string
+    }
+    printf("%s: ", status_string);
+#endif
+
+    if (use_backspaces) {
+      printf("%s", string(9,'\b').c_str()); // backspaces to remove output from %6.2f%
+    }
+    printf("%6.2f%% ", percent);
+    print_work_sign(false);
+    sec_time = get_time_ms();
+  }
 }
 
 void ctrl_c_handler(int sig) {

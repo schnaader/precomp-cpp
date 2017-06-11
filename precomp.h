@@ -85,6 +85,7 @@ char get_char_with_echo();
 void safe_fclose(FILE** f);
 void print_work_sign(bool with_backspace);
 void print_debug_percent();
+void show_progress(float percent, const char* status_string, bool use_backspaces, bool check_time);
 void ctrl_c_handler(int sig);
 
 struct recursion_result {
