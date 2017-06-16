@@ -62,10 +62,10 @@ void try_recompress_bzip2(FILE* origfile, int level, int& compressed_stream_size
 void write_header();
 void read_header();
 void convert_header();
-void fast_copy(FILE* file1, FILE* file2, long long bytecount);
+void fast_copy(FILE* file1, FILE* file2, long long bytecount, bool update_progress = false);
 void fast_copy(FILE* file, unsigned char* mem, long long bytecount);
 void fast_copy(unsigned char* mem, FILE* file, long long bytecount);
-size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int final_byte = 0);
+size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, bool final_byte = false, bool update_lzma_progress = false);
 size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream);
 void seek_64(FILE* f, unsigned long long pos);
 unsigned long long tell_64(FILE* f);
@@ -85,7 +85,7 @@ char get_char_with_echo();
 void safe_fclose(FILE** f);
 void print_work_sign(bool with_backspace);
 void print_debug_percent();
-void show_progress(float percent, const char* status_string, bool use_backspaces, bool check_time);
+void show_progress(float percent, bool use_backspaces, bool check_time);
 void ctrl_c_handler(int sig);
 
 struct recursion_result {

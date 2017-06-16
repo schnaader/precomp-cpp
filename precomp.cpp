@@ -180,6 +180,12 @@ char* output_file_name = NULL;
 
 long long start_time, sec_time;
 long long fin_length;
+long long uncompressed_bytes_written = 0;
+long long uncompressed_bytes_total = 0;
+bool show_lzma_progress = true;
+char lzma_progress_text[70];
+int old_lzma_progress_text_length = -1;
+int lzma_mib_total = 0, lzma_mib_written = 0;
 
 int comp_mem_level_count[81];
 int levels_sorted[81];
@@ -302,6 +308,7 @@ DLL void get_copyright_msg(char* msg) {
 
 void setSwitches(Switches switches) {
   compression_otf_method = switches.compression_method;
+  show_lzma_progress = (compression_otf_method == OTF_XZ_MT);
   ignore_list = switches.ignore_list;
   ignore_list_len = switches.ignore_list_len;
   slow_mode = switches.slow_mode;
@@ -841,6 +848,7 @@ int init(int argc, char* argv[]) {
                 exit(1);
                 break;
             }
+            show_lzma_progress = (compression_otf_method == OTF_XZ_MT);
             break;
           }
         case 'N':
@@ -1410,7 +1418,9 @@ int init_comfort(int argc, char* argv[]) {
             compression_otf_method = OTF_XZ_MT;
             valid_param = true;
           }
-
+          
+          show_lzma_progress = (compression_otf_method == OTF_XZ_MT);
+          
           if (!valid_param) {
             printf("ERROR: Invalid compression method value: %s\n", value);
             wait_for_key();
@@ -1889,29 +1899,33 @@ void denit_compress() {
   safe_fclose(&fin);
   safe_fclose(&fout);
 
+  if ((recursion_depth == 0) && (!DEBUG_MODE) && show_lzma_progress && (old_lzma_progress_text_length > -1)) {
+    printf("%s", string(old_lzma_progress_text_length, '\b').c_str()); // backspaces to remove old lzma progress text
+  }
+  
   #ifndef PRECOMPDLL
    long long fout_length = fileSize64(output_file_name);
    if (recursion_depth == 0) {
     if (!DEBUG_MODE) {
-    printf("\b\b\b\b\b\b\b\b\b");
+    printf(string(14,'\b').c_str());
     printf("100.00%% - New size: ");
     print64(fout_length);
     printf(" instead of ");
     print64(fin_length);
-    printf("\n");
+    printf("     \n");
     } else {
     printf("New size: ");
     print64(fout_length);
     printf(" instead of ");
     print64(fin_length);
-    printf("\n");
+    printf("     \n");
     }
    }
   #else
    if (recursion_depth == 0) {
     if (!DEBUG_MODE) {
-    printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-    printf("Precompressing: 100.00%% - ");
+    printf(string(14,'\b').c_str());
+    printf("100.00%% - ");
     printf_time(get_time_ms() - start_time);
     }
    }
@@ -1971,7 +1985,7 @@ void denit_decompress() {
   #ifndef PRECOMPDLL
    if (recursion_depth == 0) {
     if (!DEBUG_MODE) {
-    printf("\b\b\b\b\b\b\b\b\b");
+    printf(string(14,'\b').c_str());
     printf("100.00%%\n");
     }
     printf("\nDone.\n");
@@ -1980,8 +1994,8 @@ void denit_decompress() {
   #else
    if (recursion_depth == 0) {
     if (!DEBUG_MODE) {
-    printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-    printf("Recompressing: 100.00%% - ");
+    printf(string(14,'\b').c_str());
+    printf("100.00%% - ");
     printf_time(get_time_ms() - start_time);
     }
    }
@@ -2010,29 +2024,29 @@ void denit_convert() {
   long long fout_length = fileSize64(output_file_name);
   #ifndef PRECOMPDLL
    if (!DEBUG_MODE) {
-   printf("\b\b\b\b\b\b\b\b\b");
+   printf(string(14,'\b').c_str());
    printf("100.00%% - New size: ");
    print64(fout_length);
    printf(" instead of ");
    print64(fin_length);
-   printf("\n");
+   printf("     \n");
    } else {
    printf("New size: ");
    print64(fout_length);
    printf(" instead of ");
    print64(fin_length);
-   printf("\n");
+   printf("     \n");
    }   
    printf("\nDone.\n");
    printf_time(get_time_ms() - start_time);
   #else
    if (!DEBUG_MODE) {
-   printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-   printf("Converting: 100.00%% - New size: ");
+   printf(string(14,'\b').c_str());
+   printf("100.00%% - New size: ");
    print64(fout_length);
    printf(" instead of ");
    print64(fin_length);
-   printf("\n");
+   printf("     \n");
    printf_time(get_time_ms() - start_time);
    }
   #endif
@@ -2814,7 +2828,7 @@ void end_uncompressed_data() {
 
   // fast copy of uncompressed data
   seek_64(fin, uncompressed_pos);
-  fast_copy(fin, fout, uncompressed_length);
+  fast_copy(fin, fout, uncompressed_length, true);
 
   uncompressed_length = -1;
 
@@ -3338,8 +3352,10 @@ bool compress_file(float min_percent, float max_percent) {
 
   if (recursion_depth == 0) write_header();
   uncompressed_length = -1;
+  uncompressed_bytes_total = 0;
+  uncompressed_bytes_written = 0;
 
-  if (!DEBUG_MODE) show_progress(min_percent, "Precompressing", (recursion_depth > 0), false);
+  if (!DEBUG_MODE) show_progress(min_percent, (recursion_depth > 0), false);
 
   seek_64(fin, 0);
   fread(in_buf, 1, IN_BUF_SIZE, fin);
@@ -3362,8 +3378,8 @@ bool compress_file(float min_percent, float max_percent) {
     cb = 0;
 
     if (!DEBUG_MODE) {
-      float percent = (input_file_pos / (float)fin_length) * (max_percent - min_percent) + min_percent;
-      show_progress(percent, "Precompressing", true, true);
+      float percent = ((input_file_pos + uncompressed_bytes_written) / ((float)fin_length + uncompressed_bytes_total)) * (max_percent - min_percent) + min_percent;
+      show_progress(percent, true, true);
     }
   } else {
     cb++;
@@ -4164,6 +4180,7 @@ bool compress_file(float min_percent, float max_percent) {
         start_uncompressed_data();
       }
       uncompressed_length++;
+      uncompressed_bytes_total++;
     }
 
   }
@@ -4187,7 +4204,7 @@ void decompress_file() {
   }
 
   if (recursion_depth == 0) {
-    if (!DEBUG_MODE) show_progress(0, "Recompressing", false, false);
+    if (!DEBUG_MODE) show_progress(0, false, false);
     read_header();
   }
 
@@ -4197,7 +4214,7 @@ while (fin_pos < fin_length) {
 
   if ((recursion_depth == 0) && (!DEBUG_MODE)) {
     float percent = (fin_pos / (float)fin_length) * 100;
-    show_progress(percent, "Recompressing", true, true);
+    show_progress(percent, true, true);
   }
   
   unsigned char header1 = fin_fgetc();
@@ -5647,7 +5664,7 @@ void convert_file() {
   init_compress_otf();
   init_decompress_otf();
   
-  if (!DEBUG_MODE) show_progress(0, "Converting", false, false);
+  if (!DEBUG_MODE) show_progress(0, false, false);
 
   for (;;) {
     bytes_read = own_fread(copybuf, 1, COPY_BUF_SIZE, fin);
@@ -5672,7 +5689,7 @@ void convert_file() {
     print_work_sign(true);
     if (!DEBUG_MODE) {
       float percent = (input_file_pos / (float)fin_length) * 100;
-      show_progress(percent, "Converting", true, true);
+      show_progress(percent, true, true);
     }
   }
   own_fwrite(convbuf, 1, conv_bytes, fout); 
@@ -5939,7 +5956,24 @@ void convert_header() {
   fputc(0, fout);
 }
 
-void fast_copy(FILE* file1, FILE* file2, long long bytecount) {
+void progress_update(long long bytes_written) {
+  float percent = ((input_file_pos + uncompressed_bytes_written + bytes_written) / ((float)fin_length + uncompressed_bytes_total)) * (global_max_percent - global_min_percent) + global_min_percent;
+  show_progress(percent, true, true);
+}
+
+void lzma_progress_update() {
+  float percent = ((input_file_pos + uncompressed_bytes_written) / ((float)fin_length + uncompressed_bytes_total)) * (global_max_percent - global_min_percent) + global_min_percent;
+
+  uint64_t progress_in = 0, progress_out = 0;
+  
+  lzma_get_progress(&otf_xz_stream_c, &progress_in, &progress_out);
+
+  lzma_mib_total = otf_xz_stream_c.total_in / (1024 * 1024);
+  lzma_mib_written = progress_in / (1024 * 1024);
+  show_progress(percent, true, true);
+}
+
+void fast_copy(FILE* file1, FILE* file2, long long bytecount, bool update_progress) {
   if (bytecount == 0) return;
 
   long long i;
@@ -5948,15 +5982,19 @@ void fast_copy(FILE* file1, FILE* file2, long long bytecount) {
 
   for (i = 1; i <= maxi; i++) {
     own_fread(copybuf, 1, COPY_BUF_SIZE, file1);
-    own_fwrite(copybuf, 1, COPY_BUF_SIZE, file2);
+    own_fwrite(copybuf, 1, COPY_BUF_SIZE, file2, false, update_progress);
 
-    if (((i - 1) % FAST_COPY_WORK_SIGN_DIST) == 0)
+    if (((i - 1) % FAST_COPY_WORK_SIGN_DIST) == 0) {
       print_work_sign(true);
+      if ((update_progress) && (!DEBUG_MODE)) progress_update(i * COPY_BUF_SIZE);
+    }
   }
   if (remaining_bytes != 0) {
     own_fread(copybuf, 1, remaining_bytes, file1);
-    own_fwrite(copybuf, 1, remaining_bytes, file2);
+    own_fwrite(copybuf, 1, remaining_bytes, file2, false, update_progress);
   }
+  
+  if ((update_progress) && (!DEBUG_MODE)) uncompressed_bytes_written += bytecount;
 }
 
 void fast_copy(FILE* file, unsigned char* mem, long long bytecount) {
@@ -5969,8 +6007,7 @@ void fast_copy(FILE* file, unsigned char* mem, long long bytecount) {
   for (i = 1; i <= maxi; i++) {
     own_fread(mem + (i - 1) * COPY_BUF_SIZE, 1, COPY_BUF_SIZE, file);
 
-    if (((i - 1) % FAST_COPY_WORK_SIGN_DIST) == 0)
-      print_work_sign(true);
+    if (((i - 1) % FAST_COPY_WORK_SIGN_DIST) == 0) print_work_sign(true);
   }
   if (remaining_bytes != 0) {
     own_fread(mem + maxi * COPY_BUF_SIZE, 1, remaining_bytes, file);
@@ -5987,18 +6024,17 @@ void fast_copy(unsigned char* mem, FILE* file, long long bytecount) {
   for (i = 1; i <= maxi; i++) {
     own_fwrite(mem + (i - 1) * COPY_BUF_SIZE, 1, COPY_BUF_SIZE, file);
 
-    if (((i - 1) % FAST_COPY_WORK_SIGN_DIST) == 0)
-      print_work_sign(true);
+    if (((i - 1) % FAST_COPY_WORK_SIGN_DIST) == 0) print_work_sign(true);
   }
   if (remaining_bytes != 0) {
     own_fwrite(mem + maxi * COPY_BUF_SIZE, 1, remaining_bytes, file);
   }
 }
 
-size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int final_byte) {
+size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, bool final_byte, bool update_lzma_progress) {
   size_t result = 0;
   bool use_otf = false;
-
+          
   if (comp_decomp_state == P_CONVERT) {
     use_otf = (conversion_to_method > OTF_NONE);
     if (use_otf) compression_otf_method = conversion_to_method;
@@ -6023,7 +6059,7 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
 
         print_work_sign(true);
 
-        flush = (final_byte == 1) ? BZ_FINISH : BZ_RUN;
+        flush = final_byte ? BZ_FINISH : BZ_RUN;
 
         otf_bz2_stream_c.avail_in = size * count;
         otf_bz2_stream_c.next_in = (char*)ptr;
@@ -6045,7 +6081,7 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
         break;
       }
       case OTF_XZ_MT: {
-        lzma_action action = (final_byte == 1) ? LZMA_FINISH : LZMA_RUN;
+        lzma_action action = final_byte ? LZMA_FINISH : LZMA_RUN;
         lzma_ret ret;
         unsigned have;
 
@@ -6083,7 +6119,8 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, int 
 #endif // COMFORT
             exit(1);
           } // .avail_out == 0
-        } while ((otf_xz_stream_c.avail_in > 0) || ((final_byte == 1) && (ret != LZMA_STREAM_END)));
+          if ((!DEBUG_MODE) && (update_lzma_progress)) lzma_progress_update();
+        } while ((otf_xz_stream_c.avail_in > 0) || (final_byte && (ret != LZMA_STREAM_END)));
         result = size * count;
         break;
       }
@@ -8807,6 +8844,8 @@ void recursion_push() {
   recursion_stack_push(&compressed_data_found, sizeof(compressed_data_found));
   recursion_stack_push(&uncompressed_data_in_work, sizeof(uncompressed_data_in_work));
   recursion_stack_push(&uncompressed_length, sizeof(uncompressed_length));
+  recursion_stack_push(&uncompressed_bytes_total, sizeof(uncompressed_bytes_total));
+  recursion_stack_push(&uncompressed_bytes_written, sizeof(uncompressed_bytes_written));
   recursion_stack_push(&input_file_pos, sizeof(input_file_pos));
   recursion_stack_push(&retval, sizeof(retval));
   recursion_stack_push(&in_buf_pos, sizeof(in_buf_pos));
@@ -8910,6 +8949,8 @@ void recursion_pop() {
   recursion_stack_pop(&in_buf_pos, sizeof(in_buf_pos));
   recursion_stack_pop(&retval, sizeof(retval));
   recursion_stack_pop(&input_file_pos, sizeof(input_file_pos));
+  recursion_stack_pop(&uncompressed_bytes_written, sizeof(uncompressed_bytes_written));
+  recursion_stack_pop(&uncompressed_bytes_total, sizeof(uncompressed_bytes_total));
   recursion_stack_pop(&uncompressed_length, sizeof(uncompressed_length));
   recursion_stack_pop(&uncompressed_data_in_work, sizeof(uncompressed_data_in_work));
   recursion_stack_pop(&compressed_data_found, sizeof(compressed_data_found));
@@ -8925,8 +8966,8 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   recursion_result tmp_r;
   tmp_r.success = false;
 
-  float recursion_min_percent = (input_file_pos / (float)fin_length) * (global_max_percent - global_min_percent) + global_min_percent;
-  float recursion_max_percent = ((input_file_pos + (compressed_bytes - 1)) / (float)fin_length) * (global_max_percent - global_min_percent) + global_min_percent;
+  float recursion_min_percent = ((input_file_pos + uncompressed_bytes_written) / ((float)fin_length + uncompressed_bytes_total)) * (global_max_percent - global_min_percent) + global_min_percent;
+  float recursion_max_percent = ((input_file_pos + uncompressed_bytes_written +(compressed_bytes - 1)) / ((float)fin_length + uncompressed_bytes_total)) * (global_max_percent - global_min_percent) + global_min_percent;
 
   bool rescue_anything_was_used = false;
   bool rescue_non_zlib_was_used = false;
@@ -9253,7 +9294,7 @@ void denit_compress_otf() {
       for (int i = 0; i < 9; i++) {
         final_buf[i] = 0;
       }
-      own_fwrite(final_buf, 1, 9, fout, 1);
+      own_fwrite(final_buf, 1, 9, fout, true, true);
   }
 
   switch (compression_otf_method) {
@@ -9354,14 +9395,14 @@ void safe_fclose(FILE** f) {
 
 void print_work_sign(bool with_backspace) {
   if (!DEBUG_MODE) {
-    if ((get_time_ms() - work_sign_start_time) >= 500) {
+    if ((get_time_ms() - work_sign_start_time) >= 250) {
       work_sign_var = (work_sign_var + 1) % 4;
       work_sign_start_time = get_time_ms();
-      if (with_backspace) printf("\b");
-      printf("%c", work_signs[work_sign_var]);
+      if (with_backspace) printf("\b\b\b\b\b\b");
+      printf("%c     ", work_signs[work_sign_var]);
       fflush(stdout);
     } else if (!with_backspace) {
-      printf("%c", work_signs[work_sign_var]);
+      printf("%c     ", work_signs[work_sign_var]);
       fflush(stdout);
     }
   }
@@ -9371,19 +9412,33 @@ void print_debug_percent() {
   printf("(%.2f%%) ", (input_file_pos / (float)fin_length) * (global_max_percent - global_min_percent) + global_min_percent);
 }
 
-void show_progress(float percent, const char* status_string, bool use_backspaces, bool check_time) {
-  if (!check_time || ((get_time_ms() - sec_time) >= 1000)) {
-#ifdef PRECOMPDLL
+void show_progress(float percent, bool use_backspaces, bool check_time) {
+  if (!check_time || ((get_time_ms() - sec_time) >= 250)) {
     if (use_backspaces) {
-      printf("%s", string(strlen(status_string).c_str(), '\b'); // backspaces to remove status string
+      printf(string(6,'\b').c_str()); // backspace to remove work sign and 5 extra spaces
     }
-    printf("%s: ", status_string);
-#endif
 
+    bool new_lzma_text = false;
+    if (show_lzma_progress) {
+      int snprintf_ret = snprintf(lzma_progress_text, 70, "lzma total/written/left: %i/%i/%i MiB ", lzma_mib_total, lzma_mib_written, lzma_mib_total - lzma_mib_written);
+      if ((snprintf_ret > -1) && (snprintf_ret < 70)) {
+        new_lzma_text = true;
+        if ((old_lzma_progress_text_length > -1) && (use_backspaces)) {
+          printf("%s", string(old_lzma_progress_text_length, '\b').c_str()); // backspaces to remove old lzma progress text
+        }
+        old_lzma_progress_text_length = snprintf_ret;
+      }
+    }
+    
     if (use_backspaces) {
-      printf("%s", string(9,'\b').c_str()); // backspaces to remove output from %6.2f%
+      printf("%s", string(8,'\b').c_str()); // backspaces to remove output from %6.2f%
     }
     printf("%6.2f%% ", percent);
+
+    if (new_lzma_text) {
+      printf("%s", lzma_progress_text);
+    }
+
     print_work_sign(false);
     sec_time = get_time_ms();
   }
