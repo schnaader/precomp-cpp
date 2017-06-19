@@ -98,7 +98,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>BIT64;COMFORT;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions);BUILD_LIB</PreprocessorDefinitions>
+      <PreprocessorDefinitions>BIT64;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions);BUILD_LIB</PreprocessorDefinitions>
       <AdditionalOptions>/I..\..\contrib\liblzma\api /I..\..\contrib\liblzma\check\ /I..\..\contrib\liblzma\common\ /I..\..\contrib\liblzma\delta\ /I..\..\contrib\liblzma\lz\ /I..\..\contrib\liblzma\lzma\ /I..\..\contrib\liblzma\rangecoder\ /I..\..\contrib\liblzma\simple\ /Imsinttypes\ %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
