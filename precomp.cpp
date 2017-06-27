@@ -514,10 +514,10 @@ int init(int argc, char* argv[]) {
 
   // init JPG suppression
   suppress_jpg_parsing_until = -1;
-  
+
   // init MP3 suppression
   for (i = 0; i < 16; i++) {
-      suppress_mp3_type_until[i] = -1;
+    suppress_mp3_type_until[i] = -1;
   }
   suppress_mp3_big_value_pairs_sum = -1;
   mp3_parsing_cache_second_frame = -1;
@@ -1162,6 +1162,16 @@ int init_comfort(int argc, char* argv[]) {
     zlib_level_was_used[i] = false;
     use_zlib_level[i] = true;
   }
+
+  // init JPG suppression
+  suppress_jpg_parsing_until = -1;
+
+  // init MP3 suppression
+  for (i = 0; i < 16; i++) {
+    suppress_mp3_type_until[i] = -1;
+  }
+  suppress_mp3_big_value_pairs_sum = -1;
+  mp3_parsing_cache_second_frame = -1;
 
   // parse parameters (should be input file only)
   if (argc == 1) {

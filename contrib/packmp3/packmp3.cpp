@@ -4748,7 +4748,7 @@ INTERN inline bool pmp_encode_main_data( aricoder* enc )
 					}
 					// set table and linbits
 					bv_table = bv_dec_table + region_tables[ r ];
-					if ( bv_table == NULL ) { // illegal table? 
+					if ( bv_table->h == NULL ) { // illegal table? 
 						sprintf( errormessage, "bad huffman table (%i) used (in frame #%i)",
 							region_tables[ r ], frame->n );
 						errorlevel = 2;
@@ -5061,7 +5061,7 @@ INTERN inline bool pmp_encode_main_data( aricoder* enc )
 	delete( mod_res );
 	for ( ch = 0; ch < g_nchannels; ch++ ) {
 		for ( sl = 0; sl < 4; sl++ )
-			for ( g = 0; g < 6; g++ )
+			for ( g = 0; g < 10; g++ )
 				delete( mod_scf[ch][sl][g] );
 		for ( flags = 0x0; flags < ( (j_coding&&ch) ? 0x8 : 0x2 ); flags++ ) {
 			delete( mod_abv[ch][flags][ 1] );
@@ -5708,7 +5708,7 @@ INTERN inline bool pmp_decode_main_data( aricoder* dec )
 	delete( mod_res );
 	for ( ch = 0; ch < g_nchannels; ch++ ) {
 		for ( sl = 0; sl < 4; sl++ )
-			for ( g = 0; g < 6; g++ )
+			for ( g = 0; g < 10; g++ )
 				delete( mod_scf[ch][sl][g] );
 		for ( flags = 0x0; flags < ( (j_coding&&ch) ? 0x8 : 0x2 ); flags++ ) {
 			delete( mod_abv[ch][flags][ 1] );
