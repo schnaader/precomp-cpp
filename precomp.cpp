@@ -2031,6 +2031,10 @@ void denit_convert() {
   safe_fclose(&fin);
   safe_fclose(&fout);
 
+  if ((!DEBUG_MODE) && show_lzma_progress && (conversion_to_method == OTF_XZ_MT) && (old_lzma_progress_text_length > -1)) {
+    printf("%s", string(old_lzma_progress_text_length, '\b').c_str()); // backspaces to remove old lzma progress text
+  }
+  
   long long fout_length = fileSize64(output_file_name);
   #ifndef PRECOMPDLL
    if (!DEBUG_MODE) {
@@ -9429,7 +9433,7 @@ void show_progress(float percent, bool use_backspaces, bool check_time) {
     }
 
     bool new_lzma_text = false;
-    if (show_lzma_progress) {
+    if ((show_lzma_progress) && ((comp_decomp_state == P_COMPRESS) || ((comp_decomp_state == P_CONVERT) && (conversion_to_method == OTF_XZ_MT)))) {
       int snprintf_ret = snprintf(lzma_progress_text, 70, "lzma total/written/left: %i/%i/%i MiB ", lzma_mib_total, lzma_mib_written, lzma_mib_total - lzma_mib_written);
       if ((snprintf_ret > -1) && (snprintf_ret < 70)) {
         new_lzma_text = true;
