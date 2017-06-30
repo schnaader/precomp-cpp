@@ -2564,6 +2564,47 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 
 }
 
+int check_inf_result(int cb_pos, int windowbits) {
+  int ret;
+  z_stream strm;
+
+  /* allocate inflate state */
+  strm.zalloc = Z_NULL;
+  strm.zfree = Z_NULL;
+  strm.opaque = Z_NULL;
+  strm.avail_in = 0;
+  strm.next_in = Z_NULL;
+  ret = inflateInit2(&strm, windowbits);
+  if (ret != Z_OK)
+    return ret;
+
+  print_work_sign(true);
+
+  strm.avail_in = 2048;
+  strm.next_in = in_buf + cb_pos;
+
+  /* run inflate() on input until output buffer not full */
+  do {
+    strm.avail_out = CHUNK;
+    strm.next_out = out;
+
+    ret = inflate(&strm, Z_NO_FLUSH);
+    switch (ret) {
+      case Z_NEED_DICT:
+        ret = Z_DATA_ERROR;
+      case Z_DATA_ERROR:
+      case Z_MEM_ERROR:
+        (void)inflateEnd(&strm);
+        return ret;
+    }
+  } while (strm.avail_out == 0);
+
+
+  /* clean up and return */
+  (void)inflateEnd(&strm);
+  return ((ret == Z_STREAM_END) || (ret == Z_OK)) ? Z_OK : Z_DATA_ERROR;
+}
+
 /* report a zlib or i/o error */
 void zerr(int ret)
 {
@@ -4151,20 +4192,21 @@ bool compress_file(float min_percent, float max_percent) {
         if (compression_method == 8) {
           int windowbits = (in_buf[cb] >> 4) + 8;
 
-          saved_input_file_pos = input_file_pos;
-          saved_cb = cb;
+          if (check_inf_result(cb + 2, -windowbits) == Z_OK) {
+            saved_input_file_pos = input_file_pos;
+            saved_cb = cb;
 
-          input_file_pos += 2; // skip zLib header
+            input_file_pos += 2; // skip zLib header
 
-          try_decompression_zlib(-windowbits);
+            try_decompression_zlib(-windowbits);
 
-          cb += 2;
+            cb += 2;
 
-          if (!compressed_data_found) {
-            input_file_pos = saved_input_file_pos;
-            cb = saved_cb;
+            if (!compressed_data_found) {
+              input_file_pos = saved_input_file_pos;
+              cb = saved_cb;
+            }
           }
-
         }
 
       }
