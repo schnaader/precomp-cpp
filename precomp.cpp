@@ -2564,8 +2564,9 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 
 }
 
-int check_inf_result(int cb_pos, int windowbits) {
+bool check_inf_result(int cb_pos, int windowbits) {
   int ret;
+  unsigned have = 0;
   z_stream strm;
 
   /* allocate inflate state */
@@ -2576,7 +2577,7 @@ int check_inf_result(int cb_pos, int windowbits) {
   strm.next_in = Z_NULL;
   ret = inflateInit2(&strm, windowbits);
   if (ret != Z_OK)
-    return ret;
+    return false;
 
   print_work_sign(true);
 
@@ -2595,14 +2596,24 @@ int check_inf_result(int cb_pos, int windowbits) {
       case Z_DATA_ERROR:
       case Z_MEM_ERROR:
         (void)inflateEnd(&strm);
-        return ret;
+        return false;
     }
+
+    have += CHUNK - strm.avail_out;
   } while (strm.avail_out == 0);
 
 
   /* clean up and return */
   (void)inflateEnd(&strm);
-  return ((ret == Z_STREAM_END) || (ret == Z_OK)) ? Z_OK : Z_DATA_ERROR;
+  switch (ret) {
+      case Z_OK:
+        return true;
+      case Z_STREAM_END:
+        // Skip streams with decompressed length less than 32 bytes
+        return (have >= 32);
+  }
+  
+  return false;
 }
 
 /* report a zlib or i/o error */
@@ -4192,7 +4203,7 @@ bool compress_file(float min_percent, float max_percent) {
         if (compression_method == 8) {
           int windowbits = (in_buf[cb] >> 4) + 8;
 
-          if (check_inf_result(cb + 2, -windowbits) == Z_OK) {
+          if (check_inf_result(cb + 2, -windowbits)) {
             saved_input_file_pos = input_file_pos;
             saved_cb = cb;
 
@@ -4219,7 +4230,7 @@ bool compress_file(float min_percent, float max_percent) {
       saved_input_file_pos = input_file_pos;
       saved_cb = cb;
 
-      if (check_inf_result(cb, -15) == Z_OK) {
+      if (check_inf_result(cb, -15)) {
         try_decompression_brute();
       }
 
@@ -7851,15 +7862,6 @@ void try_decompression_zlib(int windowbits) {
           }
           safe_fclose(&ftempout);
 
-          if (stream_length < 32) {
-            if (DEBUG_MODE) {
-              printf("Less than 32 bytes, skipping.\n");
-            }
-            decompressed_streams_count--;
-            decompressed_zlib_count--;
-            return;
-          }
-
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
@@ -7997,15 +7999,6 @@ void try_decompression_brute() {
           printf ("Can be decompressed to %i bytes\n", stream_length);
           }
           safe_fclose(&ftempout);
-
-          if (stream_length < 32) {
-            if (DEBUG_MODE) {
-              printf("Less than 32 bytes, skipping.\n");
-            }
-            decompressed_streams_count--;
-            decompressed_brute_count--;
-            return;
-          }
 
           for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = 0; index < 81; index++) {
