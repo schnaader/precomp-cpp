@@ -4219,7 +4219,9 @@ bool compress_file(float min_percent, float max_percent) {
       saved_input_file_pos = input_file_pos;
       saved_cb = cb;
 
-      try_decompression_brute();
+      if (check_inf_result(cb, -15) == Z_OK) {
+        try_decompression_brute();
+      }
 
       if (!compressed_data_found) {
         input_file_pos = saved_input_file_pos;
