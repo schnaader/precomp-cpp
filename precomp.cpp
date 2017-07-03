@@ -2565,6 +2565,10 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 }
 
 bool check_inf_result(int cb_pos, int windowbits) {
+  // first check BTYPE bits, skip 00 and 11 ("uncompressed" and "reserved (error)")
+  int btype = (in_buf[cb_pos] & 0x07) >> 1;
+  if ((btype == 0) || (btype == 3)) return false;
+    
   int ret;
   unsigned have = 0;
   z_stream strm;
