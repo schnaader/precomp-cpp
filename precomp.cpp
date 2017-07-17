@@ -11,7 +11,7 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License. */
-
+//#define COMFORT
 #ifdef PRECOMPDLL
 #define DLL __declspec(dllexport)
 #endif
@@ -490,12 +490,11 @@ int main(int argc, char* argv[])
   #ifdef COMFORT
     wait_for_key();
   #endif
-  
+
   return return_errorlevel;
 }
 
 #endif
-
 #ifndef PRECOMPDLL
 #ifndef COMFORT
 int init(int argc, char* argv[]) {
@@ -528,7 +527,7 @@ int init(int argc, char* argv[]) {
   }
   suppress_mp3_big_value_pairs_sum = -1;
   mp3_parsing_cache_second_frame = -1;
-  
+
   bool valid_syntax = false;
   bool input_file_given = false;
   bool output_file_given = false;
@@ -540,6 +539,7 @@ int init(int argc, char* argv[]) {
   bool lzma_max_memory_set = false;
   bool lzma_thread_count_set = false;
   bool long_help = false;
+  bool preserve_extension = false;
 
   for (i = 1; (i < argc) && (parse_on); i++) {
     if (argv[i][0] == '-') { // switch
@@ -681,7 +681,7 @@ int init(int argc, char* argv[]) {
             if ((toupper(argv[i][2]) == 'O') && (toupper(argv[i][3]) == 'N') && (toupper(argv[i][4]) == 'G')
              && (toupper(argv[i][5]) == 'H') && (toupper(argv[i][6]) == 'E') && (toupper(argv[i][7]) == 'L')
              && (toupper(argv[i][8]) == 'P')) {
-              long_help = true;              
+              long_help = true;
             } else if (toupper(argv[i][2]) == 'M') { // LZMA max. memory
               if (lzma_max_memory_set) {
                 error(ERR_ONLY_SET_LZMA_MEMORY_ONCE);
@@ -714,7 +714,7 @@ int init(int argc, char* argv[]) {
                   exit(1);
                 }
                 multiplicator *= 10;
-              }               
+              }
               lzma_thread_count_set = true;
             } else {
               printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
@@ -977,6 +977,11 @@ int init(int argc, char* argv[]) {
             fast_mode = true;
             break;
           }
+        case 'E':
+            {
+                preserve_extension = true;
+                break;
+            }
         default:
           {
             printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
@@ -1002,18 +1007,24 @@ int init(int argc, char* argv[]) {
 
       // output file given? If not, use input filename with .pcf extension
       if ((!output_file_given) && (operation == P_COMPRESS)) {
-        output_file_name = new char[strlen(input_file_name) + 9];
-        strcpy(output_file_name, input_file_name);
-        char* backslash_at_pos = strrchr(output_file_name, PATH_DELIM);
-        char* dot_at_pos = strrchr(output_file_name, '.');
-        if ((dot_at_pos == NULL) || ((backslash_at_pos != NULL) && (dot_at_pos < backslash_at_pos))) {
-          strcpy(output_file_name + strlen(input_file_name), ".pcf");
+            if(!preserve_extension) {
+                output_file_name = new char[strlen(input_file_name) + 9];
+                strcpy(output_file_name, input_file_name);
+                char* backslash_at_pos = strrchr(output_file_name, PATH_DELIM);
+                char* dot_at_pos = strrchr(output_file_name, '.');
+                if ((dot_at_pos == NULL) || ((backslash_at_pos != NULL) && (dot_at_pos < backslash_at_pos))) {
+                  strcpy(output_file_name + strlen(input_file_name), ".pcf");
+                } else {
+                  strcpy(dot_at_pos, ".pcf");
+                  // same as output file because input file had .pcf extension?
+                  if (strcmp(input_file_name, output_file_name) == 0) {
+                    strcpy(dot_at_pos, "_pcf.pcf");
+                  }
+                }
         } else {
-          strcpy(dot_at_pos, ".pcf");
-          // same as output file because input file had .pcf extension?
-          if (strcmp(input_file_name, output_file_name) == 0) {
-            strcpy(dot_at_pos, "_pcf.pcf");
-          }
+            output_file_name = new char[strlen(input_file_name) + 9];
+            strcpy(output_file_name,input_file_name);
+            strcat(output_file_name,".pcf");
         }
         output_file_given = true;
       } else if ((!output_file_given) && (operation == P_CONVERT)) {
@@ -1035,6 +1046,7 @@ int init(int argc, char* argv[]) {
     }
     printf("  r            \"Recompress\" PCF file (restore original file)\n");
     printf("  o[filename]  Write output to [filename] <[input_file].pcf or file in header>\n");
+    printf("  e            preserve original extension of input name for output name \n");
     printf("  c[lbn]       Compression method to use, l = lzma2, b = bZip2, n = none <l>\n");
     printf("  lm[amount]   Set maximal LZMA memory in MiB <%i>\n", lzma_max_memory_default());
     printf("  lt[count]    Set LZMA thread count <auto-detect: %i>\n", auto_detected_thread_count());
@@ -1050,7 +1062,7 @@ int init(int argc, char* argv[]) {
     printf("              t+ = enable these types only, t- = enable all types except these\n");
     printf("              P = PDF, Z = ZIP, G = GZip, N = PNG, F = GIF, J = JPG\n");
     printf("              S = SWF, M = MIME Base64, B = bZip2, 3 = MP3\n");
-    
+
     if (!long_help) {
       printf("  longhelp     Show long help\n");
     } else {
@@ -1153,6 +1165,7 @@ int init_comfort(int argc, char* argv[]) {
   bool level_switch = false;
   bool lzma_max_memory_set = false;
   bool lzma_thread_count_set = false;
+  bool preserve_extension = false;
 
   printf("\n");
   if (V_MINOR2 == 0) {
@@ -1208,22 +1221,6 @@ int init_comfort(int argc, char* argv[]) {
         operation = P_DECOMPRESS;
       }
     }
-
-    if (operation == P_COMPRESS) {
-      output_file_name = new char[strlen(input_file_name) + 9];
-      strcpy(output_file_name, input_file_name);
-      char* dot_at_pos = strrchr(output_file_name, '.');
-      if (dot_at_pos == NULL) {
-        strcpy(output_file_name + strlen(input_file_name), ".pcf");
-      } else {
-        strcpy(dot_at_pos, ".pcf");
-        // same as output file because input file had .pcf extension?
-        if (strcmp(input_file_name, output_file_name) == 0) {
-          strcpy(dot_at_pos, "_pcf.pcf");
-        }
-      }
-    }
-
   }
 
   // precomf.ini in EXE directory?
@@ -1264,6 +1261,8 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,"Intense_Mode=off\n\n");
       fprintf(fnewini,";; Brute mode (on/off)\n");
       fprintf(fnewini,"Brute_Mode=off\n\n");
+      fprintf(fnewini,";; Preserve Input's file extension (on/off)\n");
+      fprintf(fnewini,"Preserve_Extension=off\n\n");
       fprintf(fnewini,";; Wrap BMP header around PDF images (on/off)\n");
       fprintf(fnewini,"PDF_BMP_Mode=off\n\n");
       fprintf(fnewini,";; Recompress progressive JPGs only (on/off)\n");
@@ -1290,7 +1289,7 @@ int init_comfort(int argc, char* argv[]) {
       min_ident_size_set = true;
       compression_otf_max_memory = 2048;
       lzma_max_memory_set = true;
-      lzma_thread_count_set = true;      
+      lzma_thread_count_set = true;
       parse_ini_file = false;
     }
   }
@@ -1305,8 +1304,7 @@ int init_comfort(int argc, char* argv[]) {
   string::iterator it;
   char param[256], value[256];
 
-  while (ini_file) {
-    getline(ini_file, line);
+  while (getline(ini_file, line)) {
     string::size_type semicolon_at_pos = line.find(";", 0);
     if (semicolon_at_pos != string::npos) {
       line.erase(semicolon_at_pos, line.length() - semicolon_at_pos);
@@ -1343,7 +1341,7 @@ int init_comfort(int argc, char* argv[]) {
       }
       memset(param, '\0', 256);
       parName.copy(param, 256);
- 
+
       // get value
       getline(ss, valuestr);
       // remove spaces
@@ -1387,7 +1385,7 @@ int init_comfort(int argc, char* argv[]) {
           min_ident_size_set = true;
 
           printf("INI: Set minimal identical byte size to %i\n", min_ident_size);
-          
+
           valid_param = true;
         }
 
@@ -1428,16 +1426,16 @@ int init_comfort(int argc, char* argv[]) {
             compression_otf_method = OTF_XZ_MT;
             valid_param = true;
           }
-          
+
           show_lzma_progress = (compression_otf_method == OTF_XZ_MT);
-          
+
           if (!valid_param) {
             printf("ERROR: Invalid compression method value: %s\n", value);
             wait_for_key();
             exit(1);
           }
         }
-        
+
         if (strcmp(param, "lzma_maximal_memory") == 0) {
           if (lzma_max_memory_set) {
             error(ERR_ONLY_SET_LZMA_MEMORY_ONCE);
@@ -1455,10 +1453,10 @@ int init_comfort(int argc, char* argv[]) {
           if (compression_otf_max_memory > 0) {
             printf("INI: Set LZMA maximal memory to %i MiB\n", (int)compression_otf_max_memory);
           }
-          
+
           valid_param = true;
         }
-        
+
         if (strcmp(param, "lzma_thread_count") == 0) {
           if (lzma_thread_count_set) {
             error(ERR_ONLY_SET_LZMA_THREAD_ONCE);
@@ -1476,10 +1474,10 @@ int init_comfort(int argc, char* argv[]) {
           if (compression_otf_thread_count > 0) {
             printf("INI: Set LZMA thread count to %i\n", compression_otf_thread_count);
           }
-          
+
           valid_param = true;
         }
-        
+
         if (strcmp(param, "fast_mode") == 0) {
           if (strcmp(value, "off") == 0) {
             printf("INI: Disabled fast mode\n");
@@ -1497,6 +1495,21 @@ int init_comfort(int argc, char* argv[]) {
             wait_for_key();
             exit(1);
           }
+        }
+        // future note: params should be in lowercase for comparisons here only
+        if (strcmp(param,"preserve_extension") == 0) {
+            if (strcmp(value,"off") == 0) {
+                printf("INI: Not preserve extension\n");
+                preserve_extension = false;
+            } else if (strcmp(value,"on") == 0) {
+                printf("INI: Preserve extension\n");
+                preserve_extension = true;
+            } else {
+                printf("ERROR: Invalid Preserve extension mode: %s\n",value);
+                wait_for_key();
+                exit(1);
+            }
+            valid_param = true;
         }
 
         if (strcmp(param, "intense_mode") == 0) {
@@ -1656,61 +1669,61 @@ int init_comfort(int argc, char* argv[]) {
             printf("INI: PDF compression enabled\n");
           } else {
             printf("INI: PDF compression disabled\n");
-          } 
+          }
 
           if (use_zip) {
             printf("INI: ZIP compression enabled\n");
           } else {
             printf("INI: ZIP compression disabled\n");
-          } 
+          }
 
           if (use_gzip) {
             printf("INI: GZip compression enabled\n");
           } else {
             printf("INI: GZip compression disabled\n");
-          } 
+          }
 
           if (use_png) {
             printf("INI: PNG compression enabled\n");
           } else {
             printf("INI: PNG compression disabled\n");
-          } 
+          }
 
           if (use_gif) {
             printf("INI: GIF compression enabled\n");
           } else {
             printf("INI: GIF compression disabled\n");
-          } 
+          }
 
           if (use_jpg) {
             printf("INI: JPG compression enabled\n");
           } else {
             printf("INI: JPG compression disabled\n");
-          } 
+          }
 
           if (use_mp3) {
             printf("INI: MP3 compression enabled\n");
           } else {
             printf("INI: MP3 compression disabled\n");
-          } 
+          }
 
           if (use_swf) {
             printf("INI: SWF compression enabled\n");
           } else {
             printf("INI: SWF compression disabled\n");
-          } 
+          }
 
           if (use_base64) {
             printf("INI: Base64 compression enabled\n");
           } else {
             printf("INI: Base64 compression disabled\n");
-          } 
+          }
 
           if (use_bzip2) {
             printf("INI: bZip2 compression enabled\n");
           } else {
             printf("INI: bZip2 compression disabled\n");
-          } 
+          }
 
           valid_param = true;
         }
@@ -1769,7 +1782,7 @@ int init_comfort(int argc, char* argv[]) {
           recursion_depth_set = true;
 
           printf("INI: Set maximal recursion depth to %i\n", max_recursion_depth);
-          
+
           valid_param = true;
         }
 
@@ -1838,6 +1851,28 @@ int init_comfort(int argc, char* argv[]) {
   }
   ini_file.close();
  }
+
+  if (operation == P_COMPRESS) {
+    if(!preserve_extension) {
+      output_file_name = new char[strlen(input_file_name) + 9];
+      strcpy(output_file_name, input_file_name);
+      char* backslash_at_pos = strrchr(output_file_name, PATH_DELIM);
+      char* dot_at_pos = strrchr(output_file_name, '.');
+      if ((dot_at_pos == NULL) || ((backslash_at_pos != NULL) && (dot_at_pos < backslash_at_pos))) {
+        strcpy(output_file_name + strlen(input_file_name), ".pcf");
+      } else {
+        strcpy(dot_at_pos, ".pcf");
+        // same as output file because input file had .pcf extension?
+        if (strcmp(input_file_name, output_file_name) == 0) {
+          strcpy(dot_at_pos, "_pcf.pcf");
+        }
+      }
+    } else {
+      output_file_name = new char[strlen(input_file_name) + 9];
+      strcpy(output_file_name,input_file_name);
+      strcat(output_file_name,".pcf");
+    }
+  }
 
   if (file_exists(output_file_name)) {
     printf("Output file \"%s\" exists. Overwrite (y/n)? ", output_file_name);
@@ -1912,7 +1947,7 @@ void denit_compress() {
   if ((recursion_depth == 0) && (!DEBUG_MODE) && show_lzma_progress && (old_lzma_progress_text_length > -1)) {
     printf("%s", string(old_lzma_progress_text_length, '\b').c_str()); // backspaces to remove old lzma progress text
   }
-  
+
   #ifndef PRECOMPDLL
    long long fout_length = fileSize64(output_file_name);
    if (recursion_depth == 0) {
@@ -2034,7 +2069,7 @@ void denit_convert() {
   if ((!DEBUG_MODE) && show_lzma_progress && (conversion_to_method == OTF_XZ_MT) && (old_lzma_progress_text_length > -1)) {
     printf("%s", string(old_lzma_progress_text_length, '\b').c_str()); // backspaces to remove old lzma progress text
   }
-  
+
   long long fout_length = fileSize64(output_file_name);
   #ifndef PRECOMPDLL
    if (!DEBUG_MODE) {
@@ -2050,7 +2085,7 @@ void denit_convert() {
    printf(" instead of ");
    print64(fin_length);
    printf("     \n");
-   }   
+   }
    printf("\nDone.\n");
    printf_time(get_time_ms() - start_time);
   #else
@@ -2179,7 +2214,7 @@ int def_compare(FILE *source, FILE *compfile, int level, int windowbits, int mem
       ret = deflate(&strm, flush);
 
       have = DEF_COMPARE_CHUNK - strm.avail_out;
-      
+
       if (have > 0) {
         if (compfile == fin) {
           identical_bytes_compare = compare_file_mem_penalty(compfile, out, input_file_pos + comp_pos, have, total_same_byte_count, total_same_byte_count_penalty, rek_same_byte_count, rek_same_byte_count_penalty, rek_penalty_bytes_len, local_penalty_bytes_len, use_penalty_bytes);
@@ -2231,7 +2266,7 @@ int def_compare_bzip2(FILE *source, FILE *compfile, int level, int& decompressed
   long long rek_penalty_bytes_len = 0;
   long long local_penalty_bytes_len = 0;
   bool use_penalty_bytes = false;
-  
+
   /* compress until end of file */
   do {
     print_work_sign(true);
@@ -2449,7 +2484,7 @@ int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memle
   frs_offset = 0;
   frs_skip_len = (4 - (bmp_width % 4));
   frs_line_len = bmp_width;
-                                                                              
+
   /* compress until end of file */
   do {
     if ((stream_size_in - pos_in) >= CHUNK) {
@@ -2546,7 +2581,7 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 
       compressed_stream_size += (avail_in_before - strm.avail_in);
       avail_in_before = strm.avail_in;
-      
+
       have = CHUNK - strm.avail_out;
       if (own_fwrite(out, 1, have, dest) != have || ferror(dest)) {
         (void)inflateEnd(&strm);
@@ -2786,7 +2821,7 @@ long long compare_file_mem_penalty(FILE* file1, unsigned char* input_bytes2, lon
   seek_64(file1, pos1);
 
   size1 = fread(input_bytes1, 1, bytecount, file1);
-  
+
   for (i = 0; i < size1; i++) {
     if (input_bytes1[i] == input_bytes2[i]) {
       same_byte_count++;
@@ -2802,14 +2837,14 @@ long long compare_file_mem_penalty(FILE* file1, unsigned char* input_bytes2, lon
       local_penalty_bytes_len += 5;
       // position
       local_penalty_bytes[local_penalty_bytes_len-5] = (total_same_byte_count >> 24) % 256;
-      local_penalty_bytes[local_penalty_bytes_len-4] = (total_same_byte_count >> 16) % 256; 
-      local_penalty_bytes[local_penalty_bytes_len-3] = (total_same_byte_count >> 8) % 256; 
+      local_penalty_bytes[local_penalty_bytes_len-4] = (total_same_byte_count >> 16) % 256;
+      local_penalty_bytes[local_penalty_bytes_len-3] = (total_same_byte_count >> 8) % 256;
       local_penalty_bytes[local_penalty_bytes_len-2] = total_same_byte_count % 256;
       // new byte
       local_penalty_bytes[local_penalty_bytes_len-1] = input_bytes1[i];
     }
     total_same_byte_count++;
-    
+
     if (total_same_byte_count_penalty > rek_same_byte_count_penalty) {
       use_penalty_bytes = true;
       rek_penalty_bytes_len = local_penalty_bytes_len;
@@ -3099,7 +3134,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
                 for (int i = 0; i < (4 - (img_width % 4)); i++) {
                   fout_fputc(0);
                 }
-                
+
               }
 
               safe_fclose(&ftempout);
@@ -3335,6 +3370,34 @@ void show_used_levels() {
      printf("%i%i", (i_sort%9) + 1, (i_sort/9) + 1);
      level_count++;
    }
+  }
+
+  string disable_methods(""); // for comfort it will be reverse
+/*
+P = PDF, Z = ZIP, G = GZip, N = PNG, F = GIF, J = JPG
+S = SWF, M = MIME Base64, B = bZip2, 3 = MP3
+*/
+#ifdef COMFORT
+#define DISABLE_OR_ENABLE_FOR_COMFORT !
+#else
+#define DISABLE_OR_ENABLE_FOR_COMFORT
+#endif // COMFORT
+  if (((use_pdf) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_pdf_count == 0) || (decompressed_pdf_count == 0)))) disable_methods += 'P';
+  if (((use_zip) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_zip_count == 0) && (decompressed_zip_count == 0)))) disable_methods += 'Z';
+  if (((use_gzip) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_gzip_count == 0) && (decompressed_gzip_count == 0)))) disable_methods += 'G';
+  if ((((use_png) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_png_count == 0) && (decompressed_png_count == 0))) && ((recompressed_png_multi_count == 0) && (decompressed_png_multi_count == 0)) )) disable_methods += 'N';
+  if (((use_gif) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_gif_count == 0) && (decompressed_gif_count == 0)))) disable_methods += 'G';
+  if (((use_jpg) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_jpg_count == 0) && (decompressed_jpg_count == 0)))) disable_methods += 'J';
+  if (((use_jpg) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_jpg_prog_count == 0) && (decompressed_jpg_prog_count == 0)))) disable_methods += 'P';
+  if (((use_mp3) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_mp3_count == 0) && (decompressed_mp3_count == 0)))) disable_methods += '3';
+  if (((use_swf) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_swf_count == 0) && (decompressed_swf_count == 0)))) disable_methods += 'S';
+  if (((use_base64) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_base64_count == 0) && (decompressed_base64_count == 0)))) disable_methods += 'M';
+  if (((use_bzip2) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_bzip2_count == 0) && (decompressed_bzip2_count == 0)))) disable_methods += 'B';
+  if ( disable_methods.length() > 0 ) {
+    if (DISABLE_OR_ENABLE_FOR_COMFORT(false))
+      printf("\nCompression_Types=%s",disable_methods.c_str());
+    else
+      printf(" -t-%s",disable_methods.c_str());
   }
 
   if (max_recursion_depth_reached) {
@@ -3604,7 +3667,7 @@ bool compress_file(float min_percent, float max_percent) {
             // find "/Height"
             height_pos = (unsigned char*)strstr((const char*)(type_buf + start_pos), "/Height") - type_buf;
 
-            if (height_pos > 0) 
+            if (height_pos > 0)
               for (int i = height_pos + 8; i < type_buf_length; i++) {
                 if (((type_buf[i] >= '0') && (type_buf[i] <= '9')) || (type_buf[i] == ' ')) {
                   if (type_buf[i] != ' ') {
@@ -3617,8 +3680,8 @@ bool compress_file(float min_percent, float max_percent) {
 
             // find "/BitsPerComponent"
             bpc_pos = (unsigned char*)strstr((const char*)(type_buf + start_pos), "/BitsPerComponent") - type_buf;
-               
-            if (bpc_pos > 0) 
+
+            if (bpc_pos > 0)
               for (int i = bpc_pos  + 18; i < type_buf_length; i++) {
                 if (((type_buf[i] >= '0') && (type_buf[i] <= '9')) || (type_buf[i] == ' ')) {
                   if (type_buf[i] != ' ') {
@@ -3902,7 +3965,7 @@ bool compress_file(float min_percent, float max_percent) {
                 printf("Ignoring following JPG streams until position ");
                 print64(suppress_jpg_parsing_until);
                 printf(" to avoid slowdown\n");
-              }              
+              }
           }
         }
       }
@@ -3930,7 +3993,7 @@ bool compress_file(float min_percent, float max_percent) {
         saved_cb = cb;
 
         long long act_pos = input_file_pos;
-        
+
         // parse frames until first invalid frame is found or end-of-file
         seek_64(fin, act_pos);
         while (fread(in, 1, 4, fin) == 4) {
@@ -3980,16 +4043,16 @@ bool compress_file(float min_percent, float max_percent) {
             if (act_pos == mp3_parsing_cache_second_frame) {
               n = mp3_parsing_cache_n;
               mp3_length = mp3_parsing_cache_mp3_length;
-              
+
               // update values
               mp3_parsing_cache_second_frame = act_pos + frame_size;
               mp3_parsing_cache_n -= 1;
               mp3_parsing_cache_mp3_length -= frame_size;
-              
+
               break;
             }
-          }          
-          
+          }
+
           n++;
           mp3_length += frame_size;
           act_pos += frame_size;
@@ -4020,9 +4083,9 @@ bool compress_file(float min_percent, float max_percent) {
             mp3_parsing_cache_n = n - 1;
             mp3_parsing_cache_mp3_length = mp3_length - mp3_parsing_cache_second_frame_candidate_size;
           }
-            
+
           long long position_length_sum = saved_input_file_pos + mp3_length;
-            
+
           // type must be MPEG-1, Layer III, packMP3 won't process any other files
           if ( type == MPEG1_LAYER_III ) {
             // sum of position and length of last "big value pairs out of bounds" error is suppressed to avoid slowdowns
@@ -4102,9 +4165,9 @@ bool compress_file(float min_percent, float max_percent) {
           }
           base64_header_length++;
         } while (base64_header_length < (CHECKBUF_SIZE - 2));
-        
+
         if (found_double_crlf) {
-       
+
           saved_input_file_pos = input_file_pos;
           saved_cb = cb;
 
@@ -4230,7 +4293,7 @@ while (fin_pos < fin_length) {
     float percent = (fin_pos / (float)fin_length) * 100;
     show_progress(percent, true, true);
   }
-  
+
   unsigned char header1 = fin_fgetc();
   if (header1 == 0) { // uncompressed data
     long long uncompressed_data_length;
@@ -4984,9 +5047,9 @@ while (fin_pos < fin_length) {
 
       if (in_memory) {
         jpg_mem_in = new unsigned char[decompressed_data_length];
-        
+
         fast_copy(fin, jpg_mem_in, decompressed_data_length);
-        
+
         pjglib_init_streams(jpg_mem_in, 1, decompressed_data_length, jpg_mem_out, 1);
         recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
       } else {
@@ -5043,7 +5106,7 @@ while (fin_pos < fin_length) {
             }
           } while (!found_ffda);
         }
-        
+
         if ((!found_ffda) || ((ffda_pos - 1 - MJPGDHT_LEN) < 0)) {
           printf("ERROR: Motion JPG stream corrupted\n");
           exit(1);
@@ -5222,7 +5285,7 @@ while (fin_pos < fin_length) {
       line_count += fin_fgetc();
 
       unsigned int* base64_line_len = new unsigned int[line_count];
-      
+
       if (line_case == 2) {
         for (int i = 0; i < line_count; i++) {
           base64_line_len[i] = fin_fgetc();
@@ -5405,7 +5468,7 @@ while (fin_pos < fin_length) {
       bool in_memory = (recompressed_data_length <= MP3_MAX_MEMORY_SIZE);
 
       bool recompress_success = false;
-      
+
       if (in_memory) {
         mp3_mem_in = new unsigned char[decompressed_data_length];
 
@@ -5434,7 +5497,7 @@ while (fin_pos < fin_length) {
 
       if (in_memory) {
         fast_copy(mp3_mem_out, fout, recompressed_data_length);
-          
+
         if (mp3_mem_in != NULL) delete[] mp3_mem_in;
         if (mp3_mem_out != NULL) delete[] mp3_mem_out;
       } else {
@@ -5677,7 +5740,7 @@ void convert_file() {
 
   init_compress_otf();
   init_decompress_otf();
-  
+
   if (!DEBUG_MODE) show_progress(0, false, false);
 
   for (;;) {
@@ -5706,11 +5769,11 @@ void convert_file() {
       show_progress(percent, true, true);
     }
   }
-  own_fwrite(convbuf, 1, conv_bytes, fout); 
+  own_fwrite(convbuf, 1, conv_bytes, fout);
 
   denit_compress_otf();
   denit_decompress_otf();
-  
+
   denit_convert();
 }
 
@@ -5979,7 +6042,7 @@ void lzma_progress_update() {
   float percent = ((input_file_pos + uncompressed_bytes_written) / ((float)fin_length + uncompressed_bytes_total)) * (global_max_percent - global_min_percent) + global_min_percent;
 
   uint64_t progress_in = 0, progress_out = 0;
-  
+
   lzma_get_progress(&otf_xz_stream_c, &progress_in, &progress_out);
 
   lzma_mib_total = otf_xz_stream_c.total_in / (1024 * 1024);
@@ -6007,13 +6070,13 @@ void fast_copy(FILE* file1, FILE* file2, long long bytecount, bool update_progre
     own_fread(copybuf, 1, remaining_bytes, file1);
     own_fwrite(copybuf, 1, remaining_bytes, file2, false, update_progress);
   }
-  
+
   if ((update_progress) && (!DEBUG_MODE)) uncompressed_bytes_written += bytecount;
 }
 
 void fast_copy(FILE* file, unsigned char* mem, long long bytecount) {
     if (bytecount == 0) return;
-    
+
   long long i;
   int remaining_bytes = (bytecount % COPY_BUF_SIZE);
   long long maxi = (bytecount / COPY_BUF_SIZE);
@@ -6030,7 +6093,7 @@ void fast_copy(FILE* file, unsigned char* mem, long long bytecount) {
 
 void fast_copy(unsigned char* mem, FILE* file, long long bytecount) {
     if (bytecount == 0) return;
-    
+
   long long i;
   int remaining_bytes = (bytecount % COPY_BUF_SIZE);
   long long maxi = (bytecount / COPY_BUF_SIZE);
@@ -6048,7 +6111,7 @@ void fast_copy(unsigned char* mem, FILE* file, long long bytecount) {
 size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, bool final_byte, bool update_lzma_progress) {
   size_t result = 0;
   bool use_otf = false;
-          
+
   if (comp_decomp_state == P_CONVERT) {
     use_otf = (conversion_to_method > OTF_NONE);
     if (use_otf) compression_otf_method = conversion_to_method;
@@ -6140,7 +6203,7 @@ size_t own_fwrite(const void *ptr, size_t size, size_t count, FILE* stream, bool
       }
     }
   }
-  
+
   return result;
 }
 
@@ -6200,13 +6263,13 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
 
         otf_xz_stream_d.avail_out = size * count;
         otf_xz_stream_d.next_out = (uint8_t *)ptr;
-        
+
         do {
           print_work_sign(true);
           if ((otf_xz_stream_d.avail_in == 0) && !feof(fin)) {
             otf_xz_stream_d.next_in = (uint8_t *)otf_in;
             otf_xz_stream_d.avail_in = fread(otf_in, 1, CHUNK, fin);
-              
+
             if (ferror(fin)) {
               printf("ERROR: Could not read input file\n");
               exit(1);
@@ -6219,7 +6282,7 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
               decompress_otf_end = true;
               break;
           }
-          
+
           if (ret != LZMA_OK) {
             const char *msg;
             switch (ret) {
@@ -6342,8 +6405,8 @@ long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long l
         local_penalty_bytes_len += 5;
         // position
         local_penalty_bytes[local_penalty_bytes_len-5] = (same_byte_count >> 24) % 256;
-        local_penalty_bytes[local_penalty_bytes_len-4] = (same_byte_count >> 16) % 256; 
-        local_penalty_bytes[local_penalty_bytes_len-3] = (same_byte_count >> 8) % 256; 
+        local_penalty_bytes[local_penalty_bytes_len-4] = (same_byte_count >> 16) % 256;
+        local_penalty_bytes[local_penalty_bytes_len-3] = (same_byte_count >> 8) % 256;
         local_penalty_bytes[local_penalty_bytes_len-2] = same_byte_count % 256;
         // new byte
         local_penalty_bytes[local_penalty_bytes_len-1] = input_bytes1[i];
@@ -7269,7 +7332,7 @@ void try_decompression_gif(unsigned char version[5]) {
         recompressed_streams_count++;
         recompressed_gif_count++;
         non_zlib_was_used = true;
-      
+
         if (penalty_bytes != NULL) {
           memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
           best_penalty_bytes_len = penalty_bytes_len;
@@ -7394,7 +7457,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           jpg_mem_in = new unsigned char[jpg_length + MJPGDHT_LEN];
           seek_64(fin, input_file_pos);
           fast_copy(fin, jpg_mem_in, jpg_length);
-                    
+
           pjglib_init_streams(jpg_mem_in, 1, jpg_length, jpg_mem_out, 1);
           recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
         } else { // large stream => use temporary files
@@ -7413,14 +7476,14 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 
           recompress_success = pjglib_convert_file2file(tempfile0, tempfile1, recompress_msg);
         }
-        
+
         if ((!recompress_success) && (strncmp(recompress_msg, "huffman table missing", 21) == 0) && (use_mjpeg)) {
           if (DEBUG_MODE) printf ("huffman table missing, trying to use Motion JPEG DHT\n");
           // search 0xFF 0xDA, insert MJPGDHT (MJPGDHT_LEN bytes)
           bool found_ffda = false;
           bool found_ff = false;
           int ffda_pos = -1;
-          
+
           if (in_memory) {
             do {
               ffda_pos++;
@@ -7466,10 +7529,10 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
             safe_fclose(&fjpg);
             recompress_success = pjglib_convert_file2file(tempfile3, tempfile1, recompress_msg);
           }
-          
+
           mjpg_dht_used = recompress_success;
         }
-          
+
         decompressed_streams_count++;
         if (progressive_jpg) {
           decompressed_jpg_prog_count++;
@@ -7486,8 +7549,8 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
         }
 
         if (recompress_success) {
-          int jpg_new_length = -1;  
-          
+          int jpg_new_length = -1;
+
           if (in_memory) {
             jpg_new_length = jpg_mem_out_size;
           } else {
@@ -7495,8 +7558,8 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
             fseek(ftempout, 0, SEEK_END);
             jpg_new_length = ftell(ftempout);
             safe_fclose(&ftempout);
-          }  
-            
+          }
+
           if (jpg_new_length > 0) {
             recompressed_streams_count++;
             if (progressive_jpg) {
@@ -7555,7 +7618,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
         }
 
         if (jpg_mem_in != NULL) delete[] jpg_mem_in;
-        if (jpg_mem_out != NULL) delete[] jpg_mem_out;        
+        if (jpg_mem_out != NULL) delete[] jpg_mem_out;
 }
 
 void try_decompression_mp3 (long long mp3_length) {
@@ -7581,7 +7644,7 @@ void try_decompression_mp3 (long long mp3_length) {
           mp3_mem_in = new unsigned char[mp3_length];
           seek_64(fin, input_file_pos);
           fast_copy(fin, mp3_mem_in, mp3_length);
-                    
+
           pmplib_init_streams(mp3_mem_in, 1, mp3_length, mp3_mem_out, 1);
           recompress_success = pmplib_convert_stream2mem(&mp3_mem_out, &mp3_mem_out_size, recompress_msg);
         } else { // large stream => use temporary files
@@ -7598,7 +7661,7 @@ void try_decompression_mp3 (long long mp3_length) {
 
           recompress_success = pmplib_convert_file2file(tempfile0, tempfile1, recompress_msg);
         }
-        
+
         if ((!recompress_success) && (strncmp(recompress_msg, "synching failure", 16) == 0)) {
           int frame_n;
           int pos;
@@ -7607,7 +7670,7 @@ void try_decompression_mp3 (long long mp3_length) {
               mp3_length = pos;
 
               if (DEBUG_MODE) printf ("Too much garbage data at the end, retry with new length %i\n", pos);
-              
+
               if (in_memory) {
                 pmplib_init_streams(mp3_mem_in, 1, mp3_length, mp3_mem_out, 1);
                 recompress_success = pmplib_convert_stream2mem(&mp3_mem_out, &mp3_mem_out_size, recompress_msg);
@@ -7633,7 +7696,7 @@ void try_decompression_mp3 (long long mp3_length) {
             printf(" to avoid slowdown\n");
           }
         }
-          
+
         decompressed_streams_count++;
         decompressed_mp3_count++;
 
@@ -7647,7 +7710,7 @@ void try_decompression_mp3 (long long mp3_length) {
 
         if (recompress_success) {
           int mp3_new_length = -1;
-          
+
           if (in_memory) {
             mp3_new_length = mp3_mem_out_size;
           } else {
@@ -7656,7 +7719,7 @@ void try_decompression_mp3 (long long mp3_length) {
             mp3_new_length = ftell(ftempout);
             safe_fclose(&ftempout);
           }
-          
+
           if (mp3_new_length > 0) {
             recompressed_streams_count++;
             recompressed_mp3_count++;
@@ -7716,7 +7779,7 @@ bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsign
   int nsb, gr, ch;
   unsigned short crc;
   unsigned char* sideinfo;
-  
+
   nsb = (nch == 1) ? 17 : 32;
 
   sideinfo = frame_data;
@@ -7729,11 +7792,11 @@ bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsign
       return false;
     }
   }
-  
+
   abitreader* side_reader = new abitreader(sideinfo, nsb);
-  
+
   side_reader->read((nch == 1) ? 18 : 20);
-  
+
   // granule specific side info
   char window_switching, region0_size, region1_size;
   for (gr = 0; gr < 2; gr++) {
@@ -7754,10 +7817,10 @@ bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsign
       }
       side_reader->read(3);
     }
-  }  
-  
+  }
+
   delete(side_reader);
-  
+
   return true;
 }
 
@@ -7768,14 +7831,14 @@ inline unsigned short mp3_calc_layer3_crc(unsigned char header2, unsigned char h
 {
 	// crc has a start value of 0xFFFF
 	unsigned short crc = 0xFFFF;
-	
+
 	// process two last bytes from header...
 	crc = (crc << 8) ^ crc_table[(crc>>8) ^ header2];
 	crc = (crc << 8) ^ crc_table[(crc>>8) ^ header3];
 	// ... and all the bytes from the side information
 	for ( int i = 0; i < sidesize; i++ )
 		crc = (crc << 8) ^ crc_table[(crc>>8) ^ sideinfo[i]];
-	
+
 	return crc;
 }
 
@@ -8417,7 +8480,7 @@ void try_decompression_base64(int base64_header_length) {
 
         unsigned char base64_data[CHUNK >> 2];
         unsigned int* base64_line_len = new unsigned int[65536];
-        
+
         int avail_in = 0;
         int i, j, k;
         unsigned char a, b, c, d;
@@ -8425,7 +8488,7 @@ void try_decompression_base64(int base64_header_length) {
         bool decoding_failed = false;
         bool stream_finished = false;
         k = 0;
-        
+
         unsigned int line_nr = 0;
         int line_count = 0;
         unsigned int act_line_len = 0;
@@ -8604,7 +8667,7 @@ void try_decompression_base64(int base64_header_length) {
             }
 
             delete[] base64_line_len;
-            
+
             fout_fput32(identical_bytes);
             fout_fput32(identical_bytes_decomp);
 
@@ -8696,7 +8759,7 @@ void error(int error_nr) {
       break;
     case ERR_ONLY_SET_LZMA_THREAD_ONCE:
       printf("LZMA thread count can only be set once");
-      break;      
+      break;
     default:
       printf("Unknown error");
   }
@@ -8907,7 +8970,7 @@ void recursion_push() {
   recursion_stack_push(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
   recursion_stack_push(&mp3_parsing_cache_n, sizeof(mp3_parsing_cache_n));
   recursion_stack_push(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
-  
+
   recursion_stack_push(&compression_otf_method, sizeof(compression_otf_method));
   recursion_stack_push(&decompress_otf_end, sizeof(decompress_otf_end));
 }
@@ -9039,10 +9102,10 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   }
   tmp_r.success = compress_file(recursion_min_percent, recursion_max_percent);
 
-  if (anything_was_used) 
+  if (anything_was_used)
     rescue_anything_was_used = true;
 
-  if (non_zlib_was_used) 
+  if (non_zlib_was_used)
     rescue_non_zlib_was_used = true;
 
   recursion_depth--;
@@ -9251,19 +9314,19 @@ void init_compress_otf() {
 	  uint64_t block_size = 0;
       uint64_t max_memory = compression_otf_max_memory * 1024 * 1024LL;
       int threads = compression_otf_thread_count;
-      
+
       if (max_memory == 0) {
         max_memory = lzma_max_memory_default() * 1024 * 1024LL;
       }
       if (threads == 0) {
         threads = auto_detected_thread_count();
       }
-      
+
       if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage, block_size)) {
         printf("ERROR: xz Multi-Threaded init failed\n");
         exit(1);
       }
-      
+
       string plural = "";
       if (threads > 1) {
         plural = "s";
@@ -9281,7 +9344,7 @@ void init_compress_otf() {
 int auto_detected_thread_count() {
   int threads = std::thread::hardware_concurrency();
   if (threads == 0) threads = 2;
-  
+
   return threads;
 }
 
@@ -9443,7 +9506,7 @@ void show_progress(float percent, bool use_backspaces, bool check_time) {
         old_lzma_progress_text_length = snprintf_ret;
       }
     }
-    
+
     if (use_backspaces) {
       printf("%s", string(8,'\b').c_str()); // backspaces to remove output from %6.2f%
     }
