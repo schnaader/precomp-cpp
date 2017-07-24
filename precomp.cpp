@@ -3386,13 +3386,13 @@ S = SWF, M = MIME Base64, B = bZip2, 3 = MP3
   if (((use_zip) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_zip_count == 0) && (decompressed_zip_count == 0)))) disable_methods += 'Z';
   if (((use_gzip) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_gzip_count == 0) && (decompressed_gzip_count == 0)))) disable_methods += 'G';
   if ((((use_png) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_png_count == 0) && (decompressed_png_count == 0))) && ((recompressed_png_multi_count == 0) && (decompressed_png_multi_count == 0)) )) disable_methods += 'N';
-  if (((use_gif) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_gif_count == 0) && (decompressed_gif_count == 0)))) disable_methods += 'G';
+  if (((use_gif) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_gif_count == 0) && (decompressed_gif_count == 0)))) disable_methods += 'F';
   if (((use_jpg) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_jpg_count == 0) && (decompressed_jpg_count == 0)))) disable_methods += 'J';
   if (((use_jpg) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_jpg_prog_count == 0) && (decompressed_jpg_prog_count == 0)))) disable_methods += 'P';
-  if (((use_mp3) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_mp3_count == 0) && (decompressed_mp3_count == 0)))) disable_methods += '3';
   if (((use_swf) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_swf_count == 0) && (decompressed_swf_count == 0)))) disable_methods += 'S';
   if (((use_base64) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_base64_count == 0) && (decompressed_base64_count == 0)))) disable_methods += 'M';
   if (((use_bzip2) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_bzip2_count == 0) && (decompressed_bzip2_count == 0)))) disable_methods += 'B';
+  if (((use_mp3) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_mp3_count == 0) && (decompressed_mp3_count == 0)))) disable_methods += '3';
   if ( disable_methods.length() > 0 ) {
     if (DISABLE_OR_ENABLE_FOR_COMFORT(false))
       printf("\nCompression_Types=%s",disable_methods.c_str());
