@@ -1276,7 +1276,8 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,";; Compression types to use\n");
       fprintf(fnewini,";; P = PDF, Z = ZIP, G = GZip, N = PNG, F = GIF, J = JPG, S = SWF\n");
       fprintf(fnewini,";; M = MIME Base64, B = bZip2, 3 = MP3\n");
-      fprintf(fnewini,"; Compression_Types=PZGNFJSMB\n\n");
+      fprintf(fnewini,"; Compression_Types_Enable=PZGNFJSMB3\n");
+      fprintf(fnewini,"; Compression_Types_Disable=PZGNFJSMB3\n\n");
       fprintf(fnewini,";; zLib levels to use\n");
       fprintf(fnewini,"; zLib_Levels=\n");
       fprintf(fnewini,";; Maximal recursion depth to use\n");
@@ -1297,6 +1298,7 @@ int init_comfort(int argc, char* argv[]) {
  if (parse_ini_file) {
   // parse INI file
   bool print_ignore_positions_message = true;
+  bool compression_type_line_used = false;
 
   ifstream ini_file(precomf_ini);
   string line;
@@ -1614,7 +1616,14 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        if (strcmp(param, "compression_types") == 0) {
+        if (strcmp(param, "compression_types_enable") == 0) {
+          if (compression_type_line_used) {
+            printf("ERROR: Both Compression_types_enable and Compression_types_disable used.\n");
+            wait_for_key();
+            exit(1);
+          }
+          compression_type_line_used = true;
+
           use_pdf = false;
           use_zip = false;
           use_gzip = false;
@@ -1657,6 +1666,127 @@ int init_comfort(int argc, char* argv[]) {
                   break;
                 case 'B': // bZip2
                   use_bzip2 = true;
+                  break;
+                default:
+                  printf("ERROR: Invalid compression type %c\n", value[j]);
+                  exit(1);
+                  break;
+              }
+          }
+
+          if (use_pdf) {
+            printf("INI: PDF compression enabled\n");
+          } else {
+            printf("INI: PDF compression disabled\n");
+          }
+
+          if (use_zip) {
+            printf("INI: ZIP compression enabled\n");
+          } else {
+            printf("INI: ZIP compression disabled\n");
+          }
+
+          if (use_gzip) {
+            printf("INI: GZip compression enabled\n");
+          } else {
+            printf("INI: GZip compression disabled\n");
+          }
+
+          if (use_png) {
+            printf("INI: PNG compression enabled\n");
+          } else {
+            printf("INI: PNG compression disabled\n");
+          }
+
+          if (use_gif) {
+            printf("INI: GIF compression enabled\n");
+          } else {
+            printf("INI: GIF compression disabled\n");
+          }
+
+          if (use_jpg) {
+            printf("INI: JPG compression enabled\n");
+          } else {
+            printf("INI: JPG compression disabled\n");
+          }
+
+          if (use_mp3) {
+            printf("INI: MP3 compression enabled\n");
+          } else {
+            printf("INI: MP3 compression disabled\n");
+          }
+
+          if (use_swf) {
+            printf("INI: SWF compression enabled\n");
+          } else {
+            printf("INI: SWF compression disabled\n");
+          }
+
+          if (use_base64) {
+            printf("INI: Base64 compression enabled\n");
+          } else {
+            printf("INI: Base64 compression disabled\n");
+          }
+
+          if (use_bzip2) {
+            printf("INI: bZip2 compression enabled\n");
+          } else {
+            printf("INI: bZip2 compression disabled\n");
+          }
+
+          valid_param = true;
+        }
+
+        if (strcmp(param, "compression_types_disable") == 0) {
+          if (compression_type_line_used) {
+            printf("ERROR: Both Compression_types_enable and Compression_types_disable used.\n");
+            wait_for_key();
+            exit(1);
+          }
+          compression_type_line_used = true;
+
+          use_pdf = true;
+          use_zip = true;
+          use_gzip = true;
+          use_png = true;
+          use_gif = true;
+          use_jpg = true;
+          use_mp3 = true;
+          use_swf = true;
+          use_base64 = true;
+          use_bzip2 = true;
+
+          for (j = 0; j < (int)strlen(value); j++) {
+              switch (toupper(value[j])) {
+                case 'P': // PDF
+                  use_pdf = false;
+                  break;
+                case 'Z': // ZIP
+                  use_zip = false;
+                  break;
+                case 'G': // GZip
+                  use_gzip = false;
+                  break;
+                case 'N': // PNG
+                  use_png = false;
+                  break;
+                case 'F': // GIF
+                  use_gif = false;
+                  break;
+                case 'J': // JPG
+                  use_jpg = false;
+                  break;
+                case '3': // MP3
+                  use_mp3 = false;
+                  break;
+                case 'S': // SWF
+                  use_swf = false;
+                  break;
+                case 'M': // MIME Base64
+                  use_base64 = false;
+                  break;
+                case 'B': // bZip2
+                  use_bzip2 = false;
                   break;
                 default:
                   printf("ERROR: Invalid compression type %c\n", value[j]);
@@ -3372,31 +3502,23 @@ void show_used_levels() {
    }
   }
 
-  string disable_methods(""); // for comfort it will be reverse
-/*
-P = PDF, Z = ZIP, G = GZip, N = PNG, F = GIF, J = JPG
-S = SWF, M = MIME Base64, B = bZip2, 3 = MP3
-*/
-#ifdef COMFORT
-#define DISABLE_OR_ENABLE_FOR_COMFORT !
-#else
-#define DISABLE_OR_ENABLE_FOR_COMFORT
-#endif // COMFORT
-  if (((use_pdf) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_pdf_count == 0) && (decompressed_pdf_count > 0)))) disable_methods += 'p';
-  if (((use_zip) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_zip_count == 0) && (decompressed_zip_count > 0)))) disable_methods += 'z';
-  if (((use_gzip) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_gzip_count == 0) && (decompressed_gzip_count > 0)))) disable_methods += 'g';
-  if ((((use_png) && DISABLE_OR_ENABLE_FOR_COMFORT(((recompressed_png_count + recompressed_png_multi_count) == 0) && (decompressed_png_count + decompressed_png_multi_count > 0))))) disable_methods += 'n';
-  if (((use_gif) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_gif_count == 0) && (decompressed_gif_count > 0)))) disable_methods += 'f';
-  if (((use_jpg) && DISABLE_OR_ENABLE_FOR_COMFORT(((recompressed_jpg_count + recompressed_jpg_prog_count) == 0) && (decompressed_jpg_count + decompressed_jpg_prog_count > 0)))) disable_methods += 'j';
-  if (((use_swf) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_swf_count == 0) && (decompressed_swf_count > 0)))) disable_methods += 's';
-  if (((use_base64) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_base64_count == 0) && (decompressed_base64_count > 0)))) disable_methods += 'm';
-  if (((use_bzip2) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_bzip2_count == 0) && (decompressed_bzip2_count > 0)))) disable_methods += 'b';
-  if (((use_mp3) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_mp3_count == 0) && (decompressed_mp3_count > 0)))) disable_methods += '3';
+  string disable_methods("");
+  if (((use_pdf) && ((recompressed_pdf_count == 0) && (decompressed_pdf_count > 0)))) disable_methods += 'p';
+  if (((use_zip) && ((recompressed_zip_count == 0) && (decompressed_zip_count > 0)))) disable_methods += 'z';
+  if (((use_gzip) && ((recompressed_gzip_count == 0) && (decompressed_gzip_count > 0)))) disable_methods += 'g';
+  if ((((use_png) && (((recompressed_png_count + recompressed_png_multi_count) == 0) && (decompressed_png_count + decompressed_png_multi_count > 0))))) disable_methods += 'n';
+  if (((use_gif) && ((recompressed_gif_count == 0) && (decompressed_gif_count > 0)))) disable_methods += 'f';
+  if (((use_jpg) && (((recompressed_jpg_count + recompressed_jpg_prog_count) == 0) && (decompressed_jpg_count + decompressed_jpg_prog_count > 0)))) disable_methods += 'j';
+  if (((use_swf) && ((recompressed_swf_count == 0) && (decompressed_swf_count > 0)))) disable_methods += 's';
+  if (((use_base64) && ((recompressed_base64_count == 0) && (decompressed_base64_count > 0)))) disable_methods += 'm';
+  if (((use_bzip2) && ((recompressed_bzip2_count == 0) && (decompressed_bzip2_count > 0)))) disable_methods += 'b';
+  if (((use_mp3) && ((recompressed_mp3_count == 0) && (decompressed_mp3_count > 0)))) disable_methods += '3';
   if ( disable_methods.length() > 0 ) {
-    if (DISABLE_OR_ENABLE_FOR_COMFORT(false))
-      printf("\nCompression_Types=%s",disable_methods.c_str());
-    else
+    #ifdef COMFORT
+      printf("\nCompression_Types_Disable=%s",disable_methods.c_str());
+    #else
       printf(" -t-%s",disable_methods.c_str());
+    #endif
   }
 
   if (max_recursion_depth_reached) {
