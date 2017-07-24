@@ -3382,7 +3382,7 @@ S = SWF, M = MIME Base64, B = bZip2, 3 = MP3
 #else
 #define DISABLE_OR_ENABLE_FOR_COMFORT
 #endif // COMFORT
-  if (((use_pdf) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_pdf_count == 0) || (decompressed_pdf_count == 0)))) disable_methods += 'P';
+  if (((use_pdf) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_pdf_count == 0) && (decompressed_pdf_count == 0)))) disable_methods += 'P';
   if (((use_zip) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_zip_count == 0) && (decompressed_zip_count == 0)))) disable_methods += 'Z';
   if (((use_gzip) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_gzip_count == 0) && (decompressed_gzip_count == 0)))) disable_methods += 'G';
   if ((((use_png) && DISABLE_OR_ENABLE_FOR_COMFORT((recompressed_png_count == 0) && (decompressed_png_count == 0))) && ((recompressed_png_multi_count == 0) && (decompressed_png_multi_count == 0)) )) disable_methods += 'N';
