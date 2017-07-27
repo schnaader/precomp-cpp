@@ -62,6 +62,7 @@
 #include <string>
 #include <signal.h>
 #include <thread>
+#include <set>
 #ifdef MINGW
 #include "contrib\mingw_std_threads\mingw.thread.h"
 #endif
@@ -256,6 +257,9 @@ int ignore_list_len = 0;
 long long saved_input_file_pos, saved_cb;
 int min_ident_size = 4;
 int min_ident_size_slow_brute_mode = 64;
+
+set<long long> intense_ignore_offsets;
+set<long long> brute_ignore_offsets;
 
 unsigned char zlib_header[2];
 unsigned int* idat_lengths = NULL;
@@ -3333,6 +3337,8 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
             cb += best_identical_bytes - 1;
 
           } else {
+            if (slow_mode) intense_ignore_offsets.insert(input_file_pos - 2);
+            if (brute_mode) brute_ignore_offsets.insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -3471,6 +3477,7 @@ void try_decompression_zip(int zip_header_length) {
             cb += best_identical_bytes - 1;
 
           } else {
+            if (brute_mode) brute_ignore_offsets.insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -4385,29 +4392,47 @@ bool compress_file(float min_percent, float max_percent) {
    // nothing so far -> if slow mode is enabled, look for raw zLib header
    if ((slow_mode) && ((slow_mode_depth_limit == -1) || (recursion_depth <= slow_mode_depth_limit))) {
     if (!compressed_data_found) {
-      if (((((in_buf[cb] << 8) + in_buf[cb + 1]) % 31) == 0) &&
-          ((in_buf[cb + 1] & 32) == 0)) { // FDICT must not be set
-        int compression_method = (in_buf[cb] & 15);
-        if (compression_method == 8) {
-          int windowbits = (in_buf[cb] >> 4) + 8;
+      bool ignore_this_position = false;
+      if (intense_ignore_offsets.size() > 0) {
+        auto first = intense_ignore_offsets.begin();
+        while (*first < input_file_pos) {
+          intense_ignore_offsets.erase(first);
+          if (intense_ignore_offsets.size() == 0) break;
+          first = intense_ignore_offsets.begin();
+        }
+            
+        if (intense_ignore_offsets.size() > 0) {
+          if (*first == input_file_pos) {
+            ignore_this_position = true;
+            intense_ignore_offsets.erase(first);
+          }
+        }
+      }
+      
+      if (!ignore_this_position) {
+        if (((((in_buf[cb] << 8) + in_buf[cb + 1]) % 31) == 0) &&
+            ((in_buf[cb + 1] & 32) == 0)) { // FDICT must not be set
+          int compression_method = (in_buf[cb] & 15);
+          if (compression_method == 8) {
+            int windowbits = (in_buf[cb] >> 4) + 8;
 
-          if (check_inf_result(cb + 2, -windowbits)) {
-            saved_input_file_pos = input_file_pos;
-            saved_cb = cb;
+            if (check_inf_result(cb + 2, -windowbits)) {
+              saved_input_file_pos = input_file_pos;
+              saved_cb = cb;
 
-            input_file_pos += 2; // skip zLib header
+              input_file_pos += 2; // skip zLib header
 
-            try_decompression_zlib(-windowbits);
+              try_decompression_zlib(-windowbits);
 
-            cb += 2;
+              cb += 2;
 
-            if (!compressed_data_found) {
-              input_file_pos = saved_input_file_pos;
-              cb = saved_cb;
+              if (!compressed_data_found) {
+                input_file_pos = saved_input_file_pos;
+                cb = saved_cb;
+              }
             }
           }
         }
-
       }
     }
    } else {
@@ -4415,16 +4440,35 @@ bool compress_file(float min_percent, float max_percent) {
    // nothing so far -> if brute mode is enabled, brute force for zLib streams
    if ((brute_mode) && ((brute_mode_depth_limit == -1) || (recursion_depth <= brute_mode_depth_limit))) {
     if (!compressed_data_found) {
-      saved_input_file_pos = input_file_pos;
-      saved_cb = cb;
-
-      if (check_inf_result(cb, -15)) {
-        try_decompression_brute();
+      bool ignore_this_position = false;
+      if (brute_ignore_offsets.size() > 0) {
+        auto first = brute_ignore_offsets.begin();
+        while (*first < input_file_pos) {
+          brute_ignore_offsets.erase(first);
+          if (brute_ignore_offsets.size() == 0) break;
+          first = brute_ignore_offsets.begin();
+        }
+            
+        if (brute_ignore_offsets.size() > 0) {
+          if (*first == input_file_pos) {
+            ignore_this_position = true;
+            brute_ignore_offsets.erase(first);
+          }
+        }
       }
+      
+      if (!ignore_this_position) {
+        saved_input_file_pos = input_file_pos;
+        saved_cb = cb;
 
-      if (!compressed_data_found) {
-        input_file_pos = saved_input_file_pos;
-        cb = saved_cb;
+        if (check_inf_result(cb, -15)) {
+          try_decompression_brute();
+        }
+
+        if (!compressed_data_found) {
+          input_file_pos = saved_input_file_pos;
+          cb = saved_cb;
+        }
       }
     }
    }
@@ -6747,6 +6791,7 @@ void try_decompression_gzip(int gzip_header_length) {
             cb += best_identical_bytes - 1;
 
           } else {
+            if (brute_mode) brute_ignore_offsets.insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -6865,6 +6910,8 @@ void try_decompression_png (int windowbits) {
             cb += best_identical_bytes - 1;
 
           } else {
+            if (slow_mode) intense_ignore_offsets.insert(input_file_pos - 2);
+            if (brute_mode) brute_ignore_offsets.insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -7024,6 +7071,8 @@ void try_decompression_png_multi(int windowbits) {
             cb += (idat_pairs_written_count * 12);
 
           } else {
+            if (slow_mode) intense_ignore_offsets.insert(input_file_pos - 2);
+            if (brute_mode) brute_ignore_offsets.insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -8420,6 +8469,8 @@ void try_decompression_swf(int windowbits) {
             cb += best_identical_bytes - 1;
 
           } else {
+            if (slow_mode) intense_ignore_offsets.insert(input_file_pos - 2);
+            if (brute_mode) brute_ignore_offsets.insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -9074,6 +9125,39 @@ void recursion_stack_pop(void* var, int var_size) {
   recursion_stack = (unsigned char*)realloc(recursion_stack, recursion_stack_size * sizeof(unsigned char));
 }
 
+void recursion_stack_push_intense_brute_ignore_offsets() {
+    long long value, size;
+    for (auto it = intense_ignore_offsets.begin(); it != intense_ignore_offsets.end(); it++) {
+      value = *it;
+      recursion_stack_push(&value, sizeof(value));
+    }
+    size = intense_ignore_offsets.size();
+    recursion_stack_push(&size, sizeof(size));
+
+    for (auto it = brute_ignore_offsets.begin(); it != brute_ignore_offsets.end(); it++) {
+      value = *it;
+      recursion_stack_push(&value, sizeof(value));
+    }
+    size = brute_ignore_offsets.size();
+    recursion_stack_push(&size, sizeof(size));
+}
+
+void recursion_stack_pop_intense_brute_ignore_offsets() {
+    long long value, size, i;
+    intense_ignore_offsets.clear();
+    
+    recursion_stack_pop(&size, sizeof(size));
+    for (i = 0; i < size; i++) {
+      recursion_stack_pop(&value, sizeof(value));
+      brute_ignore_offsets.insert(value);
+    }
+    recursion_stack_pop(&size, sizeof(size));
+    for (i = 0; i < size; i++) {
+      recursion_stack_pop(&value, sizeof(value));
+      intense_ignore_offsets.insert(value);
+    }
+}
+
 void recursion_push() {
   recursion_stack_push(&fin_length, sizeof(fin_length));
   recursion_stack_push(&input_file_name, sizeof(input_file_name));
@@ -9132,6 +9216,7 @@ void recursion_push() {
   recursion_stack_push(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
   recursion_stack_push(&mp3_parsing_cache_n, sizeof(mp3_parsing_cache_n));
   recursion_stack_push(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
+  recursion_stack_push_intense_brute_ignore_offsets();
 
   recursion_stack_push(&compression_otf_method, sizeof(compression_otf_method));
   recursion_stack_push(&decompress_otf_end, sizeof(decompress_otf_end));
@@ -9141,6 +9226,7 @@ void recursion_pop() {
   recursion_stack_pop(&decompress_otf_end, sizeof(decompress_otf_end));
   recursion_stack_pop(&compression_otf_method, sizeof(compression_otf_method));
 
+  recursion_stack_pop_intense_brute_ignore_offsets();
   recursion_stack_pop(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
   recursion_stack_pop(&mp3_parsing_cache_n, sizeof(mp3_parsing_cache_n));
   recursion_stack_pop(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
