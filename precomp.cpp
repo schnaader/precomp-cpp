@@ -2733,7 +2733,7 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 
 }
 
-bool check_inf_result(int cb_pos, int windowbits) {
+bool check_inf_result(int cb_pos, int windowbits, unsigned less_than_skip) {
   // first check BTYPE bits, skip 00 and 11 ("uncompressed" and "reserved (error)")
   int btype = (in_buf[cb_pos] & 0x07) >> 1;
   if ((btype == 0) || (btype == 3)) return false;
@@ -2783,7 +2783,7 @@ bool check_inf_result(int cb_pos, int windowbits) {
         return true;
       case Z_STREAM_END:
         // Skip streams with decompressed length less than 32 bytes
-        return (have >= 32);
+        return (have >= less_than_skip);
   }
   
   return false;
@@ -4418,7 +4418,7 @@ bool compress_file(float min_percent, float max_percent) {
           if (compression_method == 8) {
             int windowbits = (in_buf[cb] >> 4) + 8;
 
-            if (check_inf_result(cb + 2, -windowbits)) {
+            if (check_inf_result(cb + 2, -windowbits, 32)) {
               saved_input_file_pos = input_file_pos;
               saved_cb = cb;
 
@@ -4463,7 +4463,7 @@ bool compress_file(float min_percent, float max_percent) {
         saved_input_file_pos = input_file_pos;
         saved_cb = cb;
 
-        if (check_inf_result(cb, -15)) {
+        if (check_inf_result(cb, -15, 256)) {
           try_decompression_brute();
         }
 
