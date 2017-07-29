@@ -15,6 +15,8 @@ int init_comfort(int argc, char* argv[]);
 void denit_compress();
 void denit_decompress();
 void denit();
+bool intense_mode_is_active();
+bool brute_mode_is_active();
 int inf_bzip2(FILE *source, FILE *dest);
 int def_bzip2(FILE *source, FILE *dest, int level);
 int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, int& decompressed_bytes_used, int& decompressed_bytes_total);

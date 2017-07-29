@@ -2292,6 +2292,24 @@ int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel) {
   return Z_OK;
 }
 
+// Brute mode detects everything that intense mode detects, so it makes no sense
+// having both active. But since both of them can have a level limit, two helper
+// functions make things easier to handle.
+
+bool intense_mode_is_active() {
+  if ((!intense_mode) || (brute_mode_is_active())) return false;
+  if ((intense_mode_depth_limit == -1) || (recursion_depth <= intense_mode_depth_limit)) return true;
+  
+  return false;
+}
+
+bool brute_mode_is_active() {
+  if (!brute_mode) return false;
+  if ((brute_mode_depth_limit == -1) || (recursion_depth <= brute_mode_depth_limit)) return true;
+  
+  return false;
+}
+
 void copy_penalty_bytes(long long& rek_penalty_bytes_len, bool& use_penalty_bytes) {
   if ((rek_penalty_bytes_len > 0) && (use_penalty_bytes)) {
     memcpy(penalty_bytes, local_penalty_bytes, rek_penalty_bytes_len);
