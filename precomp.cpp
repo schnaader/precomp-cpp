@@ -1086,10 +1086,6 @@ int init(int argc, char* argv[]) {
 
     exit(1);
   } else {
-    if (brute_mode) {
-      intense_mode = false;
-    }
-
     if (operation == P_DECOMPRESS) {
       // if .pcf was appended, remove it
       if (appended_pcf) {
@@ -1546,10 +1542,6 @@ int init_comfort(int argc, char* argv[]) {
           if (strcmp(value, "on") == 0) {
             printf("INI: Enabled brute mode\n");
             brute_mode = true;
-            if (intense_mode) {
-            printf("INI: Brute mode overrides intense mode, intense mode disabled\n");
-            intense_mode = false;
-            }
             valid_param = true;
           }
 
@@ -3355,8 +3347,8 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
             cb += best_identical_bytes - 1;
 
           } else {
-            if (intense_mode) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
+            if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -3495,7 +3487,7 @@ void try_decompression_zip(int zip_header_length) {
             cb += best_identical_bytes - 1;
 
           } else {
-            if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -4409,8 +4401,8 @@ bool compress_file(float min_percent, float max_percent) {
     }
 
 
-   // nothing so far -> if intense mode is enabled, look for raw zLib header
-   if ((intense_mode) && ((intense_mode_depth_limit == -1) || (recursion_depth <= intense_mode_depth_limit))) {
+   // nothing so far -> if intense mode is active, look for raw zLib header
+   if (intense_mode_is_active()) {
     if (!compressed_data_found) {
       bool ignore_this_position = false;
       if (intense_ignore_offsets->size() > 0) {
@@ -4457,8 +4449,8 @@ bool compress_file(float min_percent, float max_percent) {
     }
    } else {
 
-   // nothing so far -> if brute mode is enabled, brute force for zLib streams
-   if ((brute_mode) && ((brute_mode_depth_limit == -1) || (recursion_depth <= brute_mode_depth_limit))) {
+   // nothing so far -> if brute mode is active, brute force for zLib streams
+   if (brute_mode_is_active()) {
     if (!compressed_data_found) {
       bool ignore_this_position = false;
       if (brute_ignore_offsets->size() > 0) {
@@ -6811,7 +6803,7 @@ void try_decompression_gzip(int gzip_header_length) {
             cb += best_identical_bytes - 1;
 
           } else {
-            if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -6930,8 +6922,8 @@ void try_decompression_png (int windowbits) {
             cb += best_identical_bytes - 1;
 
           } else {
-            if (intense_mode) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
+            if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -7091,8 +7083,8 @@ void try_decompression_png_multi(int windowbits) {
             cb += (idat_pairs_written_count * 12);
 
           } else {
-            if (intense_mode) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
+            if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -8489,8 +8481,8 @@ void try_decompression_swf(int windowbits) {
             cb += best_identical_bytes - 1;
 
           } else {
-            if (intense_mode) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
+            if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
