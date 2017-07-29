@@ -256,7 +256,7 @@ int ignore_list_len = 0;
 
 long long saved_input_file_pos, saved_cb;
 int min_ident_size = 4;
-int min_ident_size_slow_brute_mode = 64;
+int min_ident_size_intense_brute_mode = 64;
 
 set<long long>* intense_ignore_offsets = NULL;
 set<long long>* brute_ignore_offsets = NULL;
@@ -274,13 +274,13 @@ long long mp3_parsing_cache_n;
 long long mp3_parsing_cache_mp3_length;
 
 bool fast_mode = false;
-bool slow_mode = false;
+bool intense_mode = false;
 bool brute_mode = false;
 bool pdf_bmp_mode = false;
 bool prog_only = false;
 bool use_mjpeg = true;
 
-int slow_mode_depth_limit = -1;
+int intense_mode_depth_limit = -1;
 int brute_mode_depth_limit = -1;
 
 // compression type bools
@@ -315,7 +315,7 @@ void setSwitches(Switches switches) {
   show_lzma_progress = (compression_otf_method == OTF_XZ_MT);
   ignore_list = switches.ignore_list;
   ignore_list_len = switches.ignore_list_len;
-  slow_mode = switches.slow_mode;
+  intense_mode = switches.intense_mode;
   fast_mode = switches.fast_mode;
   brute_mode = switches.brute_mode;
   pdf_bmp_mode = switches.pdf_bmp_mode;
@@ -564,22 +564,22 @@ int init(int argc, char* argv[]) {
             if (toupper(argv[i][2]) == 'N') { // intense mode
               if ((toupper(argv[i][3]) == 'T') && (toupper(argv[i][4]) == 'E')
                && (toupper(argv[i][5]) == 'N') && (toupper(argv[i][6]) == 'S') && (toupper(argv[i][7]) == 'E')) {
-                slow_mode = true;
+                intense_mode = true;
                 if (strlen(argv[i]) > 8) {
-                  int slow_mode_limit = 0;
+                  int intense_mode_limit = 0;
                   int multiplicator = 1;
                   for (j = strlen(argv[i]) - 9; j >= 0; j--) {
                     if ((argv[i][j+8] < '0') || (argv[i][j+8] > '9')) {
                       printf("ERROR: Only numbers allowed for intense mode level limit\n");
                       exit(1);
                     }
-                    slow_mode_limit += ((long long)(argv[i][j+8])-'0') * multiplicator;
+                    intense_mode_limit += ((long long)(argv[i][j+8])-'0') * multiplicator;
                     if ((multiplicator * 10) < multiplicator) {
                       error(ERR_INTENSE_MODE_LIMIT_TOO_BIG);
                     }
                     multiplicator *= 10;
                   }
-                  slow_mode_depth_limit = slow_mode_limit;
+                  intense_mode_depth_limit = intense_mode_limit;
                 }
               } else {
                 printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
@@ -1087,7 +1087,7 @@ int init(int argc, char* argv[]) {
     exit(1);
   } else {
     if (brute_mode) {
-      slow_mode = false;
+      intense_mode = false;
     }
 
     if (operation == P_DECOMPRESS) {
@@ -1526,7 +1526,7 @@ int init_comfort(int argc, char* argv[]) {
 
           if (strcmp(value, "on") == 0) {
             printf("INI: Enabled intense mode\n");
-            slow_mode = true;
+            intense_mode = true;
             valid_param = true;
           }
 
@@ -1546,9 +1546,9 @@ int init_comfort(int argc, char* argv[]) {
           if (strcmp(value, "on") == 0) {
             printf("INI: Enabled brute mode\n");
             brute_mode = true;
-            if (slow_mode) {
+            if (intense_mode) {
             printf("INI: Brute mode overrides intense mode, intense mode disabled\n");
-            slow_mode = false;
+            intense_mode = false;
             }
             valid_param = true;
           }
@@ -2135,7 +2135,7 @@ void denit_compress() {
       if ((use_swf) && ((recompressed_swf_count > 0) || (decompressed_swf_count > 0))) printf("SWF streams: %i/%i\n", recompressed_swf_count, decompressed_swf_count);
       if ((use_base64) && ((recompressed_base64_count > 0) || (decompressed_base64_count > 0))) printf("Base64 streams: %i/%i\n", recompressed_base64_count, decompressed_base64_count);
       if ((use_bzip2) && ((recompressed_bzip2_count > 0) || (decompressed_bzip2_count > 0))) printf("bZip2 streams: %i/%i\n", recompressed_bzip2_count, decompressed_bzip2_count);
-      if ((slow_mode) && ((recompressed_zlib_count > 0) || (decompressed_zlib_count > 0))) printf("zLib streams (intense mode): %i/%i\n", recompressed_zlib_count, decompressed_zlib_count);
+      if ((intense_mode) && ((recompressed_zlib_count > 0) || (decompressed_zlib_count > 0))) printf("zLib streams (intense mode): %i/%i\n", recompressed_zlib_count, decompressed_zlib_count);
       if ((brute_mode) && ((recompressed_brute_count > 0) || (decompressed_brute_count > 0))) printf("Brute mode streams: %i/%i\n", recompressed_brute_count, decompressed_brute_count);
     }
 
@@ -3337,7 +3337,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
             cb += best_identical_bytes - 1;
 
           } else {
-            if (slow_mode) intense_ignore_offsets->insert(input_file_pos - 2);
+            if (intense_mode) intense_ignore_offsets->insert(input_file_pos - 2);
             if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
@@ -4391,8 +4391,8 @@ bool compress_file(float min_percent, float max_percent) {
     }
 
 
-   // nothing so far -> if slow mode is enabled, look for raw zLib header
-   if ((slow_mode) && ((slow_mode_depth_limit == -1) || (recursion_depth <= slow_mode_depth_limit))) {
+   // nothing so far -> if intense mode is enabled, look for raw zLib header
+   if ((intense_mode) && ((intense_mode_depth_limit == -1) || (recursion_depth <= intense_mode_depth_limit))) {
     if (!compressed_data_found) {
       bool ignore_this_position = false;
       if (intense_ignore_offsets->size() > 0) {
@@ -6912,7 +6912,7 @@ void try_decompression_png (int windowbits) {
             cb += best_identical_bytes - 1;
 
           } else {
-            if (slow_mode) intense_ignore_offsets->insert(input_file_pos - 2);
+            if (intense_mode) intense_ignore_offsets->insert(input_file_pos - 2);
             if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
@@ -7073,7 +7073,7 @@ void try_decompression_png_multi(int windowbits) {
             cb += (idat_pairs_written_count * 12);
 
           } else {
-            if (slow_mode) intense_ignore_offsets->insert(input_file_pos - 2);
+            if (intense_mode) intense_ignore_offsets->insert(input_file_pos - 2);
             if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
@@ -8111,7 +8111,7 @@ void try_decompression_zlib(int windowbits) {
             if (final_compression_found) break;
           }
 
-          if ((best_identical_bytes > min_ident_size_slow_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
+          if ((best_identical_bytes > min_ident_size_intense_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_zlib_count++;
 
@@ -8252,7 +8252,7 @@ void try_decompression_brute() {
             if (final_compression_found) break;
           }
 
-          if ((best_identical_bytes > min_ident_size_slow_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
+          if ((best_identical_bytes > min_ident_size_intense_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
             recompressed_streams_count++;
             recompressed_brute_count++;
 
@@ -8471,7 +8471,7 @@ void try_decompression_swf(int windowbits) {
             cb += best_identical_bytes - 1;
 
           } else {
-            if (slow_mode) intense_ignore_offsets->insert(input_file_pos - 2);
+            if (intense_mode) intense_ignore_offsets->insert(input_file_pos - 2);
             if (brute_mode) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
