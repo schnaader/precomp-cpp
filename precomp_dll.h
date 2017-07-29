@@ -11,7 +11,7 @@ class Switches {
     long long* ignore_list;
     int ignore_list_len;
 
-    bool slow_mode;                //slow mode (default: off)
+    bool intense_mode;             //intense mode (default: off)
     bool fast_mode;                //fast mode (default: off)
     bool brute_mode;               //brute mode (default: off)
     bool pdf_bmp_mode;             //wrap BMP header around PDF images
@@ -51,7 +51,7 @@ Switches::Switches() {
 
   ignore_list = NULL;
   ignore_list_len = 0;
-  slow_mode = false;
+  intense_mode = false;
   fast_mode = false;
   brute_mode = false;
   pdf_bmp_mode = false;
