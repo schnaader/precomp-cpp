@@ -4473,7 +4473,7 @@ bool compress_file(float min_percent, float max_percent) {
         saved_input_file_pos = input_file_pos;
         saved_cb = cb;
 
-        if (check_inf_result(cb, -15, 256)) {
+        if (check_inf_result(cb, -15, 1024)) {
           try_decompression_brute();
         }
 
