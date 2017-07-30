@@ -2792,7 +2792,7 @@ bool check_inf_result(int cb_pos, int windowbits, unsigned less_than_skip) {
       case Z_OK:
         return true;
       case Z_STREAM_END:
-        // Skip streams with decompressed length less than 32 bytes
+        // Skip short streams - most likely false positives
         return (have >= less_than_skip);
   }
   
