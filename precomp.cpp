@@ -3361,7 +3361,6 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 
 void try_decompression_zip(int zip_header_length) {
   init_decompression_variables();
-  final_compression_found = false;
 
         int windowbits;
 
