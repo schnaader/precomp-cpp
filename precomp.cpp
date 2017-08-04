@@ -2744,9 +2744,11 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 }
 
 bool check_inf_result(int cb_pos, int windowbits, unsigned less_than_skip) {
-  // first check BTYPE bits, skip 00 and 11 ("uncompressed" and "reserved (error)")
+  // first check BTYPE bits, skip 11 ("reserved (error)")
+  // don't skip BTYPE = 00 ("uncompressed"), because these can be useful for recursion
+  // and often occur in combination with static/dynamic BTYPE blocks
   int btype = (in_buf[cb_pos] & 0x07) >> 1;
-  if ((btype == 0) || (btype == 3)) return false;
+  if (btype == 3) return false;
     
   int ret;
   unsigned have = 0;
