@@ -6071,7 +6071,7 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
+                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (identical_bytes == compressed_stream_size) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
                 }
 
                 best_identical_bytes_decomp = identical_bytes_decomp;
@@ -6102,7 +6102,7 @@ void try_recompress_bzip2(FILE* origfile, int level, int& compressed_stream_size
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
+                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (identical_bytes == compressed_stream_size) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
                 }
 
                 best_identical_bytes_decomp = identical_bytes_decomp;
