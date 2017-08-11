@@ -262,7 +262,6 @@ unsigned int* idat_lengths = NULL;
 unsigned int* idat_crcs = NULL;
 int idat_count;
 
-long long suppress_jpg_parsing_until;
 long long suppress_mp3_type_until[16];
 long long suppress_mp3_big_value_pairs_sum;
 long long mp3_parsing_cache_second_frame;
@@ -517,9 +516,6 @@ int init(int argc, char* argv[]) {
     zlib_level_was_used[i] = false;
     use_zlib_level[i] = true;
   }
-
-  // init JPG suppression
-  suppress_jpg_parsing_until = -1;
 
   // init MP3 suppression
   for (i = 0; i < 16; i++) {
@@ -1183,9 +1179,6 @@ int init_comfort(int argc, char* argv[]) {
     zlib_level_was_used[i] = false;
     use_zlib_level[i] = true;
   }
-
-  // init JPG suppression
-  suppress_jpg_parsing_until = -1;
 
   // init MP3 suppression
   for (i = 0; i < 16; i++) {
@@ -3998,97 +3991,58 @@ bool compress_file(float min_percent, float max_percent) {
       }
     }
 
-    if ((!compressed_data_found) && (use_jpg) && (input_file_pos > suppress_jpg_parsing_until)) { // no GIF header -> JPG header?
-      if ((in_buf[cb] == 0xFF) && (in_buf[cb + 1] == 0xD8)) { // SOI (FF D8)
-        if ((in_buf[cb + 2] == 0xFF)) {
-          saved_input_file_pos = input_file_pos;
-          saved_cb = cb;
+    if ((!compressed_data_found) && (use_jpg)) { // no GIF header -> JPG header?
+      if ((in_buf[cb] == 0xFF) && (in_buf[cb + 1] == 0xD8) && (in_buf[cb + 2] == 0xFF) && (
+           (in_buf[cb + 3] == 0xC0) || (in_buf[cb + 3] == 0xC2) || (in_buf[cb + 3] == 0xC4) || ((in_buf[cb + 3] >= 0xDB) && (in_buf[cb + 3] <= 0xFE))
+         )) { // SOI (FF D8) followed by a valid marker for Baseline/Progressive JPEGs
+        saved_input_file_pos = input_file_pos;
+        saved_cb = cb;
+             
+        bool done = false, found = false;
+        bool progressive_flag = (in_buf[cb + 3] == 0xC2);
+        input_file_pos+=2;
+              
+        do{
+          seek_64(fin, input_file_pos );
+          if ((fread(in, 1, 5, fin) != 5) || (in[0] != 0xFF))
+              break;
 
-          int eoi_count = 1;
-          bool progressive_flag = false;
-
-          // find SOF
-          bool ff_sof_found = false;
-          bool sof_found = false;
-          long long sof_pos = input_file_pos + 1;
-          seek_64(fin, input_file_pos + 2);
-
-          while (fread(in, 1, 1, fin) == 1) {
-            sof_pos++;
-            if (ff_sof_found) {
-              if (in[0] == 0xD8) { // another SOI (FF D8) - increase EOI count
-                eoi_count++;
-              }
-              sof_found = ((in[0] == 0xC0)   // baseline
-                        || (in[0] == 0xC2)); // progressive
-              if (sof_found) {
-                progressive_flag = (in[0] == 0xC2);
-                if (fread(in, 1, 3, fin) == 3) {
-                  if (in[2] == 0x08) {
-                    break;
-                  } else {
-                    sof_found = false;
-                    break;
-                  }
-                }
-                sof_found = false;
-              } else {
-                ff_sof_found = (in[0] == 0xFF);
-              }
-            } else {
-              ff_sof_found = (in[0] == 0xFF);
-            }
-          }
-
-          // find EOI
-          bool ff_eoi_found = false;
-          long long eoi_pos = 0;
-
-          if (sof_found) {
-
-            eoi_pos = sof_pos + 1;
-            seek_64(fin, sof_pos + 2);
-            while (fread(in, 1, 1, fin) == 1) {
-              eoi_pos++;
-              if (ff_eoi_found) {
-                if (in[0] == 0xD8) { // another SOI (FF D8) - increase EOI count
-                  eoi_count++;
-                }
-                if (in[0] == 0xD9) {
-                  eoi_count--;
-                  if (eoi_count == 0) break;
-                } else {
-                  ff_eoi_found = (in[0] == 0xFF);
-                }
-              } else {
-                ff_eoi_found = (in[0] == 0xFF);
-              }
-            }
-
-          }
-
-          if (eoi_count == 0) {
-
-            long long jpg_length = (eoi_pos + 1) - input_file_pos;
-
-            try_decompression_jpg(jpg_length, progressive_flag);
-
-            if (!compressed_data_found) {
-              input_file_pos = saved_input_file_pos;
-              cb = saved_cb;
-            }
-          } else if (eoi_count >= 256) {
-              // more than 255 nested images -> seems to be other data
-              // skip until eoi_count is guaranteed to be under 16 to speed
-              // up the parsing
-              suppress_jpg_parsing_until = saved_input_file_pos + (eoi_count - 16) * 2;
-              if (DEBUG_MODE) {
-                printf("Ignoring following JPG streams until position ");
-                print64(suppress_jpg_parsing_until);
-                printf(" to avoid slowdown\n");
-              }
+          switch (in[1]){
+            case 0xDA : found = true;
+            case 0xD9 : done = true; break; //EOI with no SOS?
+            case 0xC2 : progressive_flag = true;
+            case 0xC0 : if (in[4] != 0x08) break;
+            default: input_file_pos += in[2]*256+in[3]+2;
           }
         }
+        while (!done);
+        
+        if (found){
+          found = done = false;
+          input_file_pos += 5;
+
+          bool isMarker = ( in[4]==0xFF );
+          while (!done && (fread(in, 1, 1, fin) == 1)){
+            input_file_pos++;
+            if (!isMarker)
+              isMarker = ( in[0]==0xFF );
+            else{
+              done = (in[0] && ((in[0]&0xF8) != 0xD0) && ((progressive_flag)?(in[0] != 0xC4) && (in[0] != 0xDA):true) );
+              found = (in[0] == 0xD9);
+              isMarker = false;
+            }
+          }
+        }
+
+        if (found){
+          long long jpg_length = input_file_pos - saved_input_file_pos;
+          input_file_pos = saved_input_file_pos;
+          try_decompression_jpg(jpg_length, progressive_flag);
+        }
+        if (!found || !compressed_data_found) {
+          input_file_pos = saved_input_file_pos;
+          cb = saved_cb;
+        }  
       }
     }
 
@@ -9085,7 +9039,6 @@ void recursion_push() {
   recursion_stack_push(&global_min_percent, sizeof(global_min_percent));
   recursion_stack_push(&global_max_percent, sizeof(global_max_percent));
   recursion_stack_push(&comp_decomp_state, sizeof(comp_decomp_state));
-  recursion_stack_push(&suppress_jpg_parsing_until, sizeof(suppress_jpg_parsing_until));
   recursion_stack_push(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
   recursion_stack_push(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
   recursion_stack_push(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
@@ -9105,7 +9058,6 @@ void recursion_pop() {
   recursion_stack_pop(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
   recursion_stack_pop(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
   recursion_stack_pop(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
-  recursion_stack_pop(&suppress_jpg_parsing_until, sizeof(suppress_jpg_parsing_until));
   recursion_stack_pop(&comp_decomp_state, sizeof(comp_decomp_state));
   recursion_stack_pop(&global_max_percent, sizeof(global_max_percent));
   recursion_stack_pop(&global_min_percent, sizeof(global_min_percent));
@@ -9203,9 +9155,6 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   penalty_bytes = new char[MAX_PENALTY_BYTES];
   local_penalty_bytes = new char[MAX_PENALTY_BYTES];
   best_penalty_bytes = new char[MAX_PENALTY_BYTES];
-
-  // init JPG suppression
-  suppress_jpg_parsing_until = -1;
 
   // init MP3 suppression
   for (int i = 0; i < 16; i++) {
