@@ -2743,12 +2743,13 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 
 }
 
-bool check_inf_result(int cb_pos, int windowbits, unsigned less_than_skip) {
+bool check_inf_result(int cb_pos, int windowbits, bool use_brute_parameters = false) {
   // first check BTYPE bits, skip 11 ("reserved (error)")
-  // don't skip BTYPE = 00 ("uncompressed"), because these can be useful for recursion
-  // and often occur in combination with static/dynamic BTYPE blocks
   int btype = (in_buf[cb_pos] & 0x07) >> 1;
   if (btype == 3) return false;
+  // skip BTYPE = 00 ("uncompressed") only in brute mode, because these can be useful for recursion
+  // and often occur in combination with static/dynamic BTYPE blocks
+  if ((use_brute_parameters) && (btype == 0)) return false;
     
   int ret;
   unsigned have = 0;
@@ -2795,6 +2796,8 @@ bool check_inf_result(int cb_pos, int windowbits, unsigned less_than_skip) {
         return true;
       case Z_STREAM_END:
         // Skip short streams - most likely false positives
+        unsigned less_than_skip = 32;
+        if (use_brute_parameters) less_than_skip = 1024;
         return (have >= less_than_skip);
   }
   
@@ -4429,7 +4432,7 @@ bool compress_file(float min_percent, float max_percent) {
           if (compression_method == 8) {
             int windowbits = (in_buf[cb] >> 4) + 8;
 
-            if (check_inf_result(cb + 2, -windowbits, 32)) {
+            if (check_inf_result(cb + 2, -windowbits)) {
               saved_input_file_pos = input_file_pos;
               saved_cb = cb;
 
@@ -4474,7 +4477,7 @@ bool compress_file(float min_percent, float max_percent) {
         saved_input_file_pos = input_file_pos;
         saved_cb = cb;
 
-        if (check_inf_result(cb, -15, 1024)) {
+        if (check_inf_result(cb, -15, true)) {
           try_decompression_brute();
         }
 
