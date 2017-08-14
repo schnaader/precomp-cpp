@@ -4451,10 +4451,10 @@ bool compress_file(float min_percent, float max_percent) {
         }
       }
     }
-   } else {
+   }
 
    // nothing so far -> if brute mode is active, brute force for zLib streams
-   if (brute_mode_is_active()) {
+    if (brute_mode_is_active()) {
     if (!compressed_data_found) {
       bool ignore_this_position = false;
       if (brute_ignore_offsets->size() > 0) {
@@ -4487,7 +4487,6 @@ bool compress_file(float min_percent, float max_percent) {
         }
       }
     }
-   }
    }
 
   }
@@ -8213,6 +8212,7 @@ void try_decompression_zlib(int windowbits) {
             cb += best_identical_bytes - 1;
 
           } else {
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
