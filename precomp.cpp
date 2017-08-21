@@ -2743,13 +2743,29 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 
 }
 
+int histogram[256];
+
 bool check_inf_result(int cb_pos, int windowbits, bool use_brute_parameters = false) {
   // first check BTYPE bits, skip 11 ("reserved (error)")
   int btype = (in_buf[cb_pos] & 0x07) >> 1;
   if (btype == 3) return false;
   // skip BTYPE = 00 ("uncompressed") only in brute mode, because these can be useful for recursion
   // and often occur in combination with static/dynamic BTYPE blocks
-  if ((use_brute_parameters) && (btype == 0)) return false;
+  if (use_brute_parameters) {
+    if (btype == 0) return false;
+    
+    // use a histogram to see if the first 64 bytes are too redundant for a deflate stream,
+    // if a byte is present 8 or more times, it's most likely not a deflate stream
+    // and could slow down the process (e.g. repeated patterns of "0xEBE1F1" or "0xEBEBEBFF"
+    // did this before)
+    for (int i = 0; i < 256; i++)
+      histogram[i] = 0;
+  
+    for (int i = 0; i < 64; i++) {
+      histogram[in_buf[cb_pos + i]]++;
+      if (histogram[in_buf[cb_pos + i]] == 8) return false;
+    }
+  }  
     
   int ret;
   unsigned have = 0;
