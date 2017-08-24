@@ -6092,18 +6092,33 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
                   }
 
                   final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (identical_bytes == compressed_stream_size) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
-                }
 
-                best_identical_bytes_decomp = identical_bytes_decomp;
-                best_identical_bytes = identical_bytes;
-                best_compression = comp_level;
-                best_mem_level = mem_level;
-                best_windowbits = windowbits;
-                if (penalty_bytes_len > 0) {
-                  memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
-                  best_penalty_bytes_len = penalty_bytes_len;
-                } else {
-                  best_penalty_bytes_len = 0;
+                  // Partial matches sometimes need all the decompressed bytes, but there are much less 
+                  // identical recompressed bytes - in these cases, all the decompressed bytes have to
+                  // be stored together with the remaining recompressed bytes, so the result won't compress
+                  // better than the original stream. What's important here is the ratio between recompressed ratio
+                  // and decompressed ratio that shouldn't get too high.
+                  // Example: A stream has 5 of 1000 identical recompressed bytes, but needs 1000 of 1000 decompressed bytes,
+                  // so the ratio is (1000/1000)/(5/1000) = 200 which is too high. With 5 of 1000 decompressed bytes or
+                  // 1000 of 1000 identical recompressed bytes, ratio would've been 1 and we'd accept it.
+                  float partial_ratio = ((float)identical_bytes_decomp / decomp_bytes_total) / ((float)identical_bytes / compressed_stream_size);
+                  if (partial_ratio < 3.0f) {
+                    best_identical_bytes_decomp = identical_bytes_decomp;
+                    best_identical_bytes = identical_bytes;
+                    best_compression = comp_level;
+                    best_mem_level = mem_level;
+                    best_windowbits = windowbits;
+                    if (penalty_bytes_len > 0) {
+                      memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
+                      best_penalty_bytes_len = penalty_bytes_len;
+                    } else {
+                      best_penalty_bytes_len = 0;
+                    }
+                  } else {
+                    if (DEBUG_MODE) {
+                    printf("Not enough identical recompressed bytes\n");
+                    }
+                  }
                 }
               }
             }
