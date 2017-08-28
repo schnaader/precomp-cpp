@@ -1,5 +1,3 @@
-#define JPG_MAX_MEMORY_SIZE 64 * 1024 * 1024
-
 // Motion JPEG DHT header
 // JPEG DHT Segment for YCrCb omitted from MJPEG data
 

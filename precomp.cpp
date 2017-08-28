@@ -101,6 +101,8 @@ using namespace std;
 #define IN_BUF_SIZE 65536 //input buffer
 #define PENALTY_BYTES_TOLERANCE 160
 
+#define MAX_IO_BUFFER_SIZE 64 * 1024 * 1024
+
 unsigned char copybuf[COPY_BUF_SIZE];
 
 unsigned char in_buf[IN_BUF_SIZE];
@@ -5255,7 +5257,7 @@ while (fin_pos < fin_length) {
       unsigned char* jpg_mem_in = NULL;
       unsigned char* jpg_mem_out = NULL;
       unsigned int jpg_mem_out_size = -1;
-      bool in_memory = (recompressed_data_length <= JPG_MAX_MEMORY_SIZE);
+      bool in_memory = (recompressed_data_length <= MAX_IO_BUFFER_SIZE);
       bool recompress_success = false;
 
       if (in_memory) {
@@ -7684,7 +7686,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
         unsigned char* jpg_mem_in = NULL;
         unsigned char* jpg_mem_out = NULL;
         unsigned int jpg_mem_out_size = -1;
-        bool in_memory = ((jpg_length + MJPGDHT_LEN) <= JPG_MAX_MEMORY_SIZE);
+        bool in_memory = ((jpg_length + MJPGDHT_LEN) <= MAX_IO_BUFFER_SIZE);
 
         if (in_memory) { // small stream => do everything in memory
           jpg_mem_in = new unsigned char[jpg_length + MJPGDHT_LEN];
