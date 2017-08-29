@@ -102,6 +102,7 @@ using namespace std;
 #define PENALTY_BYTES_TOLERANCE 160
 
 #define MAX_IO_BUFFER_SIZE 64 * 1024 * 1024
+unsigned char* decomp_io_buf = NULL;
 
 unsigned char copybuf[COPY_BUF_SIZE];
 
@@ -2307,8 +2308,7 @@ void copy_penalty_bytes(long long& rek_penalty_bytes_len, bool& use_penalty_byte
 }
 
 #define DEF_COMPARE_CHUNK 512
-int def_compare(FILE *source, FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used) {
-
+int def_compare(FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used, int decompressed_bytes_total, bool in_memory) {
   int ret, flush;
   unsigned have;
   z_stream strm;
@@ -2333,17 +2333,26 @@ int def_compare(FILE *source, FILE *compfile, int level, int windowbits, int mem
   long long local_penalty_bytes_len = 0;
   bool use_penalty_bytes = false;
 
+  unsigned char* buf_ptr = decomp_io_buf;
+  int buf_pos = 0;
   /* compress until end of file */
   do {
     print_work_sign(true);
 
-    strm.avail_in = own_fread(in, 1, DEF_COMPARE_CHUNK, source);
-    if (ferror(source)) {
-      (void)deflateEnd(&strm);
-      return -1;
+    if (in_memory) {
+      strm.avail_in = min(decompressed_bytes_total - buf_pos, DEF_COMPARE_CHUNK);
+      strm.next_in = buf_ptr + buf_pos;
+      buf_pos += strm.avail_in;
+      flush = (buf_pos >= decompressed_bytes_total) ? Z_FINISH : Z_NO_FLUSH;
+    } else {
+      strm.avail_in = own_fread(in, 1, DEF_COMPARE_CHUNK, ftempout);
+      if (ferror(ftempout)) {
+        (void)deflateEnd(&strm);
+        return -1;
+      }
+      flush = feof(ftempout) ? Z_FINISH : Z_NO_FLUSH;
+      strm.next_in = in;
     }
-    flush = feof(source) ? Z_FINISH : Z_NO_FLUSH;
-    strm.next_in = in;
     decompressed_bytes_used += strm.avail_in;
 
     do {
@@ -2670,7 +2679,7 @@ int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memle
   return Z_OK;
 }
 
-int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
+int inf(FILE *source, int windowbits, int& compressed_stream_size, int& decompressed_stream_size, bool& in_memory) {
   int ret;
   unsigned have;
   z_stream strm;
@@ -2686,8 +2695,9 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
     return ret;
 
   compressed_stream_size = 0;
+  decompressed_stream_size = 0;
   int avail_in_before;
-
+  
   /* decompress until deflate stream ends or end of file */
   do {
     print_work_sign(true);
@@ -2697,6 +2707,7 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 
     if (ferror(source)) {
       (void)inflateEnd(&strm);
+      if (!in_memory) safe_fclose(&ftempout);
       return Z_ERRNO;
     }
     if (strm.avail_in == 0)
@@ -2704,9 +2715,11 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
     strm.next_in = in;
 
     /* run inflate() on input until output buffer not full */
+    unsigned char* buf_ptr;
     do {
       strm.avail_out = CHUNK;
-      strm.next_out = out;
+      buf_ptr = decomp_io_buf + decompressed_stream_size;
+      strm.next_out = buf_ptr;
 
       ret = inflate(&strm, Z_NO_FLUSH);
       switch (ret) {
@@ -2715,6 +2728,7 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
         case Z_DATA_ERROR:
         case Z_MEM_ERROR:
           (void)inflateEnd(&strm);
+          if (!in_memory) safe_fclose(&ftempout);
           return ret;
       }
 
@@ -2722,11 +2736,21 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
       avail_in_before = strm.avail_in;
 
       have = CHUNK - strm.avail_out;
-      if (own_fwrite(out, 1, have, dest) != have || ferror(dest)) {
-        (void)inflateEnd(&strm);
-        return Z_ERRNO;
+
+      if (!in_memory) {
+        if (own_fwrite(out, 1, have, ftempout) != have || ferror(ftempout)) {
+          (void)inflateEnd(&strm);
+          safe_fclose(&ftempout);
+          return Z_ERRNO;
+        }
       }
 
+      if ((decompressed_stream_size + have + CHUNK) >= MAX_IO_BUFFER_SIZE) {
+        in_memory = false;
+        write_ftempout_if_not_present(decompressed_stream_size + have, true, true);
+      } else {
+        decompressed_stream_size += have;
+      }
     } while (strm.avail_out == 0);
 
     /* done when inflate() says it's done */
@@ -2734,6 +2758,7 @@ int inf(FILE *source, FILE *dest, int windowbits, int& compressed_stream_size) {
 
   /* clean up and return */
   (void)inflateEnd(&strm);
+  if (!in_memory) safe_fclose(&ftempout);
   return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
 
 }
@@ -2942,20 +2967,22 @@ int def_bzip2(FILE *source, FILE *dest, int level) {
   return BZ_OK;
 }
 
-int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, int& decompressed_bytes_used, int& decompressed_bytes_total) {
+int file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, int& decompressed_bytes_used, int decompressed_bytes_total, bool in_memory) {
   int retval;
 
-  ftempout = fopen(tempfile1,"rb");
-  fseek(ftempout, 0, SEEK_END);
-  decompressed_bytes_total = ftell(ftempout);
-  if (ftempout == NULL) {
-    error(ERR_TEMP_FILE_DISAPPEARED);
+  if (!in_memory) {
+    ftempout = fopen(tempfile1,"rb");
+    if (ftempout == NULL) {
+      error(ERR_TEMP_FILE_DISAPPEARED);
+    }
+    fseek(ftempout, 0, SEEK_SET);
   }
-
-  fseek(ftempout, 0, SEEK_SET);
-  retval = def_compare(ftempout, origfile, compression_level, windowbits, memlevel, decompressed_bytes_used);
-
-  safe_fclose(&ftempout);
+  
+  retval = def_compare(origfile, compression_level, windowbits, memlevel, decompressed_bytes_used, decompressed_bytes_total, in_memory);
+  
+  if (!in_memory) {
+    safe_fclose(&ftempout);
+  }
 
   if (retval < 0) return -1;
 
@@ -2983,16 +3010,22 @@ int file_recompress_bzip2(FILE* origfile, int level, int& decompressed_bytes_use
 }
 
 void write_decompressed_data(int byte_count, char* decompressed_file_name) {
-  ftempout = fopen(decompressed_file_name,"rb");
-  if (ftempout == NULL) {
-    error(ERR_TEMP_FILE_DISAPPEARED);
-  }
+  ftempout = fopen(decompressed_file_name, "rb");
+  if (ftempout == NULL) error(ERR_TEMP_FILE_DISAPPEARED);
 
   fseek(ftempout, 0, SEEK_SET);
 
   fast_copy(ftempout, fout, byte_count);
 
   safe_fclose(&ftempout);
+}
+
+void write_decompressed_data_io_buf(int byte_count, int decomp_bytes_total, bool in_memory, char* decompressed_file_name) {
+    if (in_memory) {
+      fast_copy(decomp_io_buf, fout, byte_count);
+    } else {
+      write_decompressed_data(byte_count, decompressed_file_name);
+    }
 }
 
 unsigned int compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2) {
@@ -3119,6 +3152,12 @@ void init_decompression_variables() {
   best_identical_bytes_decomp = -1;
   identical_bytes_decomp = -1;
   final_compression_found = false;
+  
+  decomp_io_buf = new unsigned char[MAX_IO_BUFFER_SIZE];
+}
+
+void denit_decompression_variables() {
+  if (decomp_io_buf != NULL) delete[] decomp_io_buf;
 }
 
 void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc) {
@@ -3128,7 +3167,8 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 
         // try to decompress at current position
         int compressed_stream_size = -1;
-        retval = try_to_decompress(fin, windowbits, compressed_stream_size);
+        bool in_memory;
+        retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
 
         if (retval > 0) { // seems to be a zLib-Stream
 
@@ -3145,12 +3185,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
           print64(saved_input_file_pos);
           printf(", windowbits = %i\n", -windowbits);
           printf("Compressed size: %i\n", compressed_stream_size);
-
-          ftempout = tryOpen(tempfile1, "rb");
-
-          fseek(ftempout, 0, SEEK_END);
-          printf ("Can be decompressed to %li bytes\n", ftell(ftempout));
-          safe_fclose(&ftempout);
+          printf ("Can be decompressed to %i bytes\n", retval);
           }
 
           for (int index = 0; index < 81; index++) {
@@ -3158,7 +3193,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
 
-            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size);
+            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
             if (final_compression_found) break;
           }
@@ -3333,19 +3368,26 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
             // write decompressed data
 
             if ((bmp_header_type == 0) || ((img_width % 4) == 0)) {
-              write_decompressed_data(best_identical_bytes_decomp);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
             } else {
+              if (!in_memory) {
+                ftempout = fopen(tempfile1,"rb");
+                if (ftempout == NULL) {
+                  error(ERR_TEMP_FILE_DISAPPEARED);
+                }
 
-              ftempout = fopen(tempfile1,"rb");
-              if (ftempout == NULL) {
-                error(ERR_TEMP_FILE_DISAPPEARED);
+                fseek(ftempout, 0, SEEK_SET);
               }
 
-              fseek(ftempout, 0, SEEK_SET);
-
+              unsigned char* buf_ptr = decomp_io_buf;
               for (int y = 0; y < img_height; y++) {
 
-                fast_copy(ftempout, fout, img_width);
+                if (in_memory) {
+                  fast_copy(buf_ptr, fout, img_width);
+                  buf_ptr += img_width;
+                } else {
+                  fast_copy(ftempout, fout, img_width);
+                }
 
                 for (int i = 0; i < (4 - (img_width % 4)); i++) {
                   fout_fputc(0);
@@ -3382,7 +3424,8 @@ void try_decompression_zip(int zip_header_length) {
 
         // try to decompress at current position
         int compressed_stream_size = -1;
-        retval = try_to_decompress(fin, -15, compressed_stream_size);
+        bool in_memory;
+        retval = try_to_decompress(fin, -15, compressed_stream_size, in_memory);
 
         if (retval > 0) { // seems to be a zLib-Stream
 
@@ -3395,11 +3438,7 @@ void try_decompression_zip(int zip_header_length) {
           print64(saved_input_file_pos);
           printf("\n");
           printf("Compressed size: %i\n", compressed_stream_size);
-
-          ftempout = tryOpen(tempfile1, "rb");
-          fseek(ftempout, 0, SEEK_END);
-          printf ("Can be decompressed to %li bytes\n", ftell(ftempout));
-          safe_fclose(&ftempout);
+          printf ("Can be decompressed to %i bytes\n", retval);
           }
 
           for (windowbits = -15; windowbits < -7; windowbits++) {
@@ -3408,7 +3447,7 @@ void try_decompression_zip(int zip_header_length) {
               int comp_level = (levels_sorted[index] % 9) + 1;
               int mem_level = (levels_sorted[index] / 9) + 1;
 
-              try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size);
+              try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
               if (final_compression_found) break;
             }
@@ -3449,6 +3488,7 @@ void try_decompression_zip(int zip_header_length) {
             end_uncompressed_data();
 
             // check recursion
+            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
             // write compressed data header (ZIP) without 4 first bytes (PK..)
@@ -3494,7 +3534,7 @@ void try_decompression_zip(int zip_header_length) {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data(best_identical_bytes_decomp);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
             }
 
             // set input file pointer after recompressed data
@@ -3510,7 +3550,7 @@ void try_decompression_zip(int zip_header_length) {
 
         }
 
-
+  denit_decompression_variables();
 }
 
 void sort_comp_mem_levels() {
@@ -5992,24 +6032,14 @@ void convert_file() {
   denit_convert();
 }
 
-int try_to_decompress(FILE* file, int windowbits, int& compressed_stream_size) {
-  int r;
+int try_to_decompress(FILE* file, int windowbits, int& compressed_stream_size, bool& in_memory) {
+  int r, decompressed_stream_size;
 
   print_work_sign(true);
 
-  remove(tempfile1);
-  ftempout = tryOpen(tempfile1,"wb");
-  if (file == fin) {
-    seek_64(file, input_file_pos);
-  } else {
-    seek_64(file, 0);
-  }
-  r = inf(file, ftempout, windowbits, compressed_stream_size);
-  if (r == Z_OK) {
-    fseek(ftempout, 0, SEEK_END);
-    r = ftell(ftempout);
-  }
-  safe_fclose(&ftempout);
+  in_memory = true;
+  r = inf(file, windowbits, compressed_stream_size, decompressed_stream_size, in_memory);
+  if (r == Z_OK) return decompressed_stream_size;
 
   return r;
 }
@@ -6038,11 +6068,10 @@ int try_to_decompress_bzip2(FILE* file, int compression_level, int& compressed_s
   return r;
 }
 
-void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits, int& compressed_stream_size) {
+void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits, int& compressed_stream_size, int decomp_bytes_total, bool in_memory) {
             print_work_sign(true);
 
-            int decomp_bytes_total;
-            identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level, identical_bytes_decomp, decomp_bytes_total);
+            identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level, identical_bytes_decomp, decomp_bytes_total, in_memory);
             if (identical_bytes > -1) { // successfully recompressed?
               if ((identical_bytes > best_identical_bytes) || ((identical_bytes == best_identical_bytes) && (penalty_bytes_len < best_penalty_bytes_len))) {
                 if (identical_bytes > min_ident_size) {
@@ -6675,7 +6704,8 @@ void try_decompression_gzip(int gzip_header_length) {
 
         // try to decompress at current position
         int compressed_stream_size = -1;
-        retval = try_to_decompress(fin, -15, compressed_stream_size);
+        bool in_memory;
+        retval = try_to_decompress(fin, -15, compressed_stream_size, in_memory);
 
         if (retval > 0) { // seems to be a zLib-Stream
 
@@ -6688,11 +6718,7 @@ void try_decompression_gzip(int gzip_header_length) {
           print64(saved_input_file_pos);
           printf("\n");
           printf("Compressed size: %i\n", compressed_stream_size);
-
-          ftempout = tryOpen(tempfile1, "rb");
-          fseek(ftempout, 0, SEEK_END);
-          printf ("Can be decompressed to %li bytes\n", ftell(ftempout));
-          safe_fclose(&ftempout);
+          printf ("Can be decompressed to %i bytes\n", retval);
           }
 
           for (windowbits = -15; windowbits < -7; windowbits++) {
@@ -6701,7 +6727,7 @@ void try_decompression_gzip(int gzip_header_length) {
               int comp_level = (levels_sorted[index] % 9) + 1;
               int mem_level = (levels_sorted[index] / 9) + 1;
 
-              try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size);
+              try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
               if (final_compression_found) break;
             }
@@ -6742,6 +6768,7 @@ void try_decompression_gzip(int gzip_header_length) {
             end_uncompressed_data();
 
             // check recursion
+            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
             // write compressed data header (GZip) without 2 first bytes
@@ -6787,7 +6814,7 @@ void try_decompression_gzip(int gzip_header_length) {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data(best_identical_bytes_decomp);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
             }
 
             // start new uncompressed data
@@ -6813,7 +6840,8 @@ void try_decompression_png (int windowbits) {
 
         // try to decompress at current position
         int compressed_stream_size = -1;
-        retval = try_to_decompress(fin, windowbits, compressed_stream_size);
+        bool in_memory;
+        retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
 
         if (retval > 0) { // seems to be a zLib-Stream
 
@@ -6826,11 +6854,7 @@ void try_decompression_png (int windowbits) {
           print64(saved_input_file_pos);
           printf(", windowbits = %i\n", -windowbits);
           printf("Compressed size: %i\n", compressed_stream_size);
-
-          ftempout = tryOpen(tempfile1, "rb");
-          fseek(ftempout, 0, SEEK_END);
-          printf ("Can be decompressed to %li bytes\n", ftell(ftempout));
-          safe_fclose(&ftempout);
+          printf ("Can be decompressed to %i bytes\n", retval);
           }
 
           for (int index = 0; index < 81; index++) {
@@ -6838,7 +6862,7 @@ void try_decompression_png (int windowbits) {
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
 
-            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size);
+            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
             if (final_compression_found) break;
           }
@@ -6907,7 +6931,7 @@ void try_decompression_png (int windowbits) {
 
             // write decompressed data
 
-            write_decompressed_data(best_identical_bytes_decomp);
+            write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
 
             // start new uncompressed data
 
@@ -6933,7 +6957,8 @@ void try_decompression_png_multi(int windowbits) {
 
         // try to decompress at current position
         int compressed_stream_size = -1;
-        retval = try_to_decompress(fpng, windowbits, compressed_stream_size);
+        bool in_memory;
+        retval = try_to_decompress(fpng, windowbits, compressed_stream_size, in_memory);
 
         if (retval > 0) { // seems to be a zLib-Stream
 
@@ -6946,11 +6971,7 @@ void try_decompression_png_multi(int windowbits) {
           print64(saved_input_file_pos);
           printf(", windowbits = %i\n", -windowbits);
           printf("Compressed size: %i\n", compressed_stream_size);
-
-          ftempout = tryOpen(tempfile1, "rb");
-          fseek(ftempout, 0, SEEK_END);
-          printf ("Can be decompressed to %li bytes\n", ftell(ftempout));
-          safe_fclose(&ftempout);
+          printf ("Can be decompressed to %i bytes\n", retval);
           }
 
           for (int index = 0; index < 81; index++) {
@@ -6958,7 +6979,7 @@ void try_decompression_png_multi(int windowbits) {
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
 
-            try_recompress(fpng, comp_level, mem_level, windowbits, compressed_stream_size);
+            try_recompress(fpng, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
             if (final_compression_found) break;
           }
@@ -7065,7 +7086,7 @@ void try_decompression_png_multi(int windowbits) {
 
             // write decompressed data
 
-            write_decompressed_data(best_identical_bytes_decomp);
+            write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
 
             // start new uncompressed data
 
@@ -8082,7 +8103,8 @@ void try_decompression_zlib(int windowbits) {
 
         // try to decompress at current position
         int compressed_stream_size = -1;
-        retval = try_to_decompress(fin, windowbits, compressed_stream_size);
+        bool in_memory;
+        retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
 
         if (retval > 0) { // seems to be a zLib-Stream
 
@@ -8095,22 +8117,15 @@ void try_decompression_zlib(int windowbits) {
           print64(saved_input_file_pos);
           printf(", windowbits = %i\n", -windowbits);
           printf("Compressed size: %i\n", compressed_stream_size);
+          printf ("Can be decompressed to %i bytes\n", retval);
           }
-
-          ftempout = tryOpen(tempfile1, "rb");
-          fseek(ftempout, 0, SEEK_END);
-          int stream_length = ftell(ftempout);
-          if (DEBUG_MODE) {
-          printf ("Can be decompressed to %i bytes\n", stream_length);
-          }
-          safe_fclose(&ftempout);
 
           for (int index = 0; index < 81; index++) {
             if (levels_sorted[index] == -1) break;
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
 
-            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size);
+            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
             if (final_compression_found) break;
           }
@@ -8148,6 +8163,7 @@ void try_decompression_zlib(int windowbits) {
             end_uncompressed_data();
 
             // check recursion
+            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
             // write compressed data header (zLib)
@@ -8193,7 +8209,7 @@ void try_decompression_zlib(int windowbits) {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data(best_identical_bytes_decomp);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
             }
 
             // start new uncompressed data
@@ -8221,7 +8237,8 @@ void try_decompression_brute() {
 
         // try to decompress at current position
         int compressed_stream_size = -1;
-        retval = try_to_decompress(fin, -15, compressed_stream_size);
+        bool in_memory;
+        retval = try_to_decompress(fin, -15, compressed_stream_size, in_memory);
 
         if (retval > 0) { // seems to be a zLib-Stream
 
@@ -8234,23 +8251,16 @@ void try_decompression_brute() {
           print64(saved_input_file_pos);
           printf("\n");
           printf("Compressed size: %i\n", compressed_stream_size);
+          printf ("Can be decompressed to %i bytes\n", retval);
           }
-
-          ftempout = tryOpen(tempfile1, "rb");
-          fseek(ftempout, 0, SEEK_END);
-          int stream_length = ftell(ftempout);
-          if (DEBUG_MODE) {
-          printf ("Can be decompressed to %i bytes\n", stream_length);
-          }
-          safe_fclose(&ftempout);
-
+          
           for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = 0; index < 81; index++) {
               if (levels_sorted[index] == -1) break;
               int comp_level = (levels_sorted[index] % 9) + 1;
               int mem_level = (levels_sorted[index] / 9) + 1;
 
-              try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size);
+              try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
               if (final_compression_found) break;
             }
@@ -8291,6 +8301,7 @@ void try_decompression_brute() {
             end_uncompressed_data();
 
             // check recursion
+            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
             // write compressed data header (brute)
@@ -8330,7 +8341,7 @@ void try_decompression_brute() {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data(best_identical_bytes_decomp);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
             }
 
             // set input file pointer after recompressed data
@@ -8353,7 +8364,8 @@ void try_decompression_swf(int windowbits) {
 
         // try to decompress at current position
         int compressed_stream_size = -1;
-        retval = try_to_decompress(fin, windowbits, compressed_stream_size);
+        bool in_memory;
+        retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
 
         if (retval > 0) { // seems to be a zLib-Stream
 
@@ -8366,13 +8378,7 @@ void try_decompression_swf(int windowbits) {
           print64(saved_input_file_pos);
           printf(", windowbits = %i\n", -windowbits);
           printf("Compressed size: %i\n", compressed_stream_size);
-          }
-
-          if (DEBUG_MODE) {
-          ftempout = tryOpen(tempfile1, "rb");
-          fseek(ftempout, 0, SEEK_END);
-          printf ("Can be decompressed to %li bytes\n", ftell(ftempout));
-          safe_fclose(&ftempout);
+          printf ("Can be decompressed to %i bytes\n", retval);
           }
 
           for (int index = 0; index < 81; index++) {
@@ -8380,7 +8386,7 @@ void try_decompression_swf(int windowbits) {
             int comp_level = (levels_sorted[index] % 9) + 1;
             int mem_level = (levels_sorted[index] / 9) + 1;
 
-            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size);
+            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
             if (final_compression_found) break;
           }
@@ -8418,6 +8424,7 @@ void try_decompression_swf(int windowbits) {
             end_uncompressed_data();
 
             // check recursion
+            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
             recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
 
             // write compressed data header (SWF)
@@ -8466,7 +8473,7 @@ void try_decompression_swf(int windowbits) {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data(best_identical_bytes_decomp);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
             }
 
             // start new uncompressed data
@@ -9191,6 +9198,7 @@ void recursion_push() {
   recursion_stack_push(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
   recursion_stack_push(&intense_ignore_offsets, sizeof(intense_ignore_offsets));
   recursion_stack_push(&brute_ignore_offsets, sizeof(brute_ignore_offsets));
+  recursion_stack_push(&decomp_io_buf, sizeof(decomp_io_buf));
 
   recursion_stack_push(&compression_otf_method, sizeof(compression_otf_method));
   recursion_stack_push(&decompress_otf_end, sizeof(decompress_otf_end));
@@ -9200,6 +9208,7 @@ void recursion_pop() {
   recursion_stack_pop(&decompress_otf_end, sizeof(decompress_otf_end));
   recursion_stack_pop(&compression_otf_method, sizeof(compression_otf_method));
 
+  recursion_stack_pop(&decomp_io_buf, sizeof(decomp_io_buf));
   recursion_stack_pop(&brute_ignore_offsets, sizeof(brute_ignore_offsets));
   recursion_stack_pop(&intense_ignore_offsets, sizeof(intense_ignore_offsets));
   recursion_stack_pop(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
@@ -9258,6 +9267,14 @@ void recursion_pop() {
   recursion_stack_pop(&output_file_name, sizeof(output_file_name));
   recursion_stack_pop(&input_file_name, sizeof(input_file_name));
   recursion_stack_pop(&fin_length, sizeof(fin_length));
+}
+
+void write_ftempout_if_not_present(int byte_count, bool in_memory, bool leave_open) {
+  if (in_memory) {
+    ftempout = tryOpen(tempfile1, "rb");
+    fast_copy(decomp_io_buf, ftempout, byte_count);
+    if (!leave_open) safe_fclose(&ftempout);
+  }
 }
 
 recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes) {
