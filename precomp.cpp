@@ -9286,7 +9286,7 @@ void recursion_pop() {
 
 void write_ftempout_if_not_present(int byte_count, bool in_memory, bool leave_open) {
   if (in_memory) {
-    ftempout = tryOpen(tempfile1, "rb");
+    ftempout = tryOpen(tempfile1, "wb");
     fast_copy(decomp_io_buf, ftempout, byte_count);
     if (!leave_open) safe_fclose(&ftempout);
   }
