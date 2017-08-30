@@ -2144,6 +2144,7 @@ void denit_compress() {
   if (recursion_depth == 0) {
     free(ignore_list);
   }
+  if (decomp_io_buf != NULL) delete[] decomp_io_buf;
 
   denit();
 }
@@ -3152,12 +3153,6 @@ void init_decompression_variables() {
   best_identical_bytes_decomp = -1;
   identical_bytes_decomp = -1;
   final_compression_found = false;
-  
-  decomp_io_buf = new unsigned char[MAX_IO_BUFFER_SIZE];
-}
-
-void denit_decompression_variables() {
-  if (decomp_io_buf != NULL) delete[] decomp_io_buf;
 }
 
 void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc) {
@@ -3549,8 +3544,6 @@ void try_decompression_zip(int zip_header_length) {
           }
 
         }
-
-  denit_decompression_variables();
 }
 
 void sort_comp_mem_levels() {
@@ -3674,6 +3667,7 @@ bool compress_file(float min_percent, float max_percent) {
   init_temp_files();
   intense_ignore_offsets = new set<long long>();
   brute_ignore_offsets = new set<long long>();
+  decomp_io_buf = new unsigned char[MAX_IO_BUFFER_SIZE];
 
   global_min_percent = min_percent;
   global_max_percent = max_percent;
@@ -6036,6 +6030,12 @@ int try_to_decompress(FILE* file, int windowbits, int& compressed_stream_size, b
   int r, decompressed_stream_size;
 
   print_work_sign(true);
+
+  if (file == fin) {
+    seek_64(file, input_file_pos);
+  } else {
+	seek_64(file, 0);
+  }
 
   in_memory = true;
   r = inf(file, windowbits, compressed_stream_size, decompressed_stream_size, in_memory);
