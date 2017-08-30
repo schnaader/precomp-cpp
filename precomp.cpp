@@ -100,6 +100,7 @@ using namespace std;
 #define COMP_CHUNK 512
 #define IN_BUF_SIZE 65536 //input buffer
 #define PENALTY_BYTES_TOLERANCE 160
+#define IDENTICAL_COMPRESSED_BYTES_TOLERANCE 32
 
 #define MAX_IO_BUFFER_SIZE 64 * 1024 * 1024
 unsigned char* decomp_io_buf = NULL;
@@ -6080,7 +6081,14 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (identical_bytes == compressed_stream_size) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
+				  bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
+				  if (!enough_identical_compressed_bytes) {
+					if ((identical_bytes > DEF_COMPARE_CHUNK) && (identical_bytes + IDENTICAL_COMPRESSED_BYTES_TOLERANCE >= compressed_stream_size)) {
+					  enough_identical_compressed_bytes = true;
+					}
+				  }
+
+                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (enough_identical_compressed_bytes) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
 
                   // Partial matches sometimes need all the decompressed bytes, but there are much less 
                   // identical recompressed bytes - in these cases, all the decompressed bytes have to
@@ -6126,7 +6134,14 @@ void try_recompress_bzip2(FILE* origfile, int level, int& compressed_stream_size
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (identical_bytes == compressed_stream_size) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
+				  bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
+				  if (!enough_identical_compressed_bytes) {
+					  if ((identical_bytes > DEF_COMPARE_CHUNK) && (identical_bytes + IDENTICAL_COMPRESSED_BYTES_TOLERANCE >= compressed_stream_size)) {
+						  enough_identical_compressed_bytes = true;
+					  }
+				  }
+
+				  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (enough_identical_compressed_bytes) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
                 }
 
                 best_identical_bytes_decomp = identical_bytes_decomp;
