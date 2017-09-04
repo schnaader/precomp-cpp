@@ -2720,8 +2720,13 @@ int inf(FILE *source, int windowbits, int& compressed_stream_size, int& decompre
     unsigned char* buf_ptr;
     do {
       strm.avail_out = CHUNK;
-      buf_ptr = decomp_io_buf + decompressed_stream_size;
-      strm.next_out = buf_ptr;
+	  if (in_memory) {
+        buf_ptr = decomp_io_buf + decompressed_stream_size;
+        strm.next_out = buf_ptr;
+	  }
+	  else {
+        strm.next_out = out;
+	  }
 
       ret = inflate(&strm, Z_NO_FLUSH);
       switch (ret) {
@@ -2745,14 +2750,15 @@ int inf(FILE *source, int windowbits, int& compressed_stream_size, int& decompre
           safe_fclose(&ftempout);
           return Z_ERRNO;
         }
-      }
+	  }
+	  else {
+		if ((decompressed_stream_size + have + CHUNK) >= MAX_IO_BUFFER_SIZE) {
+		  in_memory = false;
+		  write_ftempout_if_not_present(decompressed_stream_size + have, true, true);
+		}
+	  }
+	  decompressed_stream_size += have;
 
-      if ((decompressed_stream_size + have + CHUNK) >= MAX_IO_BUFFER_SIZE) {
-        in_memory = false;
-        write_ftempout_if_not_present(decompressed_stream_size + have, true, true);
-      } else {
-        decompressed_stream_size += have;
-      }
     } while (strm.avail_out == 0);
 
     /* done when inflate() says it's done */
