@@ -1,0 +1,12 @@
+OBJECTS = adler32.o crc32.o zutil.o trees.o inftrees.o inffast.o inflate.o deflate.o
+CFLAGS  = -DLINUX -D_FILE_OFFSET_BITS=64 -O2 -Wall
+
+.PHONY: all
+all: $(OBJECTS)
+
+.PHONY: clean
+clean:
+	rm -f *.o
+
+%.o: %.c
+	gcc -g -c $(CFLAGS) $<
