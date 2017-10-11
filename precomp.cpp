@@ -3017,7 +3017,7 @@ int file_recompress_bzip2(FILE* origfile, int level, int& decompressed_bytes_use
   return retval;
 }
 
-void write_decompressed_data(int byte_count, char* decompressed_file_name) {
+void write_decompressed_data(long long byte_count, char* decompressed_file_name) {
   ftempout = fopen(decompressed_file_name, "rb");
   if (ftempout == NULL) error(ERR_TEMP_FILE_DISAPPEARED);
 
@@ -3028,7 +3028,7 @@ void write_decompressed_data(int byte_count, char* decompressed_file_name) {
   safe_fclose(&ftempout);
 }
 
-void write_decompressed_data_io_buf(int byte_count, int decomp_bytes_total, bool in_memory, char* decompressed_file_name) {
+void write_decompressed_data_io_buf(long long byte_count, bool in_memory, char* decompressed_file_name) {
     if (in_memory) {
       fast_copy(decomp_io_buf, fout, byte_count);
     } else {
@@ -3370,7 +3370,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
             // write decompressed data
 
             if ((bmp_header_type == 0) || ((img_width % 4) == 0)) {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
             } else {
               if (!in_memory) {
                 ftempout = fopen(tempfile1,"rb");
@@ -3536,7 +3536,7 @@ void try_decompression_zip(int zip_header_length) {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
             }
 
             // set input file pointer after recompressed data
@@ -6835,7 +6835,7 @@ void try_decompression_gzip(int gzip_header_length) {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
             }
 
             // start new uncompressed data
@@ -6952,7 +6952,7 @@ void try_decompression_png (int windowbits) {
 
             // write decompressed data
 
-            write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
+            write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
 
             // start new uncompressed data
 
@@ -7107,7 +7107,7 @@ void try_decompression_png_multi(int windowbits) {
 
             // write decompressed data
 
-            write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
+            write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
 
             // start new uncompressed data
 
@@ -8230,7 +8230,7 @@ void try_decompression_zlib(int windowbits) {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
             }
 
             // start new uncompressed data
@@ -8362,7 +8362,7 @@ void try_decompression_brute() {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
             }
 
             // set input file pointer after recompressed data
@@ -8494,7 +8494,7 @@ void try_decompression_swf(int windowbits) {
               remove(r.file_name);
               delete[] r.file_name;
             } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, retval, in_memory);
+              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
             }
 
             // start new uncompressed data
