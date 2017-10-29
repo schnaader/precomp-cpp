@@ -25,7 +25,8 @@ clean:
 
 .PHONY: install
 install: contrib $(PROGNAME)
-	install -m 555 ./precomp $(BINDIR)
+	install -d $(BINDIR)
+	install -m 555 precomp $(BINDIR)
 
 bzip2:
 	make -C contrib/bzip2
