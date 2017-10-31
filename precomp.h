@@ -98,6 +98,37 @@ struct recursion_result {
   FILE* frecurse;
 };
 
+class zLibMTF{
+  struct MTFItem{
+    int Next, Previous;
+  };
+  alignas(16) MTFItem List[81];
+  int Root, Index;
+public:
+  zLibMTF(): Root(0), Index(0) {
+    for (int i=0;i<81;i++){
+      List[i].Next = i+1;
+      List[i].Previous = i-1;
+    }
+    List[80].Next = -1;
+  }
+  inline int First(){
+    return Index=Root;
+  }
+  inline int Next(){
+    return (Index>=0)?Index=List[Index].Next:Index;
+  }
+  inline void Update(){
+    if (Index==Root) return;
+    
+    List[ List[Index].Previous ].Next = List[Index].Next;
+    List[ List[Index].Next ].Previous = List[Index].Previous;
+    List[Root].Previous = Index;
+    List[Index].Next = Root;
+    List[Root=Index].Previous = -1;
+  }
+};
+
 void write_ftempout_if_not_present(int byte_count, bool in_memory, bool leave_open = false);
 recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes);
 recursion_result recursion_decompress(long long recursion_data_length);
