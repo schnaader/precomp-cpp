@@ -193,7 +193,7 @@ int old_lzma_progress_text_length = -1;
 int lzma_mib_total = 0, lzma_mib_written = 0;
 
 int comp_mem_level_count[81];
-int levels_sorted[81];
+zLibMTF MTF;
 bool zlib_level_was_used[81];
 bool anything_was_used;
 bool level_switch_used = false;
@@ -389,8 +389,6 @@ DLL bool precompress_file(char* in_file, char* out_file, char* msg, Switches swi
   output_file_name = new char[strlen(out_file)+1];
   strcpy(output_file_name, out_file);
 
-  sort_comp_mem_levels();
-
   start_time = get_time_ms();
 
   penalty_bytes = new char[MAX_PENALTY_BYTES];
@@ -436,8 +434,6 @@ DLL bool recompress_file(char* in_file, char* out_file, char* msg, Switches swit
   strcpy(input_file_name, in_file);
   output_file_name = new char[strlen(out_file)+1];
   strcpy(output_file_name, out_file);
-
-  sort_comp_mem_levels();
 
   start_time = get_time_ms();
 
@@ -1148,8 +1144,6 @@ int init(int argc, char* argv[]) {
     level_switch_used = true;
 
   }
-
-  sort_comp_mem_levels();
 
   packjpg_mp3_dll_msg();
 
@@ -2048,8 +2042,6 @@ int init_comfort(int argc, char* argv[]) {
     level_switch_used = true;
 
   }
-
-  sort_comp_mem_levels();
 
   packjpg_mp3_dll_msg();
 
@@ -3190,14 +3182,14 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
           printf ("Can be decompressed to %i bytes\n", retval);
           }
 
-          for (int index = 0; index < 81; index++) {
-            if (levels_sorted[index] == -1) break;
-            int comp_level = (levels_sorted[index] % 9) + 1;
-            int mem_level = (levels_sorted[index] / 9) + 1;
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
+            if (comp_mem_level_count[index] == -1) break;
+            int comp_level = (index % 9) + 1;
+            int mem_level = (index / 9) + 1;
 
             try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found) break;
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -3243,12 +3235,10 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
                   }
                 }
                 anything_was_used = true;
-                sort_comp_mem_levels();
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
-                sort_comp_mem_levels();
               }
             }
 
@@ -3444,14 +3434,14 @@ void try_decompression_zip(int zip_header_length) {
           }
 
           for (windowbits = -15; windowbits < -7; windowbits++) {
-            for (int index = 0; index < 81; index++) {
-              if (levels_sorted[index] == -1) break;
-              int comp_level = (levels_sorted[index] % 9) + 1;
-              int mem_level = (levels_sorted[index] / 9) + 1;
+            for (int index = MTF.First(); index>=0; index=MTF.Next()){
+              if (comp_mem_level_count[index] == -1) break;
+              int comp_level = (index % 9) + 1;
+              int mem_level = (index / 9) + 1;
 
               try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-              if (final_compression_found) break;
+              if (final_compression_found){ MTF.Update(); break; }
             }
             if (final_compression_found) break;
           }
@@ -3475,12 +3465,10 @@ void try_decompression_zip(int zip_header_length) {
                   }
                 }
                 anything_was_used = true;
-                sort_comp_mem_levels();
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
-                sort_comp_mem_levels();
               }
             }
 
@@ -3551,34 +3539,6 @@ void try_decompression_zip(int zip_header_length) {
           }
 
         }
-}
-
-void sort_comp_mem_levels() {
-          int i,j;
-          int comp_mem_level_count_copy[81];
-
-          for (i = 0; i < 81; i++) {
-            comp_mem_level_count_copy[i] = comp_mem_level_count[i];
-          }
-
-          int rekcount, reki = -1;
-
-          for (j = 0; j < 81; j++) {
-            rekcount = -2;
-            for (i = 0; i < 81; i++) {
-              if (comp_mem_level_count_copy[i] > rekcount) {
-                rekcount = comp_mem_level_count_copy[i];
-                reki = i;
-              }
-            }
-            if (rekcount == -1) {
-              levels_sorted[j] = -1;
-            } else {
-              levels_sorted[j] = reki;
-            }
-            comp_mem_level_count_copy[reki] = -1;
-          }
-
 }
 
 void show_used_levels() {
@@ -6743,14 +6703,14 @@ void try_decompression_gzip(int gzip_header_length) {
           }
 
           for (windowbits = -15; windowbits < -7; windowbits++) {
-            for (int index = 0; index < 81; index++) {
-              if (levels_sorted[index] == -1) break;
-              int comp_level = (levels_sorted[index] % 9) + 1;
-              int mem_level = (levels_sorted[index] / 9) + 1;
+            for (int index = MTF.First(); index>=0; index=MTF.Next()){
+              if (comp_mem_level_count[index] == -1) break;
+              int comp_level = (index % 9) + 1;
+              int mem_level = (index / 9) + 1;
 
               try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-              if (final_compression_found) break;
+              if (final_compression_found){ MTF.Update(); break; }
             }
             if (final_compression_found) break;
           }
@@ -6774,12 +6734,10 @@ void try_decompression_gzip(int gzip_header_length) {
                   }
                 }
                 anything_was_used = true;
-                sort_comp_mem_levels();
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
-                sort_comp_mem_levels();
               }
             }
 
@@ -6878,14 +6836,14 @@ void try_decompression_png (int windowbits) {
           printf ("Can be decompressed to %i bytes\n", retval);
           }
 
-          for (int index = 0; index < 81; index++) {
-            if (levels_sorted[index] == -1) break;
-            int comp_level = (levels_sorted[index] % 9) + 1;
-            int mem_level = (levels_sorted[index] / 9) + 1;
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
+            if (comp_mem_level_count[index] == -1) break;
+            int comp_level = (index % 9) + 1;
+            int mem_level = (index / 9) + 1;
 
             try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found) break;
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -6906,12 +6864,10 @@ void try_decompression_png (int windowbits) {
                   }
                 }
                 anything_was_used = true;
-                sort_comp_mem_levels();
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
-                sort_comp_mem_levels();
               }
             }
 
@@ -6995,14 +6951,14 @@ void try_decompression_png_multi(int windowbits) {
           printf ("Can be decompressed to %i bytes\n", retval);
           }
 
-          for (int index = 0; index < 81; index++) {
-            if (levels_sorted[index] == -1) break;
-            int comp_level = (levels_sorted[index] % 9) + 1;
-            int mem_level = (levels_sorted[index] / 9) + 1;
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
+            if (comp_mem_level_count[index] == -1) break;
+            int comp_level = (index % 9) + 1;
+            int mem_level = (index / 9) + 1;
 
-            try_recompress(fpng, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
+            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found) break;
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -7023,12 +6979,10 @@ void try_decompression_png_multi(int windowbits) {
                   }
                 }
                 anything_was_used = true;
-                sort_comp_mem_levels();
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
-                sort_comp_mem_levels();
               }
             }
 
@@ -8141,14 +8095,14 @@ void try_decompression_zlib(int windowbits) {
           printf ("Can be decompressed to %i bytes\n", retval);
           }
 
-          for (int index = 0; index < 81; index++) {
-            if (levels_sorted[index] == -1) break;
-            int comp_level = (levels_sorted[index] % 9) + 1;
-            int mem_level = (levels_sorted[index] / 9) + 1;
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
+            if (comp_mem_level_count[index] == -1) break;
+            int comp_level = (index % 9) + 1;
+            int mem_level = (index / 9) + 1;
 
             try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found) break;
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size_intense_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -8169,12 +8123,10 @@ void try_decompression_zlib(int windowbits) {
                   }
                 }
                 anything_was_used = true;
-                sort_comp_mem_levels();
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
-                sort_comp_mem_levels();
               }
             }
 
@@ -8276,14 +8228,14 @@ void try_decompression_brute() {
           }
           
           for (windowbits = -15; windowbits < -7; windowbits++) {
-            for (int index = 0; index < 81; index++) {
-              if (levels_sorted[index] == -1) break;
-              int comp_level = (levels_sorted[index] % 9) + 1;
-              int mem_level = (levels_sorted[index] / 9) + 1;
+            for (int index = MTF.First(); index>=0; index=MTF.Next()){
+              if (comp_mem_level_count[index] == -1) break;
+              int comp_level = (index % 9) + 1;
+              int mem_level = (index / 9) + 1;
 
               try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-              if (final_compression_found) break;
+              if (final_compression_found){ MTF.Update(); break; }
             }
             if (final_compression_found) break;
           }
@@ -8307,12 +8259,10 @@ void try_decompression_brute() {
                   }
                 }
                 anything_was_used = true;
-                sort_comp_mem_levels();
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
-                sort_comp_mem_levels();
               }
             }
 
@@ -8402,14 +8352,14 @@ void try_decompression_swf(int windowbits) {
           printf ("Can be decompressed to %i bytes\n", retval);
           }
 
-          for (int index = 0; index < 81; index++) {
-            if (levels_sorted[index] == -1) break;
-            int comp_level = (levels_sorted[index] % 9) + 1;
-            int mem_level = (levels_sorted[index] / 9) + 1;
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
+            if (comp_mem_level_count[index] == -1) break;
+            int comp_level = (index % 9) + 1;
+            int mem_level = (index / 9) + 1;
 
             try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found) break;
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -8430,12 +8380,10 @@ void try_decompression_swf(int windowbits) {
                   }
                 }
                 anything_was_used = true;
-                sort_comp_mem_levels();
               } else {
                 comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
                 zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
                 anything_was_used = true;
-                sort_comp_mem_levels();
               }
             }
 
