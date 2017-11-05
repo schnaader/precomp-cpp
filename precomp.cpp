@@ -2780,7 +2780,7 @@ bool check_inf_result(int cb_pos, int windowbits, bool use_brute_parameters = fa
     // did this before)
     memset(&histogram[0], 0, sizeof(histogram));
     int maximum=0, used=0, offset=cb_pos;
-    for (int i=0;i<8;i++,offset+=64){
+    for (int i=0;i<4;i++,offset+=64){
       for (int j=0;j<64;j++){
         int* freq = &histogram[in_buf[offset+j]];
         used+=((*freq)==0);
