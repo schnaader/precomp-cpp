@@ -2786,7 +2786,7 @@ bool check_inf_result(int cb_pos, int windowbits, bool use_brute_parameters = fa
         used+=((*freq)==0);
         maximum+=(++(*freq))>maximum;
       }
-      if (maximum>=8+i || used*4<(i+1)*64)
+      if (maximum>=((12+i)<<i) || used*(7-(i+(i/2)))<(i+1)*64)
         return false;
     }
   }  
