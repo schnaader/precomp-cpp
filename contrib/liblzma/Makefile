@@ -10,4 +10,4 @@ clean:
 	rm -f *.o
 
 liblzma:
-	gcc $(CFLAGS) $(LIBLZMA_INCLUDES) $(LIBLZMA_C)
+	cc $(CFLAGS) $(LIBLZMA_INCLUDES) $(LIBLZMA_C)

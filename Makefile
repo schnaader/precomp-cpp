@@ -42,4 +42,4 @@ liblzma:
 contrib: bzip2 giflib packjpg packmp3 zlib liblzma
 
 $(PROGNAME): contrib
-	g++ $(CFLAGS) $(GIFLIB_OBJ) $(PACKJPG_OBJ) $(PACKMP3_OBJ) $(BZIP2_OBJ) $(ZLIB_OBJ) $(LIBLZMA_OBJ) $(LIBLZMA_CPP) precomp.cpp -s -oprecomp
+	c++ $(CFLAGS) $(GIFLIB_OBJ) $(PACKJPG_OBJ) $(PACKMP3_OBJ) $(BZIP2_OBJ) $(ZLIB_OBJ) $(LIBLZMA_OBJ) $(LIBLZMA_CPP) precomp.cpp -s -oprecomp
