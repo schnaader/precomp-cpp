@@ -122,7 +122,8 @@ public:
     if (Index==Root) return;
     
     List[ List[Index].Previous ].Next = List[Index].Next;
-    List[ List[Index].Next ].Previous = List[Index].Previous;
+    if (List[Index].Next>=0)
+      List[ List[Index].Next ].Previous = List[Index].Previous;
     List[Root].Previous = Index;
     List[Index].Next = Root;
     List[Root=Index].Previous = -1;
