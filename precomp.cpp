@@ -193,7 +193,7 @@ int old_lzma_progress_text_length = -1;
 int lzma_mib_total = 0, lzma_mib_written = 0;
 
 int comp_mem_level_count[81];
-zLibMTF SWF_MTF, PNG_MTF, mPNG_MTF, PDF_MTF, ZIP_MTF[4], GZIP_MTF[4], MTF[4];
+zLibMTF MTF;
 bool zlib_level_was_used[81];
 bool anything_was_used;
 bool level_switch_used = false;
@@ -3185,14 +3185,14 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
-          for (int index = PDF_MTF.First(); index>=0; index=PDF_MTF.Next()){
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
             if (comp_mem_level_count[index] == -1) break;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
             try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found){ PDF_MTF.Update(); break; }
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -3435,16 +3435,16 @@ void try_decompression_zip(int zip_header_length) {
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
-          int k = min(3, recursion_depth);
+
           for (windowbits = -15; windowbits < -7; windowbits++) {
-            for (int index = ZIP_MTF[k].First(); index>=0; index=ZIP_MTF[k].Next()){
+            for (int index = MTF.First(); index>=0; index=MTF.Next()){
               if (comp_mem_level_count[index] == -1) break;
               int comp_level = (index % 9) + 1;
               int mem_level = (index / 9) + 1;
 
               try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-              if (final_compression_found){ ZIP_MTF[k].Update(); break; }
+              if (final_compression_found){ MTF.Update(); break; }
             }
             if (final_compression_found) break;
           }
@@ -6704,16 +6704,16 @@ void try_decompression_gzip(int gzip_header_length) {
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
-          int k = min(3, recursion_depth);
+
           for (windowbits = -15; windowbits < -7; windowbits++) {
-            for (int index = GZIP_MTF[k].First(); index>=0; index=GZIP_MTF[k].Next()){
+            for (int index = MTF.First(); index>=0; index=MTF.Next()){
               if (comp_mem_level_count[index] == -1) break;
               int comp_level = (index % 9) + 1;
               int mem_level = (index / 9) + 1;
 
               try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-              if (final_compression_found){ GZIP_MTF[k].Update(); break; }
+              if (final_compression_found){ MTF.Update(); break; }
             }
             if (final_compression_found) break;
           }
@@ -6839,14 +6839,14 @@ void try_decompression_png (int windowbits) {
           printf ("Can be decompressed to %i bytes\n", retval);
           }
 
-          for (int index = PNG_MTF.First(); index>=0; index=PNG_MTF.Next()){
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
             if (comp_mem_level_count[index] == -1) break;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
             try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found){ PNG_MTF.Update(); break; }
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -6954,14 +6954,14 @@ void try_decompression_png_multi(int windowbits) {
           printf ("Can be decompressed to %i bytes\n", retval);
           }
 
-          for (int index = mPNG_MTF.First(); index>=0; index=mPNG_MTF.Next()){
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
             if (comp_mem_level_count[index] == -1) break;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
             try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found){ mPNG_MTF.Update(); break; }
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -8097,15 +8097,15 @@ void try_decompression_zlib(int windowbits) {
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
-          int k = min(3, recursion_depth);
-          for (int index = MTF[k].First(); index>=0; index=MTF[k].Next()){
+
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
             if (comp_mem_level_count[index] == -1) break;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
             try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found){ MTF[k].Update(); break; }
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size_intense_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
@@ -8229,16 +8229,16 @@ void try_decompression_brute() {
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
-          int k = min(3, recursion_depth);
+
           for (windowbits = -15; windowbits < -7; windowbits++) {
-            for (int index = MTF[k].First(); index>=0; index=MTF[k].Next()){
+            for (int index = MTF.First(); index>=0; index=MTF.Next()){
               if (comp_mem_level_count[index] == -1) break;
               int comp_level = (index % 9) + 1;
               int mem_level = (index / 9) + 1;
 
               try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-              if (final_compression_found){ MTF[k].Update(); break; }
+              if (final_compression_found){ MTF.Update(); break; }
             }
             if (final_compression_found) break;
           }
@@ -8355,14 +8355,14 @@ void try_decompression_swf(int windowbits) {
           printf ("Can be decompressed to %i bytes\n", retval);
           }
 
-          for (int index = SWF_MTF.First(); index>=0; index=SWF_MTF.Next()){
+          for (int index = MTF.First(); index>=0; index=MTF.Next()){
             if (comp_mem_level_count[index] == -1) break;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
             try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
-            if (final_compression_found){ SWF_MTF.Update(); break; }
+            if (final_compression_found){ MTF.Update(); break; }
           }
 
           if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
