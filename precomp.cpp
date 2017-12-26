@@ -2712,13 +2712,13 @@ int inf(FILE *source, int windowbits, int& compressed_stream_size, int& decompre
     unsigned char* buf_ptr;
     do {
       strm.avail_out = CHUNK;
-	  if (in_memory) {
+      if (in_memory) {
         buf_ptr = decomp_io_buf + decompressed_stream_size;
         strm.next_out = buf_ptr;
-	  }
-	  else {
+      }
+      else {
         strm.next_out = out;
-	  }
+      }
 
       ret = inflate(&strm, Z_NO_FLUSH);
       switch (ret) {
@@ -2742,14 +2742,14 @@ int inf(FILE *source, int windowbits, int& compressed_stream_size, int& decompre
           safe_fclose(&ftempout);
           return Z_ERRNO;
         }
-	  }
-	  else {
-		if ((decompressed_stream_size + have + CHUNK) >= MAX_IO_BUFFER_SIZE) {
-		  in_memory = false;
-		  write_ftempout_if_not_present(decompressed_stream_size + have, true, true);
-		}
-	  }
-	  decompressed_stream_size += have;
+    }
+    else {
+      if ((decompressed_stream_size + have + CHUNK) >= MAX_IO_BUFFER_SIZE) {
+        in_memory = false;
+        write_ftempout_if_not_present(decompressed_stream_size + have, true, true);
+      }
+    }
+    decompressed_stream_size += have;
 
     } while (strm.avail_out == 0);
 
@@ -4241,12 +4241,12 @@ bool compress_file(float min_percent, float max_percent) {
           if ((type == MPEG1_LAYER_III) && (frame_size > 4)) {
             unsigned char header2 = in[2];
             unsigned char header3 = in[3];
-			if (fread(in, 1, frame_size - 4, fin) != (unsigned int)(frame_size - 4)) {
-				// discard incomplete frame
-				n--;
-				mp3_length -= frame_size;
-				break;
-			}
+            if (fread(in, 1, frame_size - 4, fin) != (unsigned int)(frame_size - 4)) {
+              // discard incomplete frame
+              n--;
+              mp3_length -= frame_size;
+              break;
+            }
             if (!is_valid_mp3_frame(in, header2, header3, protection)) {
                 n = 0;
                 break;
@@ -6004,7 +6004,7 @@ int try_to_decompress(FILE* file, int windowbits, int& compressed_stream_size, b
   if (file == fin) {
     seek_64(file, input_file_pos);
   } else {
-	seek_64(file, 0);
+    seek_64(file, 0);
   }
 
   in_memory = true;
@@ -6050,12 +6050,12 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-				  bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
-				  if (!enough_identical_compressed_bytes) {
-					if ((identical_bytes > DEF_COMPARE_CHUNK) && (identical_bytes + IDENTICAL_COMPRESSED_BYTES_TOLERANCE >= compressed_stream_size)) {
-					  enough_identical_compressed_bytes = true;
-					}
-				  }
+                  bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
+                  if (!enough_identical_compressed_bytes) {
+                    if ((identical_bytes > DEF_COMPARE_CHUNK) && (identical_bytes + IDENTICAL_COMPRESSED_BYTES_TOLERANCE >= compressed_stream_size)) {
+                      enough_identical_compressed_bytes = true;
+                    }
+                  }
 
                   final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (enough_identical_compressed_bytes) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
 
@@ -6103,14 +6103,14 @@ void try_recompress_bzip2(FILE* origfile, int level, int& compressed_stream_size
                   printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
                   }
 
-				  bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
-				  if (!enough_identical_compressed_bytes) {
-					  if ((identical_bytes > DEF_COMPARE_CHUNK) && (identical_bytes + IDENTICAL_COMPRESSED_BYTES_TOLERANCE >= compressed_stream_size)) {
-						  enough_identical_compressed_bytes = true;
-					  }
-				  }
+                  bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
+                  if (!enough_identical_compressed_bytes) {
+                    if ((identical_bytes > DEF_COMPARE_CHUNK) && (identical_bytes + IDENTICAL_COMPRESSED_BYTES_TOLERANCE >= compressed_stream_size)) {
+                      enough_identical_compressed_bytes = true;
+                    }
+                  }
 
-				  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (enough_identical_compressed_bytes) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
+                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (enough_identical_compressed_bytes) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
                 }
 
                 best_identical_bytes_decomp = identical_bytes_decomp;
@@ -8059,21 +8059,21 @@ bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsign
 }
 
 /* -----------------------------------------------
-	calculate frame crc
-	----------------------------------------------- */
+  calculate frame crc
+  ----------------------------------------------- */
 inline unsigned short mp3_calc_layer3_crc(unsigned char header2, unsigned char header3, unsigned char* sideinfo, int sidesize)
 {
-	// crc has a start value of 0xFFFF
-	unsigned short crc = 0xFFFF;
+  // crc has a start value of 0xFFFF
+  unsigned short crc = 0xFFFF;
 
-	// process two last bytes from header...
-	crc = (crc << 8) ^ crc_table[(crc>>8) ^ header2];
-	crc = (crc << 8) ^ crc_table[(crc>>8) ^ header3];
-	// ... and all the bytes from the side information
-	for ( int i = 0; i < sidesize; i++ )
-		crc = (crc << 8) ^ crc_table[(crc>>8) ^ sideinfo[i]];
+  // process two last bytes from header...
+  crc = (crc << 8) ^ crc_table[(crc>>8) ^ header2];
+  crc = (crc << 8) ^ crc_table[(crc>>8) ^ header3];
+  // ... and all the bytes from the side information
+  for ( int i = 0; i < sidesize; i++ )
+    crc = (crc << 8) ^ crc_table[(crc>>8) ^ sideinfo[i]];
 
-	return crc;
+  return crc;
 }
 
 void try_decompression_zlib(int windowbits) {
@@ -9522,7 +9522,7 @@ void init_compress_otf() {
     }
     case OTF_XZ_MT: {
       uint64_t memory_usage = 0;
-	  uint64_t block_size = 0;
+      uint64_t block_size = 0;
       uint64_t max_memory = compression_otf_max_memory * 1024 * 1024LL;
       int threads = compression_otf_thread_count;
 
@@ -9545,8 +9545,8 @@ void init_compress_otf() {
       printf("Compressing with LZMA, %i thread%s, memory usage: ", threads, plural.c_str());
       print64(memory_usage / (1024 * 1024));
       printf(" MiB, block size: ");
-	  print64(block_size / (1024 * 1024));
-	  printf(" MiB\n\n");
+      print64(block_size / (1024 * 1024));
+      printf(" MiB\n\n");
       break;
     }
   }
