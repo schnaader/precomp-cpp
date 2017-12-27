@@ -3200,7 +3200,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
           printf ("Can be decompressed to %i bytes\n", retval);
           }
           for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) break;
+            if (comp_mem_level_count[index] == -1) continue;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
@@ -3452,7 +3452,7 @@ void try_decompression_zip(int zip_header_length) {
 
           for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = MTF.First(); index>=0; index=MTF.Next()){
-              if (comp_mem_level_count[index] == -1) break;
+              if (comp_mem_level_count[index] == -1) continue;
               int comp_level = (index % 9) + 1;
               int mem_level = (index / 9) + 1;
 
@@ -6721,7 +6721,7 @@ void try_decompression_gzip(int gzip_header_length) {
 
           for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = MTF.First(); index>=0; index=MTF.Next()){
-              if (comp_mem_level_count[index] == -1) break;
+              if (comp_mem_level_count[index] == -1) continue;
               int comp_level = (index % 9) + 1;
               int mem_level = (index / 9) + 1;
 
@@ -6854,7 +6854,7 @@ void try_decompression_png (int windowbits) {
           }
 
           for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) break;
+            if (comp_mem_level_count[index] == -1) continue;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
@@ -6969,7 +6969,7 @@ void try_decompression_png_multi(int windowbits) {
           }
 
           for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) break;
+            if (comp_mem_level_count[index] == -1) continue;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
@@ -8113,7 +8113,7 @@ void try_decompression_zlib(int windowbits) {
           }
 
           for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) break;
+            if (comp_mem_level_count[index] == -1) continue;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
@@ -8246,7 +8246,7 @@ void try_decompression_brute() {
 
           for (windowbits = -15; windowbits < -7; windowbits++) {
             for (int index = MTF.First(); index>=0; index=MTF.Next()){
-              if (comp_mem_level_count[index] == -1) break;
+              if (comp_mem_level_count[index] == -1) continue;
               int comp_level = (index % 9) + 1;
               int mem_level = (index / 9) + 1;
 
@@ -8370,7 +8370,7 @@ void try_decompression_swf(int windowbits) {
           }
 
           for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) break;
+            if (comp_mem_level_count[index] == -1) continue;
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
