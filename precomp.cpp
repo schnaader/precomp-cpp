@@ -1046,7 +1046,7 @@ int init(int argc, char* argv[]) {
     }
     printf("  r            \"Recompress\" PCF file (restore original file)\n");
     printf("  o[filename]  Write output to [filename] <[input_file].pcf or file in header>\n");
-    printf("  e            preserve original extension of input name for output name \n");
+    printf("  e            preserve original extension of input name for output name <off>\n");
     printf("  c[lbn]       Compression method to use, l = lzma2, b = bZip2, n = none <l>\n");
     printf("  lm[amount]   Set maximal LZMA memory in MiB <%i>\n", lzma_max_memory_default());
     printf("  lt[count]    Set LZMA thread count <auto-detect: %i>\n", auto_detected_thread_count());
