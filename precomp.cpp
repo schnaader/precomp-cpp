@@ -1050,6 +1050,14 @@ int init(int argc, char* argv[]) {
     printf("  c[lbn]       Compression method to use, l = lzma2, b = bZip2, n = none <l>\n");
     printf("  lm[amount]   Set maximal LZMA memory in MiB <%i>\n", lzma_max_memory_default());
     printf("  lt[count]    Set LZMA thread count <auto-detect: %i>\n", auto_detected_thread_count());
+    if (long_help) {
+      printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3 of them can be combined) <xpa>\n");
+      printf("                  lf+[xpiatsd] = enable these filters, lf- = disable all\n");
+      printf("                  X = x86, P = PowerPC, I = IA-64, A = ARM, T = ARM-Thumb\n");
+      printf("                  S = SPARC, D = delta\n");
+    } else {
+      printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3, see long help for details) <xpa>\n");
+    }
     printf("  n[lbn]       Convert a PCF file to this compression (same as above) <off>\n");
     printf("  v            Verbose (debug) mode <off>\n");
     printf("  d[depth]     Set maximal recursion depth <10>\n");
@@ -1246,6 +1254,12 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,";; Thread count for LZMA compression method\n");
       fprintf(fnewini,";; 0 = auto-detect\n");
       fprintf(fnewini,"LZMA_Thread_Count=0\n");
+      fprintf(fnewini,";; LZMA filters to use (up to 3 of the them can be combined)\n");
+      fprintf(fnewini,";; X = x86, P = PowerPC, I = IA-64, A = ARM, T = ARM-Thumb\n");
+      fprintf(fnewini,";; S = SPARC, D = delta\n");
+      fptintf(fnewini,";; Use the following line to disable all filters\n");
+      fprintf(fnewini,"; LZMA_Filters=\n");
+      fprintf(fnewini,"LZMA_Filters=xpa\n");
       fprintf(fnewini,";; Fast mode (on/off)\n");
       fprintf(fnewini,"Fast_Mode=off\n\n");
       fprintf(fnewini,";; Intense mode (on/off)\n");
