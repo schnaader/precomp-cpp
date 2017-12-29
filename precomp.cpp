@@ -1092,7 +1092,7 @@ int init(int argc, char* argv[]) {
       printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3 of them can be combined) <xpa>\n");
       printf("                  lf+[xpiatsd] = enable these filters, lf- = disable all\n");
       printf("                  X = x86, P = PowerPC, I = IA-64, A = ARM, T = ARM-Thumb\n");
-      printf("                  S = SPARC, D = delta\n");
+      printf("                  S = SPARC, D = delta (must be followed by distance 1..256)\n");
     } else {
       printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3, see long help for details) <xpa>\n");
     }
