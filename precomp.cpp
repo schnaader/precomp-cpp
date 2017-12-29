@@ -64,7 +64,9 @@
 #include <thread>
 #include <set>
 #ifdef MINGW
+#ifndef _GLIBCXX_HAS_GTHREADS
 #include "contrib\mingw_std_threads\mingw.thread.h"
+#endif // _GLIBCXX_HAS_GTHREADS
 #endif
 #ifdef _MSC_VER
 #include <io.h>
@@ -737,6 +739,10 @@ int init(int argc, char* argv[]) {
                   exit(1);
                   break;
               }
+              if (argv[i][8] != 0) {
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+              }
             } else if ((toupper(argv[i][2]) == 'R') && (toupper(argv[i][3]) == 'O') && (toupper(argv[i][4]) == 'G') && (toupper(argv[i][5]) == 'O') && (toupper(argv[i][6]) == 'N') && (toupper(argv[i][7]) == 'L') && (toupper(argv[i][8]) == 'Y')) {
               switch (argv[i][9]) {
                 case '+':
@@ -749,6 +755,10 @@ int init(int argc, char* argv[]) {
                   printf("ERROR: Only + or - for this switch allowed\n");
                   exit(1);
                   break;
+              }
+              if (argv[i][8] != 0) {
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
               }
             } else {
               printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
@@ -848,6 +858,10 @@ int init(int argc, char* argv[]) {
                 exit(1);
                 break;
             }
+            if (argv[i][3] != 0) { // Extra Parameters?
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+            }
             show_lzma_progress = (compression_otf_method == OTF_XZ_MT);
             break;
           }
@@ -868,17 +882,29 @@ int init(int argc, char* argv[]) {
                 exit(1);
                 break;
             }
+            if (argv[i][3] != 0) { // Extra Parameters?
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+            }
             operation = P_CONVERT;
             break;
           }
         case 'V':
           {
             DEBUG_MODE = true;
+            if (argv[i][2] != 0) { // Extra Parameters?
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+            }
             break;
           }
         case 'R':
           {
             operation = P_DECOMPRESS;
+            if (argv[i][2] != 0) { // Extra Parameters?
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+            }
             break;
           }
         case 'Z':
@@ -960,6 +986,10 @@ int init(int argc, char* argv[]) {
                     exit(1);
                     break;
                 }
+                if (argv[i][7] != 0) { // Extra Parameters?
+                  printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                  exit(1);
+                }
               } else {
                 printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
                 exit(1);
@@ -975,11 +1005,19 @@ int init(int argc, char* argv[]) {
         case 'F':
           {
             fast_mode = true;
+             if (argv[i][2] != 0) { // Extra Parameters?
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+            }
             break;
           }
         case 'E':
             {
                 preserve_extension = true;
+                if (argv[i][2] != 0) { // Extra Parameters?
+                  printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                  exit(1);
+                }
                 break;
             }
         default:
@@ -2295,14 +2333,14 @@ int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel) {
 bool intense_mode_is_active() {
   if (!intense_mode) return false;
   if ((intense_mode_depth_limit == -1) || (recursion_depth <= intense_mode_depth_limit)) return true;
-  
+
   return false;
 }
 
 bool brute_mode_is_active() {
   if (!brute_mode) return false;
   if ((brute_mode_depth_limit == -1) || (recursion_depth <= brute_mode_depth_limit)) return true;
-  
+
   return false;
 }
 
@@ -2705,7 +2743,7 @@ int inf(FILE *source, int windowbits, int& compressed_stream_size, int& decompre
   compressed_stream_size = 0;
   decompressed_stream_size = 0;
   int avail_in_before;
-  
+
   /* decompress until deflate stream ends or end of file */
   do {
     print_work_sign(true);
@@ -2787,7 +2825,7 @@ bool check_inf_result(int cb_pos, int windowbits, bool use_brute_parameters = fa
   // and often occur in combination with static/dynamic BTYPE blocks
   if (use_brute_parameters) {
     if (btype == 0) return false;
-    
+
     // use a histogram to see if the first 64 bytes are too redundant for a deflate stream,
     // if a byte is present 8 or more times, it's most likely not a deflate stream
     // and could slow down the process (e.g. repeated patterns of "0xEBE1F1" or "0xEBEBEBFF"
@@ -2803,8 +2841,8 @@ bool check_inf_result(int cb_pos, int windowbits, bool use_brute_parameters = fa
       if (maximum>=((12+i)<<i) || used*(7-(i+(i/2)))<(i+1)*64)
         return false;
     }
-  }  
-    
+  }
+
   int ret;
   unsigned have = 0;
   z_stream strm;
@@ -2854,7 +2892,7 @@ bool check_inf_result(int cb_pos, int windowbits, bool use_brute_parameters = fa
         if (use_brute_parameters) less_than_skip = 1024;
         return (have >= less_than_skip);
   }
-  
+
   return false;
 }
 
@@ -2995,9 +3033,9 @@ int file_recompress(FILE* origfile, int compression_level, int windowbits, int m
     }
     fseek(ftempout, 0, SEEK_SET);
   }
-  
+
   retval = def_compare(origfile, compression_level, windowbits, memlevel, decompressed_bytes_used, decompressed_bytes_total, in_memory);
-  
+
   if (!in_memory) {
     safe_fclose(&ftempout);
   }
@@ -3415,7 +3453,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 
           } else {
             if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -3549,7 +3587,7 @@ void try_decompression_zip(int zip_header_length) {
             cb += best_identical_bytes - 1;
 
           } else {
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -4112,11 +4150,11 @@ bool compress_file(float min_percent, float max_percent) {
          )) { // SOI (FF D8) followed by a valid marker for Baseline/Progressive JPEGs
         saved_input_file_pos = input_file_pos;
         saved_cb = cb;
-             
+
         bool done = false, found = false;
         bool progressive_flag = (in_buf[cb + 3] == 0xC2);
         input_file_pos+=2;
-              
+
         do{
           seek_64(fin, input_file_pos );
           if ((fread(in, 1, 5, fin) != 5) || (in[0] != 0xFF))
@@ -4131,7 +4169,7 @@ bool compress_file(float min_percent, float max_percent) {
           }
         }
         while (!done);
-        
+
         if (found){
           found = done = false;
           input_file_pos += 5;
@@ -4161,7 +4199,7 @@ bool compress_file(float min_percent, float max_percent) {
         if (!found || !compressed_data_found) {
           input_file_pos = saved_input_file_pos;
           cb = saved_cb;
-        }  
+        }
       }
     }
 
@@ -4410,7 +4448,7 @@ bool compress_file(float min_percent, float max_percent) {
           if (intense_ignore_offsets->size() == 0) break;
           first = intense_ignore_offsets->begin();
         }
-            
+
         if (intense_ignore_offsets->size() > 0) {
           if (*first == input_file_pos) {
             ignore_this_position = true;
@@ -4418,7 +4456,7 @@ bool compress_file(float min_percent, float max_percent) {
           }
         }
       }
-      
+
       if (!ignore_this_position) {
         if (((((in_buf[cb] << 8) + in_buf[cb + 1]) % 31) == 0) &&
             ((in_buf[cb + 1] & 32) == 0)) { // FDICT must not be set
@@ -4458,7 +4496,7 @@ bool compress_file(float min_percent, float max_percent) {
           if (brute_ignore_offsets->size() == 0) break;
           first = brute_ignore_offsets->begin();
         }
-            
+
         if (brute_ignore_offsets->size() > 0) {
           if (*first == input_file_pos) {
             ignore_this_position = true;
@@ -4466,7 +4504,7 @@ bool compress_file(float min_percent, float max_percent) {
           }
         }
       }
-      
+
       if (!ignore_this_position) {
         saved_input_file_pos = input_file_pos;
         saved_cb = cb;
@@ -6073,7 +6111,7 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
 
                   final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (enough_identical_compressed_bytes) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
 
-                  // Partial matches sometimes need all the decompressed bytes, but there are much less 
+                  // Partial matches sometimes need all the decompressed bytes, but there are much less
                   // identical recompressed bytes - in these cases, all the decompressed bytes have to
                   // be stored together with the remaining recompressed bytes, so the result won't compress
                   // better than the original stream. What's important here is the ratio between recompressed ratio
@@ -6820,7 +6858,7 @@ void try_decompression_gzip(int gzip_header_length) {
             cb += best_identical_bytes - 1;
 
           } else {
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -6935,7 +6973,7 @@ void try_decompression_png (int windowbits) {
 
           } else {
             if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -7091,7 +7129,7 @@ void try_decompression_png_multi(int windowbits) {
 
           } else {
             if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -8209,7 +8247,7 @@ void try_decompression_zlib(int windowbits) {
             cb += best_identical_bytes - 1;
 
           } else {
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -8470,7 +8508,7 @@ void try_decompression_swf(int windowbits) {
 
           } else {
             if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos); 
+            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
             if (DEBUG_MODE) {
             printf("No matches\n");
             }
@@ -9307,9 +9345,9 @@ recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes
   penalty_bytes = new char[MAX_PENALTY_BYTES];
   local_penalty_bytes = new char[MAX_PENALTY_BYTES];
   best_penalty_bytes = new char[MAX_PENALTY_BYTES];
-  
+
   intense_ignore_offsets = new set<long long>();
-  brute_ignore_offsets = new set<long long>();  
+  brute_ignore_offsets = new set<long long>();
 
   // init MP3 suppression
   for (int i = 0; i < 16; i++) {
