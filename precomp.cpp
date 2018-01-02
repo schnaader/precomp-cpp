@@ -1,4 +1,4 @@
-/* Copyright 2006-2017 Christian Schneider
+/* Copyright 2006-2018 Christian Schneider
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -309,9 +309,9 @@ bool use_bzip2 = true;
 // msg = Buffer for error messages (256 bytes buffer size are enough)
 DLL void get_copyright_msg(char* msg) {
   if (V_MINOR2 == 0) {
-    sprintf(msg, "Precomp DLL v%i.%i (c) 2006-2017 by Christian Schneider",V_MAJOR,V_MINOR);
+    sprintf(msg, "Precomp DLL v%i.%i (c) 2006-2018 by Christian Schneider",V_MAJOR,V_MINOR);
   } else {
-    sprintf(msg, "Precomp DLL v%i.%i.%i (c) 2006-2017 by Christian Schneider",V_MAJOR,V_MINOR,V_MINOR2);
+    sprintf(msg, "Precomp DLL v%i.%i.%i (c) 2006-2018 by Christian Schneider",V_MAJOR,V_MINOR,V_MINOR2);
   }
 }
 
@@ -513,7 +513,7 @@ int init(int argc, char* argv[]) {
     printf("Precomp v%i.%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
   }
   printf(" - %s\n",V_MSG);
-  printf("Free for non-commercial use - Copyright 2006-2017 by Christian Schneider\n\n");
+  printf("Free for non-commercial use - Copyright 2006-2018 by Christian Schneider\n\n");
 
   // init compression and memory level count
   bool use_zlib_level[81];
@@ -1214,7 +1214,7 @@ int init_comfort(int argc, char* argv[]) {
     printf("Precomp Comfort v%i.%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
   }
   printf(" - %s\n",V_MSG);
-  printf("Free for non-commercial use - Copyright 2006-2017 by Christian Schneider\n\n");
+  printf("Free for non-commercial use - Copyright 2006-2018 by Christian Schneider\n\n");
 
   // init compression and memory level count
   bool use_zlib_level[81];

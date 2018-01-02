@@ -63,7 +63,7 @@ Legal stuff
 
 License
 -------
-Copyright 2006-2017 Christian Schneider
+Copyright 2006-2018 Christian Schneider
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
