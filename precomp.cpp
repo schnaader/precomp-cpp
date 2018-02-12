@@ -52,6 +52,7 @@
 #define ERR_BRUTE_MODE_LIMIT_TOO_BIG 15
 #define ERR_ONLY_SET_LZMA_MEMORY_ONCE 16
 #define ERR_ONLY_SET_LZMA_THREAD_ONCE 17
+#define ERR_ONLY_SET_LZMA_FILTERS_ONCE 18
 
 #include <stdio.h>
 #include <string.h>
@@ -152,6 +153,10 @@ unsigned char otf_out[CHUNK];
 
 #include "contrib/liblzma/precomp_xz.h"
 lzma_stream otf_xz_stream_c = LZMA_STREAM_INIT, otf_xz_stream_d = LZMA_STREAM_INIT;
+bool otf_xz_filter_enabled[6];
+bool otf_xz_filter_delta_enabled = false;
+int otf_xz_filter_delta_distance = 0;
+int otf_xz_filter_used_count = 0;
 
 int compression_otf_method = OTF_XZ_MT;
 uint64_t compression_otf_max_memory = 0;
@@ -529,6 +534,11 @@ int init(int argc, char* argv[]) {
   }
   suppress_mp3_big_value_pairs_sum = -1;
   mp3_parsing_cache_second_frame = -1;
+  
+  // init LZMA filters
+  for (int i = 0; i < 6; i++) {
+    otf_xz_filter_enabled[i] = false;
+  }
 
   bool valid_syntax = false;
   bool input_file_given = false;
@@ -540,6 +550,7 @@ int init(int argc, char* argv[]) {
   bool recursion_depth_set = false;
   bool lzma_max_memory_set = false;
   bool lzma_thread_count_set = false;
+  bool lzma_filters_set = false;
   bool long_help = false;
   bool preserve_extension = false;
 
@@ -707,17 +718,98 @@ int init(int argc, char* argv[]) {
               }
               int multiplicator = 1;
               for (j = (strlen(argv[i]) - 4); j >= 0; j--) {
-                if ((argv[i][j+3] < '0') || (argv[i][j+3] > '9')) {
+                if ((argv[i][j + 3] < '0') || (argv[i][j + 3] > '9')) {
                   printf("ERROR: Only numbers allowed for LZMA thread count\n");
                   exit(1);
                 }
-                compression_otf_thread_count += ((unsigned int)(argv[i][j+3])-'0') * multiplicator;
+                compression_otf_thread_count += ((unsigned int)(argv[i][j + 3]) - '0') * multiplicator;
                 if ((multiplicator * 10) < multiplicator) {
                   exit(1);
                 }
                 multiplicator *= 10;
               }
               lzma_thread_count_set = true;
+            } else if (toupper(argv[i][2]) == 'F') { // LZMA filters
+              if (lzma_filters_set) {
+                error(ERR_ONLY_SET_LZMA_FILTERS_ONCE);
+              }
+              switch (argv[i][3]) {
+                case '+':
+                  break;
+                case '-':
+                  if (argv[i][4] != 0) {
+                    printf("ERROR: \"-lf-\" must not be followed by anything\n");
+                    exit(1);
+                    break;
+                  }
+                  break;
+                default:
+                  printf("ERROR: Only + or - after \"-lf\" allowed\n");
+                  exit(1);
+                  break;
+              }
+
+              int argindex = 4;
+              while (argv[i][argindex] != 0) {
+                switch (toupper(argv[i][argindex])) {
+                  case 'X':
+                    otf_xz_filter_enabled[0] = true;
+                    break;
+                  case 'P':
+                    otf_xz_filter_enabled[1] = true;
+                    break;
+                  case 'I':
+                    otf_xz_filter_enabled[2] = true;
+                    break;
+                  case 'A':
+                    otf_xz_filter_enabled[3] = true;
+                    break;
+                  case 'T':
+                    otf_xz_filter_enabled[4] = true;
+                    break;
+                  case 'S':
+                    otf_xz_filter_enabled[5] = true;
+                    break;
+                  case 'D':
+                    {
+                      argindex++;
+                      if ((argv[i][argindex]) == 0) {
+                        printf("ERROR: LZMA delta filter must be followed by a distance (1..256)\n");
+                        exit(1);
+                      }
+                      otf_xz_filter_delta_enabled = true;
+                      int multiplicator = 1;
+                      for (j = strlen(argv[i]) - (argindex + 1); j >= 0; j--) {
+                        if ((argv[i][j + argindex] < '0') || (argv[i][j + argindex] > '9')) {
+                          printf("ERROR: Only numbers allowed for LZMA delta filter distance\n");
+                          exit(1);
+                        }
+                        otf_xz_filter_delta_distance += ((unsigned int)(argv[i][j + argindex]) - '0') * multiplicator;
+                        if ((multiplicator * 10) < multiplicator) {
+                          exit(1);
+                        }
+                        multiplicator *= 10;
+                      }
+                      if ((otf_xz_filter_delta_distance < 1) || (otf_xz_filter_delta_distance > 256)) {
+                        printf("ERROR: LZMA delta filter distance must be in range 1..256\n");
+                        exit(1);
+                      }
+                      break;
+                    }
+                  default:
+                    printf("ERROR: Unknown LZMA filter type \"%c\"\n", argv[i][argindex]);
+                    exit(1);
+                    break;
+                }
+                otf_xz_filter_used_count++;
+                if (otf_xz_filter_used_count > 3) {
+                  printf("ERROR: Only up to 3 LZMA filters can be used at the same time\n");
+                  exit(1);
+                }
+                argindex++;
+              }
+              lzma_filters_set = true;
+              break;
             } else {
               printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
               exit(1);
@@ -1089,12 +1181,12 @@ int init(int argc, char* argv[]) {
     printf("  lm[amount]   Set maximal LZMA memory in MiB <%i>\n", lzma_max_memory_default());
     printf("  lt[count]    Set LZMA thread count <auto-detect: %i>\n", auto_detected_thread_count());
     if (long_help) {
-      printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3 of them can be combined) <xpa>\n");
+      printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3 of them can be combined) <none>\n");
       printf("                  lf+[xpiatsd] = enable these filters, lf- = disable all\n");
       printf("                  X = x86, P = PowerPC, I = IA-64, A = ARM, T = ARM-Thumb\n");
       printf("                  S = SPARC, D = delta (must be followed by distance 1..256)\n");
     } else {
-      printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3, see long help for details) <xpa>\n");
+      printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3, see long help for details) <none>\n");
     }
     printf("  n[lbn]       Convert a PCF file to this compression (same as above) <off>\n");
     printf("  v            Verbose (debug) mode <off>\n");
@@ -1231,6 +1323,11 @@ int init_comfort(int argc, char* argv[]) {
   suppress_mp3_big_value_pairs_sum = -1;
   mp3_parsing_cache_second_frame = -1;
 
+  // init LZMA filters
+  for (int i = 0; i < 6; i++) {
+    otf_xz_filter_enabled[6] = false;
+  }
+
   // parse parameters (should be input file only)
   if (argc == 1) {
     printf("Usage:\n");
@@ -1294,10 +1391,9 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,"LZMA_Thread_Count=0\n");
       fprintf(fnewini,";; LZMA filters to use (up to 3 of the them can be combined)\n");
       fprintf(fnewini,";; X = x86, P = PowerPC, I = IA-64, A = ARM, T = ARM-Thumb\n");
-      fprintf(fnewini,";; S = SPARC, D = delta\n");
-      fptintf(fnewini,";; Use the following line to disable all filters\n");
-      fprintf(fnewini,"; LZMA_Filters=\n");
-      fprintf(fnewini,"LZMA_Filters=xpa\n");
+      fprintf(fnewini,";; S = SPARC, D = delta (must be followed by distance 1..256))\n");
+      fprintf(fnewini,";; The default is to disable all filters\n");
+      fprintf(fnewini,"LZMA_Filters=\n");
       fprintf(fnewini,";; Fast mode (on/off)\n");
       fprintf(fnewini,"Fast_Mode=off\n\n");
       fprintf(fnewini,";; Intense mode (on/off)\n");
@@ -1520,6 +1616,71 @@ int init_comfort(int argc, char* argv[]) {
             printf("INI: Set LZMA thread count to %i\n", compression_otf_thread_count);
           }
 
+          valid_param = true;
+        }
+        
+        if (strcmp(param, "lzma_filters") == 0) {
+          if (lzma_filters_set) {
+            error(ERR_ONLY_SET_LZMA_FILTERS_ONCE);
+          }
+
+          for (j = 0; j < (int)strlen(value); j++) {
+            switch (toupper(argv[i][j])) {
+              case 'X':
+                otf_xz_filter_enabled[0] = true;
+                break;
+              case 'P':
+                otf_xz_filter_enabled[1] = true;
+                break;
+              case 'I':
+                otf_xz_filter_enabled[2] = true;
+                break;
+              case 'A':
+                otf_xz_filter_enabled[3] = true;
+                break;
+              case 'T':
+                otf_xz_filter_enabled[4] = true;
+                break;
+              case 'S':
+                otf_xz_filter_enabled[5] = true;
+                break;
+              case 'D':
+                j++;
+                if ((argv[i][j]) == 0) {
+                  printf("ERROR: LZMA delta filter must be followed by a distance (1..256)\n");
+                  exit(1);
+                }
+                otf_xz_filter_delta_enabled = true;
+                int multiplicator = 1;
+                for (k = (strlen(value) - (j + 1); k >= 0; k--) {
+                  if ((argv[i][j + k] < '0') || (argv[i][j + k] > '9')) {
+                    printf("ERROR: Only numbers allowed for LZMA delta filter distance\n");
+                    exit(1);
+                  }
+                  otf_xz_filter_delta_distance += ((unsigned int)(argv[i][j + k]) - '0') * multiplicator;
+                  if (multiplicator * 10) < multiplicator) {
+                    exit(1);
+                  }
+                  multiplicator *= 10;
+                }
+                if ((otf_xz_filter_delta_distance < 1) || (otf_xz_filter_delta_distance > 256)) {
+                  printf("ERROR: LZMA delta filter distance must be in range 1..256\n);
+                  exit(1);
+                }
+                break;
+              default:
+                printf("ERROR: Unknown LZMA filter type \"%c\"\n", argv[i][j]);
+                exit(1);
+                break;
+            }
+            otf_xz_filter_used_count++;
+            if (otf_xz_filter_used_count > 3) {
+              printf("ERROR: Only up to 3 LZMA filters can be used at the same time\n");
+              exit(1);
+            }
+          }
+          
+          lzma_filters_set = true;
           valid_param = true;
         }
 
