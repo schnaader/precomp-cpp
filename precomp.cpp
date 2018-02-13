@@ -773,29 +773,24 @@ int init(int argc, char* argv[]) {
                   case 'D':
                     {
                       argindex++;
-                      if ((argv[i][argindex]) == 0) {
+                      char nextchar = argv[i][argindex];
+                      if ((nextchar < '0') || (nextchar > '9')) {
                         printf("ERROR: LZMA delta filter must be followed by a distance (1..256)\n");
                         exit(1);
                       }
                       otf_xz_filter_delta_enabled = true;
-                      int multiplicator = 1;
-                      for (j = strlen(argv[i]) - (argindex + 1); j >= 0; j--) {
-                        if ((argv[i][j + argindex] < '0') || (argv[i][j + argindex] > '9')) {
-                          printf("ERROR: Only numbers allowed for LZMA delta filter distance\n");
-                          exit(1);
-                        }
-                        otf_xz_filter_delta_distance += ((unsigned int)(argv[i][j + argindex]) - '0') * multiplicator;
-                        if ((multiplicator * 10) < multiplicator) {
-                          exit(1);
-                        }
-                        multiplicator *= 10;
+                      while ((argv[i][argindex] > '0') && (argv[i][argindex] < '9')) {
+                        otf_xz_filter_delta_distance *= 10;
+                        otf_xz_filter_delta_distance += (argv[i][argindex] - '0');
+                        argindex++;
                       }
                       if ((otf_xz_filter_delta_distance < 1) || (otf_xz_filter_delta_distance > 256)) {
                         printf("ERROR: LZMA delta filter distance must be in range 1..256\n");
                         exit(1);
                       }
-                      break;
+                      argindex--;
                     }
+                    break;
                   default:
                     printf("ERROR: Unknown LZMA filter type \"%c\"\n", argv[i][argindex]);
                     exit(1);
@@ -1646,27 +1641,22 @@ int init_comfort(int argc, char* argv[]) {
                 break;
               case 'D':
                 j++;
-                if ((argv[i][j]) == 0) {
+                char nextchar = argv[i][j];
+                if ((nextchar < '0') || (nextchar > '9')) {
                   printf("ERROR: LZMA delta filter must be followed by a distance (1..256)\n");
                   exit(1);
                 }
                 otf_xz_filter_delta_enabled = true;
-                int multiplicator = 1;
-                for (k = (strlen(value) - (j + 1); k >= 0; k--) {
-                  if ((argv[i][j + k] < '0') || (argv[i][j + k] > '9')) {
-                    printf("ERROR: Only numbers allowed for LZMA delta filter distance\n");
-                    exit(1);
-                  }
-                  otf_xz_filter_delta_distance += ((unsigned int)(argv[i][j + k]) - '0') * multiplicator;
-                  if (multiplicator * 10) < multiplicator) {
-                    exit(1);
-                  }
-                  multiplicator *= 10;
+                while ((argv[i][j] > '0') && (argv[i][j] < '9')) {
+                  otf_xz_filter_delta_distance *= 10;
+                  otf_xz_filter_delta_distance += (argv[i][j] - '0');
+                  j++;
                 }
                 if ((otf_xz_filter_delta_distance < 1) || (otf_xz_filter_delta_distance > 256)) {
-                  printf("ERROR: LZMA delta filter distance must be in range 1..256\n);
+                  printf("ERROR: LZMA delta filter distance must be in range 1..256\n");
                   exit(1);
                 }
+                j--;
                 break;
               default:
                 printf("ERROR: Unknown LZMA filter type \"%c\"\n", argv[i][j]);
@@ -9746,7 +9736,7 @@ void init_compress_otf() {
         threads = auto_detected_thread_count();
       }
 
-      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage, block_size)) {
+      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage, block_size, otf_xz_filter_enabled, otf_xz_filter_delta_enabled, otf_xz_filter_delta_distance, otf_xz_filter_used_count)) {
         printf("ERROR: xz Multi-Threaded init failed\n");
         exit(1);
       }

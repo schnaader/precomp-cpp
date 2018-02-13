@@ -52,8 +52,10 @@ lzma_filter get_filter(lzma_vli filter_id) {
   return result;
 }
 
-bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64_t &memory_usage, uint64_t &block_size)
+bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64_t &memory_usage, uint64_t &block_size, bool* filter_enabled, bool filter_delta_enabled, int filter_delta_distance, int filter_count)
 {
+  lzma_vli filter_to_lzma_vli[6] = { LZMA_FILTER_X86, LZMA_FILTER_POWERPC, LZMA_FILTER_IA64, LZMA_FILTER_ARM, LZMA_FILTER_ARMTHUMB, LZMA_FILTER_SPARC };
+
   // The threaded encoder takes the options as pointer to
   // a lzma_mt structure.
   lzma_mt mt;
@@ -114,16 +116,36 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64
   filterLzma2.id = LZMA_FILTER_LZMA2;
   filterLzma2.options = &opt_lzma2;
 
-  const lzma_filter filters[] = {
-    get_filter(LZMA_FILTER_X86),
-    get_filter(LZMA_FILTER_POWERPC),
-    //get_filter(LZMA_FILTER_IA64),
-    get_filter(LZMA_FILTER_ARM),
-    //get_filter(LZMA_FILTER_ARMTHUMB),
-    //get_filter(LZMA_FILTER_SPARC),
-    filterLzma2,
-    get_filter(LZMA_VLI_UNKNOWN)
-  };
+  lzma_filter filterDelta;
+  lzma_options_delta delta_options;
+  delta_options.type = LZMA_DELTA_TYPE_BYTE;
+  delta_options.dist = filter_delta_distance;
+  filterDelta.id = LZMA_FILTER_DELTA;
+  filterDelta.options = &delta_options;
+  
+  lzma_filter* filters;
+  if (filter_count == 0) {
+    filters = new lzma_filter[2] {
+      filterLzma2,
+      get_filter(LZMA_VLI_UNKNOWN)
+    };
+  } else {
+    filters = new lzma_filter[filter_count + 2];
+    int filter_idx = 0;
+    if (filter_delta_enabled) {
+
+      filters[filter_idx] = filterDelta;
+      filter_idx++;
+    }
+    for (int i = 0; i < 6; i++) {
+      if (filter_enabled[i]) {
+        filters[filter_idx] = get_filter(filter_to_lzma_vli[i]);
+        filter_idx++;
+      }
+    }
+    filters[filter_count] = filterLzma2;
+    filters[filter_count + 1] = get_filter(LZMA_VLI_UNKNOWN);
+  }
 
   mt.filters = filters;
 
@@ -133,5 +155,7 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64
   // Determine memory usage and block size
   memory_usage = lzma_stream_encoder_mt_memusage(&mt, &block_size);
     
+  delete[] filters;
+
   return check(ret);
 }
