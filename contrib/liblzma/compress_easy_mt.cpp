@@ -125,15 +125,13 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64
   
   lzma_filter* filters;
   if (filter_count == 0) {
-    filters = new lzma_filter[2] {
-      filterLzma2,
-      get_filter(LZMA_VLI_UNKNOWN)
-    };
+    filters = new lzma_filter[2];
+    filters[0] = filterLzma2;
+    filters[1] = get_filter(LZMA_VLI_UNKNOWN);
   } else {
     filters = new lzma_filter[filter_count + 2];
     int filter_idx = 0;
     if (filter_delta_enabled) {
-
       filters[filter_idx] = filterDelta;
       filter_idx++;
     }
