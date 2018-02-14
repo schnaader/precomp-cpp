@@ -1292,6 +1292,7 @@ int init_comfort(int argc, char* argv[]) {
   bool level_switch = false;
   bool lzma_max_memory_set = false;
   bool lzma_thread_count_set = false;
+  bool lzma_filters_set = false;
   bool preserve_extension = false;
 
   printf("\n");
@@ -1320,7 +1321,7 @@ int init_comfort(int argc, char* argv[]) {
 
   // init LZMA filters
   for (int i = 0; i < 6; i++) {
-    otf_xz_filter_enabled[6] = false;
+    otf_xz_filter_enabled[i] = false;
   }
 
   // parse parameters (should be input file only)
@@ -1388,7 +1389,7 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,";; X = x86, P = PowerPC, I = IA-64, A = ARM, T = ARM-Thumb\n");
       fprintf(fnewini,";; S = SPARC, D = delta (must be followed by distance 1..256))\n");
       fprintf(fnewini,";; The default is to disable all filters\n");
-      fprintf(fnewini,"LZMA_Filters=\n");
+      fprintf(fnewini,"; LZMA_Filters=XPIATSD2\n\n");
       fprintf(fnewini,";; Fast mode (on/off)\n");
       fprintf(fnewini,"Fast_Mode=off\n\n");
       fprintf(fnewini,";; Intense mode (on/off)\n");
@@ -1620,7 +1621,7 @@ int init_comfort(int argc, char* argv[]) {
           }
 
           for (j = 0; j < (int)strlen(value); j++) {
-            switch (toupper(argv[i][j])) {
+            switch (toupper(value[j])) {
               case 'X':
                 otf_xz_filter_enabled[0] = true;
                 break;
@@ -1640,32 +1641,38 @@ int init_comfort(int argc, char* argv[]) {
                 otf_xz_filter_enabled[5] = true;
                 break;
               case 'D':
-                j++;
-                char nextchar = argv[i][j];
-                if ((nextchar < '0') || (nextchar > '9')) {
-                  printf("ERROR: LZMA delta filter must be followed by a distance (1..256)\n");
-                  exit(1);
-                }
-                otf_xz_filter_delta_enabled = true;
-                while ((argv[i][j] > '0') && (argv[i][j] < '9')) {
-                  otf_xz_filter_delta_distance *= 10;
-                  otf_xz_filter_delta_distance += (argv[i][j] - '0');
+                {
                   j++;
+                  char nextchar = value[j];
+                  if ((nextchar < '0') || (nextchar > '9')) {
+                    printf("ERROR: LZMA delta filter must be followed by a distance (1..256)\n");
+                    wait_for_key();
+                    exit(1);
+                  }
+                  otf_xz_filter_delta_enabled = true;
+                  while ((value[j] > '0') && (value[j] < '9')) {
+                    otf_xz_filter_delta_distance *= 10;
+                    otf_xz_filter_delta_distance += (value[j] - '0');
+                    j++;
+                  }
+                  if ((otf_xz_filter_delta_distance < 1) || (otf_xz_filter_delta_distance > 256)) {
+                    printf("ERROR: LZMA delta filter distance must be in range 1..256\n");
+                    wait_for_key();
+                    exit(1);
+                  }
+                  j--;
+                  break;
                 }
-                if ((otf_xz_filter_delta_distance < 1) || (otf_xz_filter_delta_distance > 256)) {
-                  printf("ERROR: LZMA delta filter distance must be in range 1..256\n");
-                  exit(1);
-                }
-                j--;
-                break;
               default:
-                printf("ERROR: Unknown LZMA filter type \"%c\"\n", argv[i][j]);
+                printf("ERROR: Unknown LZMA filter type \"%c\"\n", value[j]);
+                wait_for_key();
                 exit(1);
                 break;
             }
             otf_xz_filter_used_count++;
             if (otf_xz_filter_used_count > 3) {
               printf("ERROR: Only up to 3 LZMA filters can be used at the same time\n");
+              wait_for_key();
               exit(1);
             }
           }
