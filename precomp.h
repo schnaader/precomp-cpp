@@ -19,11 +19,11 @@ bool intense_mode_is_active();
 bool brute_mode_is_active();
 int inf_bzip2(FILE *source, FILE *dest);
 int def_bzip2(FILE *source, FILE *dest, int level);
-long long file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, int& decompressed_bytes_used, long long decomp_bytes_total, bool in_memory);
+long long file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, long long& decompressed_bytes_used, long long decomp_bytes_total, bool in_memory);
 long long file_recompress_bzip2(FILE* origfile, int level, int& decompressed_bytes_used, int& decompressed_bytes_total);
 void write_decompressed_data(long long byte_count, char* decompressed_file_name = tempfile1);
 void write_decompressed_data_io_buf(long long byte_count, bool in_memory, char* decompressed_file_name = tempfile1);
-unsigned int compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2);
+unsigned long long compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2);
 long long compare_file_mem_penalty(FILE* file1, unsigned char* input_bytes2, long long pos1, long long bytecount, long long& total_same_byte_count, long long& total_same_byte_count_penalty, long long& rek_same_byte_count, long long& rek_same_byte_count_penalty, long long& rek_penalty_bytes_len, long long& local_penalty_bytes_len, bool& use_penalty_bytes);
 long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long long pos2);
 void start_uncompressed_data();
@@ -131,7 +131,7 @@ public:
 };
 
 void write_ftempout_if_not_present(int byte_count, bool in_memory, bool leave_open = false);
-recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes);
+recursion_result recursion_compress(long long compressed_bytes, long long decompressed_bytes);
 recursion_result recursion_decompress(long long recursion_data_length);
 
 // compression-on-the-fly

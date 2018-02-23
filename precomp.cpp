@@ -2491,7 +2491,7 @@ void copy_penalty_bytes(long long& rek_penalty_bytes_len, bool& use_penalty_byte
 }
 
 #define DEF_COMPARE_CHUNK 512
-int def_compare(FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used, long long decompressed_bytes_total, bool in_memory) {
+long long def_compare(FILE *compfile, int level, int windowbits, int memlevel, long long& decompressed_bytes_used, long long decompressed_bytes_total, bool in_memory) {
   int ret, flush;
   unsigned have;
   z_stream strm;
@@ -2573,7 +2573,7 @@ int def_compare(FILE *compfile, int level, int windowbits, int memlevel, int& de
   return rek_same_byte_count;
 }
 
-int def_compare_bzip2(FILE *source, FILE *compfile, int level, int& decompressed_bytes_used) {
+long long def_compare_bzip2(FILE *source, FILE *compfile, int level, long long& decompressed_bytes_used) {
   int ret, flush;
   unsigned have;
   bz_stream strm;
@@ -3160,7 +3160,7 @@ int def_bzip2(FILE *source, FILE *dest, int level) {
   return BZ_OK;
 }
 
-long long file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, int& decompressed_bytes_used, long long decompressed_bytes_total, bool in_memory) {
+long long file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, long long& decompressed_bytes_used, long long decompressed_bytes_total, bool in_memory) {
   long long retval;
 
   if (!in_memory) {
@@ -3182,7 +3182,7 @@ long long file_recompress(FILE* origfile, int compression_level, int windowbits,
   return retval;
 }
 
-long long file_recompress_bzip2(FILE* origfile, int level, int& decompressed_bytes_used, int& decompressed_bytes_total) {
+long long file_recompress_bzip2(FILE* origfile, int level, long long& decompressed_bytes_used, int& decompressed_bytes_total) {
   long long retval;
 
   ftempout = fopen(tempfile1,"rb");
@@ -3221,10 +3221,10 @@ void write_decompressed_data_io_buf(long long byte_count, bool in_memory, char* 
     }
 }
 
-unsigned int compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2) {
+unsigned long long compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2) {
   unsigned char input_bytes1[COMP_CHUNK];
   unsigned char input_bytes2[COMP_CHUNK];
-  int same_byte_count = 0;
+  long long same_byte_count = 0;
   int size1, size2, minsize;
   int i;
   bool endNow = false;
@@ -3326,14 +3326,14 @@ void end_uncompressed_data() {
   uncompressed_data_in_work = false;
 }
 
-int identical_bytes = -1;
-int best_identical_bytes = -1;
-int best_identical_bytes_decomp = -1;
+long long identical_bytes = -1;
+long long best_identical_bytes = -1;
+long long best_identical_bytes_decomp = -1;
 int best_compression = -1;
 int best_mem_level = -1;
 int best_windowbits = -1;
 int best_penalty_bytes_len = 0;
-int identical_bytes_decomp = -1;
+long long identical_bytes_decomp = -1;
 bool final_compression_found = false;
 
 void init_decompression_variables() {
@@ -3387,7 +3387,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
             recompressed_pdf_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
+            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
             }
 
             if (img_bpc == 8) {
@@ -3475,8 +3475,8 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
               }
             }
 
-            fout_fput32(best_identical_bytes);
-            fout_fput32(best_identical_bytes_decomp);
+            fout_fput64(best_identical_bytes);
+            fout_fput64(best_identical_bytes_decomp);
 
             // eventually write BMP header
 
@@ -3640,7 +3640,7 @@ void try_decompression_zip(int zip_header_length) {
 
             windowbits = best_windowbits;
             if (DEBUG_MODE) {
-            printf("Best match with level combination %i%i, windowbits = %i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, -windowbits, best_identical_bytes, best_identical_bytes_decomp);
+            cout << "Best match with level combination " << best_compression << best_mem_level << ", windowbits = " << -windowbits << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -3699,8 +3699,8 @@ void try_decompression_zip(int zip_header_length) {
               }
             }
 
-            fout_fput32(best_identical_bytes);
-            fout_fput32(best_identical_bytes_decomp);
+            fout_fput64(best_identical_bytes);
+            fout_fput64(best_identical_bytes_decomp);
 
             if (r.success) {
               fout_fput64(r.file_length);
@@ -6262,8 +6262,8 @@ void try_recompress_bzip2(FILE* origfile, int level, int& compressed_stream_size
               if ((identical_bytes > best_identical_bytes)  || ((identical_bytes == best_identical_bytes) && (penalty_bytes_len < best_penalty_bytes_len))) {
                 if (identical_bytes > min_ident_size) {
                   if (DEBUG_MODE) {
-                  printf("Identical recompressed bytes: %i of %i\n", identical_bytes, compressed_stream_size);
-                  printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
+                  cout << "Identical recompressed bytes: " << identical_bytes << " of " << compressed_stream_size << endl;
+                  cout << "Identical decompressed bytes: " << identical_bytes_decomp << " of " << decomp_bytes_total << endl;
                   }
 
                   bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
@@ -6885,7 +6885,7 @@ void try_decompression_gzip(int gzip_header_length) {
 
             windowbits = best_windowbits;
             if (DEBUG_MODE) {
-            printf("Best match with level combination %i%i, windowbits = %i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, -windowbits, best_identical_bytes, best_identical_bytes_decomp);
+            cout << "Best match with level combination " << best_compression << best_mem_level << ", windowbits = " << -windowbits << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -6944,8 +6944,8 @@ void try_decompression_gzip(int gzip_header_length) {
               }
             }
 
-            fout_fput32(best_identical_bytes);
-            fout_fput32(best_identical_bytes_decomp);
+            fout_fput64(best_identical_bytes);
+            fout_fput64(best_identical_bytes_decomp);
 
             if (r.success) {
               fout_fput64(r.file_length);
@@ -7013,7 +7013,7 @@ void try_decompression_png (int windowbits) {
             recompressed_png_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
+            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -7065,8 +7065,8 @@ void try_decompression_png (int windowbits) {
               }
             }
 
-            fout_fput32(best_identical_bytes);
-            fout_fput32(best_identical_bytes_decomp);
+            fout_fput64(best_identical_bytes);
+            fout_fput64(best_identical_bytes_decomp);
 
             // write decompressed data
 
@@ -7126,7 +7126,7 @@ void try_decompression_png_multi(int windowbits) {
             recompressed_png_multi_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
+            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -7216,8 +7216,8 @@ void try_decompression_png_multi(int windowbits) {
               }
             }
 
-            fout_fput32(best_identical_bytes);
-            fout_fput32(best_identical_bytes_decomp);
+            fout_fput64(best_identical_bytes);
+            fout_fput64(best_identical_bytes_decomp);
 
             // write decompressed data
 
@@ -7464,7 +7464,7 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
   return true;
 }
 
-bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_length, int& decomp_length, unsigned char& block_size, GifCodeStruct* g) {
+bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_length, long long& decomp_length, unsigned char& block_size, GifCodeStruct* g) {
   int i, j;
   GifFileType* myGifFile;
   int Row, Col, Width, Height, ExtCode;
@@ -7642,7 +7642,7 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
   }
 
   gif_length = srcfile_pos - src_pos;
-  decomp_length = ftell(dstfile);
+  decomp_length = tell_64(dstfile);
 
   if (ScreenBuff != NULL) {
     for (i = 0; i < myGifFile->SHeight; i++) {
@@ -7660,7 +7660,7 @@ void try_decompression_gif(unsigned char version[5]) {
 
   unsigned char block_size = 255;
   int gif_length = -1;
-  int decomp_length = -1;
+  long long decomp_length = -1;
 
   GifCodeStruct gCode;
   GifCodeInit(&gCode);
@@ -7688,7 +7688,7 @@ void try_decompression_gif(unsigned char version[5]) {
   }
 
   if (DEBUG_MODE) {
-  printf ("Can be decompressed to %i bytes\n", decomp_length);
+  cout << "Can be decompressed to " << decomp_length << " bytes" << endl;
   }
 
   safe_fclose(&ftempout);
@@ -7766,8 +7766,8 @@ void try_decompression_gif(unsigned char version[5]) {
           }
         }
 
-        fout_fput32(best_identical_bytes);
-        fout_fput32(decomp_length);
+        fout_fput64(best_identical_bytes);
+        fout_fput64(decomp_length);
 
         // write decompressed data
         write_decompressed_data(decomp_length);
@@ -7964,7 +7964,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
         if (jpg_success) {
 
           if (DEBUG_MODE) {
-          printf("Best match: %i bytes, recompressed to %i bytes\n", best_identical_bytes, best_identical_bytes_decomp);
+          cout << "Best match: " << best_identical_bytes << " bytes, recompressed to " << best_identical_bytes_decomp << " bytes" << endl;
           }
 
           // end uncompressed data
@@ -7981,8 +7981,8 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           }
           fout_fputc(6); // JPG
 
-          fout_fput32(best_identical_bytes);
-          fout_fput32(best_identical_bytes_decomp);
+          fout_fput64(best_identical_bytes);
+          fout_fput64(best_identical_bytes_decomp);
 
           // write compressed JPG
           if (in_memory) {
@@ -8114,7 +8114,7 @@ void try_decompression_mp3 (long long mp3_length) {
         if (mp3_success) {
 
           if (DEBUG_MODE) {
-          printf("Best match: %i bytes, recompressed to %i bytes\n", best_identical_bytes, best_identical_bytes_decomp);
+          cout << "Best match: " << best_identical_bytes << " bytes, recompressed to " << best_identical_bytes_decomp << " bytes" << endl;
           }
 
           // end uncompressed data
@@ -8127,8 +8127,8 @@ void try_decompression_mp3 (long long mp3_length) {
           fout_fputc(1); // no penalty bytes
           fout_fputc(10); // MP3
 
-          fout_fput32(best_identical_bytes);
-          fout_fput32(best_identical_bytes_decomp);
+          fout_fput64(best_identical_bytes);
+          fout_fput64(best_identical_bytes_decomp);
 
           // write compressed MP3
           if (in_memory) {
@@ -8257,7 +8257,7 @@ void try_decompression_zlib(int windowbits) {
             recompressed_zlib_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
+            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -8316,8 +8316,8 @@ void try_decompression_zlib(int windowbits) {
               }
             }
 
-            fout_fput32(best_identical_bytes);
-            fout_fput32(best_identical_bytes_decomp);
+            fout_fput64(best_identical_bytes);
+            fout_fput64(best_identical_bytes_decomp);
 
             if (r.success) {
               fout_fput64(r.file_length);
@@ -8391,7 +8391,7 @@ void try_decompression_brute() {
 
             windowbits = best_windowbits;
             if (DEBUG_MODE) {
-            printf("Best match with level combination %i%i, windowbits = %i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, -windowbits, best_identical_bytes, best_identical_bytes_decomp);
+            cout << "Best match with level combination " << best_compression << best_mem_level << ", windowbits = " << -windowbits << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -8444,8 +8444,8 @@ void try_decompression_brute() {
               }
             }
 
-            fout_fput32(best_identical_bytes);
-            fout_fput32(best_identical_bytes_decomp);
+            fout_fput64(best_identical_bytes);
+            fout_fput64(best_identical_bytes_decomp);
 
             if (r.success) {
               fout_fput64(r.file_length);
@@ -8510,7 +8510,7 @@ void try_decompression_swf(int windowbits) {
             recompressed_swf_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match with level combination %i%i: %i bytes, decompressed to %i bytes\n", best_compression, best_mem_level, best_identical_bytes, best_identical_bytes_decomp);
+            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
             }
 
             if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
@@ -8572,8 +8572,8 @@ void try_decompression_swf(int windowbits) {
               }
             }
 
-            fout_fput32(best_identical_bytes);
-            fout_fput32(best_identical_bytes_decomp);
+            fout_fput64(best_identical_bytes);
+            fout_fput64(best_identical_bytes_decomp);
 
             if (r.success) {
               fout_fput64(r.file_length);
@@ -8636,7 +8636,7 @@ void try_decompression_bzip2(int compression_level) {
             recompressed_bzip2_count++;
 
             if (DEBUG_MODE) {
-            printf("Best match: %i bytes, decompressed to %i bytes\n", best_identical_bytes, best_identical_bytes_decomp);
+            cout << "Best match: " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
             }
 
             non_zlib_was_used = true;
@@ -8673,8 +8673,8 @@ void try_decompression_bzip2(int compression_level) {
               }
             }
 
-            fout_fput32(best_identical_bytes);
-            fout_fput32(best_identical_bytes_decomp);
+            fout_fput64(best_identical_bytes);
+            fout_fput64(best_identical_bytes_decomp);
 
             if (r.success) {
               fout_fput64(r.file_length);
@@ -8941,7 +8941,7 @@ void try_decompression_base64(int base64_header_length) {
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible Base64-Stream (line_case " << line_case << ", line_count " << line_count << ") found at position " << saved_input_file_pos << endl;
-          printf ("Can be decoded to %i bytes\n", identical_bytes);
+          cout << "Can be decoded to " << identical_bytes << " bytes" << endl;
           }
 
           // try to re-encode Base64 data
@@ -8966,7 +8966,7 @@ void try_decompression_base64(int base64_header_length) {
             recompressed_streams_count++;
             recompressed_base64_count++;
             if (DEBUG_MODE) {
-            printf("Match: encoded to %i bytes\n", identical_bytes_decomp);
+            cout << "Match: encoded to " << identical_bytes_decomp << " bytes" << endl;
             }
 
             // end uncompressed data
@@ -9003,8 +9003,8 @@ void try_decompression_base64(int base64_header_length) {
 
             delete[] base64_line_len;
 
-            fout_fput32(identical_bytes);
-            fout_fput32(identical_bytes_decomp);
+            fout_fput64(identical_bytes);
+            fout_fput64(identical_bytes_decomp);
 
             if (r.success) {
               fout_fput64(r.file_length);
@@ -9365,7 +9365,7 @@ void write_ftempout_if_not_present(int byte_count, bool in_memory, bool leave_op
   }
 }
 
-recursion_result recursion_compress(int compressed_bytes, int decompressed_bytes) {
+recursion_result recursion_compress(long long compressed_bytes, long long decompressed_bytes) {
   FILE* recursion_fout;
   recursion_result tmp_r;
   tmp_r.success = false;
