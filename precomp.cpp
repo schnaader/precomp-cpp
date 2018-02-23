@@ -2862,7 +2862,7 @@ int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memle
   return Z_OK;
 }
 
-int inf(FILE *source, int windowbits, int& compressed_stream_size, int& decompressed_stream_size, bool& in_memory) {
+int inf(FILE *source, int windowbits, long long& compressed_stream_size, long long& decompressed_stream_size, bool& in_memory) {
   int ret;
   unsigned have;
   z_stream strm;
@@ -3353,7 +3353,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
   int bmp_header_type = 0; // 0 = none, 1 = 8-bit, 2 = 24-bit
 
         // try to decompress at current position
-        int compressed_stream_size = -1;
+        long long compressed_stream_size = -1;
         bool in_memory;
         retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
 
@@ -3369,7 +3369,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible zLib-Stream in PDF found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          printf("Compressed size: %i\n", compressed_stream_size);
+          cout << "Compressed size: " << compressed_stream_size << endl;
           cout << "Can be decompressed to " << retval << " bytes" << endl;
           }
           for (int index = MTF.First(); index>=0; index=MTF.Next()){
@@ -3605,7 +3605,7 @@ void try_decompression_zip(int zip_header_length) {
         int windowbits;
 
         // try to decompress at current position
-        int compressed_stream_size = -1;
+        long long compressed_stream_size = -1;
         bool in_memory;
         retval = try_to_decompress(fin, -15, compressed_stream_size, in_memory);
 
@@ -3617,7 +3617,7 @@ void try_decompression_zip(int zip_header_length) {
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible zLib-Stream in ZIP found at position " << saved_input_file_pos << endl;
-          printf("Compressed size: %i\n", compressed_stream_size);
+          cout << "Compressed size: " << compressed_stream_size << endl;
           cout << "Can be decompressed to " << retval << " bytes" << endl;
           }
 
@@ -5986,8 +5986,8 @@ void convert_file() {
   denit_convert();
 }
 
-int try_to_decompress(FILE* file, int windowbits, int& compressed_stream_size, bool& in_memory) {
-  int r, decompressed_stream_size;
+long long try_to_decompress(FILE* file, int windowbits, long long& compressed_stream_size, bool& in_memory) {
+  long long r, decompressed_stream_size;
 
   print_work_sign(true);
 
@@ -6004,8 +6004,8 @@ int try_to_decompress(FILE* file, int windowbits, int& compressed_stream_size, b
   return r;
 }
 
-int try_to_decompress_bzip2(FILE* file, int compression_level, int& compressed_stream_size) {
-  int r;
+long long try_to_decompress_bzip2(FILE* file, int compression_level, long long& compressed_stream_size) {
+  long long r;
 
   print_work_sign(true);
 
@@ -6028,7 +6028,7 @@ int try_to_decompress_bzip2(FILE* file, int compression_level, int& compressed_s
   return r;
 }
 
-void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits, int& compressed_stream_size, long long decomp_bytes_total, bool in_memory) {
+void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits, long long& compressed_stream_size, long long decomp_bytes_total, bool in_memory) {
             print_work_sign(true);
 
             identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level, identical_bytes_decomp, decomp_bytes_total, in_memory);
@@ -6080,7 +6080,7 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
             }
 }
 
-void try_recompress_bzip2(FILE* origfile, int level, int& compressed_stream_size) {
+void try_recompress_bzip2(FILE* origfile, int level, long long& compressed_stream_size) {
             print_work_sign(true);
 
             long long decomp_bytes_total;
@@ -6677,7 +6677,7 @@ void try_decompression_gzip(int gzip_header_length) {
         int windowbits;
 
         // try to decompress at current position
-        int compressed_stream_size = -1;
+        long long compressed_stream_size = -1;
         bool in_memory;
         retval = try_to_decompress(fin, -15, compressed_stream_size, in_memory);
 
@@ -6689,7 +6689,7 @@ void try_decompression_gzip(int gzip_header_length) {
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible zLib-Stream in GZip found at position " << saved_input_file_pos << endl;
-          printf("Compressed size: %i\n", compressed_stream_size);
+          cout << "Compressed size: " << compressed_stream_size << endl;
           cout << "Can be decompressed to " << retval << " bytes" << endl;
           }
 
@@ -6809,7 +6809,7 @@ void try_decompression_png (int windowbits) {
   init_decompression_variables();
 
         // try to decompress at current position
-        int compressed_stream_size = -1;
+        long long compressed_stream_size = -1;
         bool in_memory;
         retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
 
@@ -6821,7 +6821,7 @@ void try_decompression_png (int windowbits) {
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible zLib-Stream in PNG found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          printf("Compressed size: %i\n", compressed_stream_size);
+          cout << "Compressed size: " << compressed_stream_size << endl;
           cout << "Can be decompressed to " << retval << " bytes" << endl;
           }
 
@@ -6922,7 +6922,7 @@ void try_decompression_png_multi(int windowbits) {
   init_decompression_variables();
 
         // try to decompress at current position
-        int compressed_stream_size = -1;
+        long long compressed_stream_size = -1;
         bool in_memory;
         retval = try_to_decompress(fpng, windowbits, compressed_stream_size, in_memory);
 
@@ -6934,7 +6934,7 @@ void try_decompression_png_multi(int windowbits) {
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible zLib-Stream in multiPNG found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          printf("Compressed size: %i\n", compressed_stream_size);
+          cout << "Compressed size: " << compressed_stream_size << endl;
           cout << "Can be decompressed to " << retval << " bytes" << endl;
           }
 
@@ -8053,7 +8053,7 @@ void try_decompression_zlib(int windowbits) {
   init_decompression_variables();
 
         // try to decompress at current position
-        int compressed_stream_size = -1;
+        long long compressed_stream_size = -1;
         bool in_memory;
         retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
 
@@ -8065,7 +8065,7 @@ void try_decompression_zlib(int windowbits) {
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible zLib-Stream (intense mode) found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          printf("Compressed size: %i\n", compressed_stream_size);
+          cout << "Compressed size: " << compressed_stream_size << endl;
           cout << "Can be decompressed to " << retval << " bytes" << endl;
           }
 
@@ -8183,7 +8183,7 @@ void try_decompression_brute() {
         int windowbits;
 
         // try to decompress at current position
-        int compressed_stream_size = -1;
+        long long compressed_stream_size = -1;
         bool in_memory;
         retval = try_to_decompress(fin, -15, compressed_stream_size, in_memory);
 
@@ -8195,7 +8195,7 @@ void try_decompression_brute() {
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible zLib-Stream (brute mode) found at position " << saved_input_file_pos << endl;
-          printf("Compressed size: %i\n", compressed_stream_size);
+          cout << "Compressed size: " << compressed_stream_size << endl;
           cout << "Can be decompressed to " << retval << " bytes" << endl;
           }
 
@@ -8306,7 +8306,7 @@ void try_decompression_swf(int windowbits) {
   init_decompression_variables();
 
         // try to decompress at current position
-        int compressed_stream_size = -1;
+        long long compressed_stream_size = -1;
         bool in_memory;
         retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
 
@@ -8318,7 +8318,7 @@ void try_decompression_swf(int windowbits) {
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible zLib-Stream in SWF found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          printf("Compressed size: %i\n", compressed_stream_size);
+          cout << "Compressed size: " << compressed_stream_size << endl;
           cout << "Can be decompressed to " << retval << " bytes" << endl;
           }
 
@@ -8437,7 +8437,7 @@ void try_decompression_bzip2(int compression_level) {
   init_decompression_variables();
 
         // try to decompress at current position
-        int compressed_stream_size = -1;
+        long long compressed_stream_size = -1;
         retval = try_to_decompress_bzip2(fin, compression_level, compressed_stream_size);
 
         if (retval > 0) { // seems to be a zLib-Stream
@@ -8448,11 +8448,11 @@ void try_decompression_bzip2(int compression_level) {
           if (DEBUG_MODE) {
           print_debug_percent();
           cout << "Possible bZip2-Stream found at position " << saved_input_file_pos << ", compression level = " << compression_level << endl;
-          printf("Compressed size: %i\n", compressed_stream_size);
+          cout << "Compressed size: " << compressed_stream_size << endl;
 
           ftempout = tryOpen(tempfile1, "rb");
           fseek(ftempout, 0, SEEK_END);
-          printf ("Can be decompressed to %li bytes\n", ftell(ftempout));
+          cout << "Can be decompressed to " << tell_64(ftempout) << " bytes" << endl;
           safe_fclose(&ftempout);
           }
 
@@ -9184,7 +9184,7 @@ void recursion_pop() {
   recursion_stack_pop(&fin_length, sizeof(fin_length));
 }
 
-void write_ftempout_if_not_present(int byte_count, bool in_memory, bool leave_open) {
+void write_ftempout_if_not_present(long long byte_count, bool in_memory, bool leave_open) {
   if (in_memory) {
     ftempout = tryOpen(tempfile1, "wb");
     fast_copy(decomp_io_buf, ftempout, byte_count);
