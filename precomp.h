@@ -1,6 +1,6 @@
 int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel);
 int def_compare(FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used, int decompressed_bytes_total, bool in_memory);
-int def_compare_bzip2(FILE *source, FILE *compfile, int level, int& decompressed_bytes_used);
+long long def_compare_bzip2(FILE *source, FILE *compfile, int level, long long& decompressed_bytes_used);
 int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, long long stream_size_in, long long stream_size_out);
 int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, long long stream_size_in, long long stream_size_out, int bmp_width);
 int inf(FILE *source, int windowbits, int& compressed_stream_size, int& decompressed_stream_size, bool& in_memory);
@@ -20,7 +20,7 @@ bool brute_mode_is_active();
 int inf_bzip2(FILE *source, FILE *dest);
 int def_bzip2(FILE *source, FILE *dest, int level);
 long long file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, long long& decompressed_bytes_used, long long decomp_bytes_total, bool in_memory);
-long long file_recompress_bzip2(FILE* origfile, int level, int& decompressed_bytes_used, int& decompressed_bytes_total);
+long long file_recompress_bzip2(FILE* origfile, int level, long long& decompressed_bytes_used, long long& decompressed_bytes_total);
 void write_decompressed_data(long long byte_count, char* decompressed_file_name = tempfile1);
 void write_decompressed_data_io_buf(long long byte_count, bool in_memory, char* decompressed_file_name = tempfile1);
 unsigned long long compare_files(FILE* file1, FILE* file2, unsigned int pos1, unsigned int pos2);

@@ -2497,7 +2497,7 @@ long long def_compare(FILE *compfile, int level, int windowbits, int memlevel, l
   z_stream strm;
   long long identical_bytes_compare = 0;
 
-  int comp_pos = 0;
+  long long comp_pos = 0;
   decompressed_bytes_used = 0;
 
   /* allocate deflate state */
@@ -2579,7 +2579,7 @@ long long def_compare_bzip2(FILE *source, FILE *compfile, int level, long long& 
   bz_stream strm;
   long long identical_bytes_compare = 0;
 
-  int comp_pos = 0;
+  long long comp_pos = 0;
   decompressed_bytes_used = 0;
 
   /* allocate deflate state */
@@ -3182,12 +3182,12 @@ long long file_recompress(FILE* origfile, int compression_level, int windowbits,
   return retval;
 }
 
-long long file_recompress_bzip2(FILE* origfile, int level, long long& decompressed_bytes_used, int& decompressed_bytes_total) {
+long long file_recompress_bzip2(FILE* origfile, int level, long long& decompressed_bytes_used, long long& decompressed_bytes_total) {
   long long retval;
 
   ftempout = fopen(tempfile1,"rb");
   fseek(ftempout, 0, SEEK_END);
-  decompressed_bytes_total = ftell(ftempout);
+  decompressed_bytes_total = tell_64(ftempout);
   if (ftempout == NULL) {
     error(ERR_TEMP_FILE_DISAPPEARED);
   }
@@ -6083,7 +6083,7 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
 void try_recompress_bzip2(FILE* origfile, int level, int& compressed_stream_size) {
             print_work_sign(true);
 
-            int decomp_bytes_total;
+            long long decomp_bytes_total;
             identical_bytes = file_recompress_bzip2(origfile, level, identical_bytes_decomp, decomp_bytes_total);
             if (identical_bytes > -1) { // successfully recompressed?
               if ((identical_bytes > best_identical_bytes)  || ((identical_bytes == best_identical_bytes) && (penalty_bytes_len < best_penalty_bytes_len))) {
