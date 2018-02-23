@@ -4750,20 +4750,11 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       if (DEBUG_MODE) {
-      printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+      cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
       }
 
       // keep file position for penalty bytes
@@ -4872,17 +4863,8 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       long long recursion_data_length = 0;
       if (recursion_used) {
@@ -4893,7 +4875,7 @@ while (fin_pos < fin_length) {
         if (recursion_used) {
           cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
-          printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
         }
       }
 
@@ -4978,17 +4960,8 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       long long recursion_data_length = 0;
       if (recursion_used) {
@@ -4999,7 +4972,7 @@ while (fin_pos < fin_length) {
         if (recursion_used) {
           cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
-          printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
         }
       }
 
@@ -5076,20 +5049,11 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       if (DEBUG_MODE) {
-      printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+      cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
       }
 
       long long old_fout_pos = tell_64(fout);
@@ -5179,20 +5143,11 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       if (DEBUG_MODE) {
-      printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+      cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
       }
 
       remove(tempfile1);
@@ -5239,7 +5194,7 @@ while (fin_pos < fin_length) {
 
       frecomp = tryOpen(tempfile2,"rb");
 
-      int remaining_bytes = recompressed_data_length;
+      long long remaining_bytes = recompressed_data_length;
       unsigned int act_idat_chunk = 0;
       for (;;) {
         if ((remaining_bytes + 2) > (int)idat_lengths[act_idat_chunk]) {
@@ -5309,20 +5264,11 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       if (DEBUG_MODE) {
-      printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+      cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
       }
 
       remove(tempfile1);
@@ -5393,20 +5339,11 @@ while (fin_pos < fin_length) {
 
       bool mjpg_dht_used = ((header1 & 4) == 4);
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       if (DEBUG_MODE) {
-      printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+      cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
       }
 
       char recompress_msg[256];
@@ -5560,17 +5497,8 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       long long recursion_data_length = 0;
       if (recursion_used) {
@@ -5581,7 +5509,7 @@ while (fin_pos < fin_length) {
         if (recursion_used) {
           cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
-          printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
         }
       }
 
@@ -5660,17 +5588,8 @@ while (fin_pos < fin_length) {
         if (line_case == 1) base64_line_len[line_count - 1] = fin_fgetc();
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       long long recursion_data_length = 0;
       if (recursion_used) {
@@ -5681,7 +5600,7 @@ while (fin_pos < fin_length) {
         if (recursion_used) {
           cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
-          printf("Encoded Length: %i - Decoded length: %i\n", recompressed_data_length, decompressed_data_length);
+          cout << "Encoded length: " << recompressed_data_length << " - decoded length: " << decompressed_data_length << endl;
         }
       }
 
@@ -5723,17 +5642,8 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       long long recursion_data_length = 0;
       if (recursion_used) {
@@ -5744,7 +5654,7 @@ while (fin_pos < fin_length) {
         if (recursion_used) {
           cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
-          printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
         }
       }
 
@@ -5789,20 +5699,11 @@ while (fin_pos < fin_length) {
       printf("Decompressed data - MP3\n");
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       if (DEBUG_MODE) {
-      printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+      cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
       }
 
       char recompress_msg[256];
@@ -5883,17 +5784,8 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       long long recursion_data_length = 0;
       if (recursion_used) {
@@ -5904,7 +5796,7 @@ while (fin_pos < fin_length) {
         if (recursion_used) {
           cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
-          printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
         }
       }
 
@@ -5979,17 +5871,8 @@ while (fin_pos < fin_length) {
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      int recompressed_data_length;
-      recompressed_data_length = (fin_fgetc() << 24);
-      recompressed_data_length += (fin_fgetc() << 16);
-      recompressed_data_length += (fin_fgetc() << 8);
-      recompressed_data_length += fin_fgetc();
-
-      int decompressed_data_length;
-      decompressed_data_length = (fin_fgetc() << 24);
-      decompressed_data_length += (fin_fgetc() << 16);
-      decompressed_data_length += (fin_fgetc() << 8);
-      decompressed_data_length += fin_fgetc();
+      long long recompressed_data_length = fin_fget64();
+      long long decompressed_data_length = fin_fget64();
 
       long long recursion_data_length = 0;
       if (recursion_used) {
@@ -6000,7 +5883,7 @@ while (fin_pos < fin_length) {
         if (recursion_used) {
           cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
-          printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
+          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
         }
       }
 
