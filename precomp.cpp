@@ -8552,15 +8552,15 @@ unsigned char base64_char_decode(unsigned char c) {
   return 65; // invalid
 }
 
-void base64_reencode(FILE* file_in, FILE* file_out, int line_count, unsigned int* base64_line_len, int max_in_count, int max_byte_count) {
+void base64_reencode(FILE* file_in, FILE* file_out, int line_count, unsigned int* base64_line_len, long long max_in_count, long long max_byte_count) {
           int line_nr = 0;
           unsigned int act_line_len = 0;
           int avail_in;
           unsigned char a,b,c;
           int i;
-          int act_byte_count = 0;
+          long long act_byte_count = 0;
 
-          int remaining_bytes = max_in_count;
+          long long remaining_bytes = max_in_count;
 
           do {
             if (remaining_bytes > DIV3CHUNK) {

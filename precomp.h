@@ -46,7 +46,7 @@ void try_decompression_base64(int gzip_header_length);
 
 void init_decompression_variables();
 unsigned char base64_char_decode(unsigned char c);
-void base64_reencode(FILE* file_in, FILE* file_out, int line_count, unsigned int* base64_line_len, int max_in_count = 0x7FFFFFFF, int max_byte_count = 0x7FFFFFFF);
+void base64_reencode(FILE* file_in, FILE* file_out, int line_count, unsigned int* base64_line_len, long long max_in_count = 0x7FFFFFFFFFFFFFFF, long long max_byte_count = 0x7FFFFFFFFFFFFFFF);
 
 void packjpg_mp3_dll_msg();
 bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsigned char header3, int protection);
