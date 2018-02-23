@@ -3059,7 +3059,7 @@ void zerr(int ret)
   }
 }
 
-int inf_bzip2(FILE *source, FILE *dest) {
+int inf_bzip2(FILE *source, FILE *dest, long long& compressed_stream_size, long long& decompressed_stream_size) {
   int ret;
   unsigned have;
   bz_stream strm;
@@ -3073,10 +3073,15 @@ int inf_bzip2(FILE *source, FILE *dest) {
   if (ret != BZ_OK)
     return ret;
 
+  compressed_stream_size = 0;
+  decompressed_stream_size = 0;
+  int avail_in_before;
+  
   do {
     print_work_sign(true);
 
     strm.avail_in = own_fread(in, 1, CHUNK, source);
+    avail_in_before = strm.avail_in;
 
     if (ferror(source)) {
       (void)BZ2_bzDecompressEnd(&strm);
@@ -3096,11 +3101,15 @@ int inf_bzip2(FILE *source, FILE *dest) {
         return ret;
       }
 
+      compressed_stream_size += (avail_in_before - strm.avail_in);
+      avail_in_before = strm.avail_in;
+      
       have = CHUNK - strm.avail_out;
       if (own_fwrite(out, 1, have, dest) != have || ferror(dest)) {
         (void)BZ2_bzDecompressEnd(&strm);
         return BZ_DATA_ERROR;
       }
+      decompressed_stream_size += have;
 
     } while (strm.avail_out == 0);
 
@@ -6005,7 +6014,7 @@ long long try_to_decompress(FILE* file, int windowbits, long long& compressed_st
 }
 
 long long try_to_decompress_bzip2(FILE* file, int compression_level, long long& compressed_stream_size) {
-  long long r;
+  long long r, decompressed_stream_size;
 
   print_work_sign(true);
 
@@ -6018,12 +6027,8 @@ long long try_to_decompress_bzip2(FILE* file, int compression_level, long long& 
     seek_64(file, 0);
   }
 
-  r = inf_bzip2(file, ftempout);
-  if (r == Z_OK) {
-    fseek(ftempout, 0, SEEK_END);
-    r = ftell(ftempout);
-  }
-  safe_fclose(&ftempout);
+  r = inf_bzip2(file, ftempout, compressed_stream_size, decompressed_stream_size);
+  if (r == Z_OK) return decompressed_stream_size;
 
   return r;
 }

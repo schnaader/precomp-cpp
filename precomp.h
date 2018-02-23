@@ -17,7 +17,7 @@ void denit_decompress();
 void denit();
 bool intense_mode_is_active();
 bool brute_mode_is_active();
-int inf_bzip2(FILE *source, FILE *dest);
+int inf_bzip2(FILE *source, FILE *dest, long long& compressed_stream_size, long long& decompressed_stream_size);
 int def_bzip2(FILE *source, FILE *dest, int level);
 long long file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, long long& decompressed_bytes_used, long long decomp_bytes_total, bool in_memory);
 long long file_recompress_bzip2(FILE* origfile, int level, long long& decompressed_bytes_used, long long& decompressed_bytes_total);
