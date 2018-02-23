@@ -138,6 +138,7 @@ recursion_result recursion_decompress(long long recursion_data_length);
 enum {OTF_NONE = 0, OTF_BZIP2 = 1, OTF_XZ_MT = 2}; // uncompressed, bzip2, lzma2 multithreaded
 void own_fputc(char c, FILE* f);
 unsigned char fin_fgetc();
+long long fin_fget64();
 void fout_fputc(char c);
 void fout_fput16(int v);
 void fout_fput24(int v);

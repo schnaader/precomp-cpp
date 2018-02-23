@@ -4695,14 +4695,7 @@ while (fin_pos < fin_length) {
   unsigned char header1 = fin_fgetc();
   if (header1 == 0) { // uncompressed data
     long long uncompressed_data_length;
-    uncompressed_data_length = ((long long)fin_fgetc() << 56);
-    uncompressed_data_length += ((long long)fin_fgetc() << 48);
-    uncompressed_data_length += ((long long)fin_fgetc() << 40);
-    uncompressed_data_length += ((long long)fin_fgetc() << 32);
-    uncompressed_data_length += ((long long)fin_fgetc() << 24);
-    uncompressed_data_length += ((long long)fin_fgetc() << 16);
-    uncompressed_data_length += ((long long)fin_fgetc() << 8);
-    uncompressed_data_length += (long long)fin_fgetc();
+    uncompressed_data_length = fin_fget64();
 
     if (uncompressed_data_length == 0) break; // end of PCF file, used by bZip2 compress-on-the-fly
 
@@ -4893,14 +4886,7 @@ while (fin_pos < fin_length) {
 
       long long recursion_data_length = 0;
       if (recursion_used) {
-        recursion_data_length = ((long long)fin_fgetc() << 56);
-        recursion_data_length += ((long long)fin_fgetc() << 48);
-        recursion_data_length += ((long long)fin_fgetc() << 40);
-        recursion_data_length += ((long long)fin_fgetc() << 32);
-        recursion_data_length += ((long long)fin_fgetc() << 24);
-        recursion_data_length += ((long long)fin_fgetc() << 16);
-        recursion_data_length += ((long long)fin_fgetc() << 8);
-        recursion_data_length += (long long)fin_fgetc();
+        recursion_data_length = fin_fget64();
       }
 
       if (DEBUG_MODE) {
@@ -5006,14 +4992,7 @@ while (fin_pos < fin_length) {
 
       long long recursion_data_length = 0;
       if (recursion_used) {
-        recursion_data_length = ((long long)fin_fgetc() << 56);
-        recursion_data_length += ((long long)fin_fgetc() << 48);
-        recursion_data_length += ((long long)fin_fgetc() << 40);
-        recursion_data_length += ((long long)fin_fgetc() << 32);
-        recursion_data_length += ((long long)fin_fgetc() << 24);
-        recursion_data_length += ((long long)fin_fgetc() << 16);
-        recursion_data_length += ((long long)fin_fgetc() << 8);
-        recursion_data_length += (long long)fin_fgetc();
+        recursion_data_length = fin_fget64();
       }
 
       if (DEBUG_MODE) {
@@ -5595,14 +5574,7 @@ while (fin_pos < fin_length) {
 
       long long recursion_data_length = 0;
       if (recursion_used) {
-        recursion_data_length = ((long long)fin_fgetc() << 56);
-        recursion_data_length += ((long long)fin_fgetc() << 48);
-        recursion_data_length += ((long long)fin_fgetc() << 40);
-        recursion_data_length += ((long long)fin_fgetc() << 32);
-        recursion_data_length += ((long long)fin_fgetc() << 24);
-        recursion_data_length += ((long long)fin_fgetc() << 16);
-        recursion_data_length += ((long long)fin_fgetc() << 8);
-        recursion_data_length += (long long)fin_fgetc();
+        recursion_data_length = fin_fget64();
       }
 
       if (DEBUG_MODE) {
@@ -5702,14 +5674,7 @@ while (fin_pos < fin_length) {
 
       long long recursion_data_length = 0;
       if (recursion_used) {
-        recursion_data_length = ((long long)fin_fgetc() << 56);
-        recursion_data_length += ((long long)fin_fgetc() << 48);
-        recursion_data_length += ((long long)fin_fgetc() << 40);
-        recursion_data_length += ((long long)fin_fgetc() << 32);
-        recursion_data_length += ((long long)fin_fgetc() << 24);
-        recursion_data_length += ((long long)fin_fgetc() << 16);
-        recursion_data_length += ((long long)fin_fgetc() << 8);
-        recursion_data_length += (long long)fin_fgetc();
+        recursion_data_length = fin_fget64();
       }
 
       if (DEBUG_MODE) {
@@ -5772,14 +5737,7 @@ while (fin_pos < fin_length) {
 
       long long recursion_data_length = 0;
       if (recursion_used) {
-        recursion_data_length = ((long long)fin_fgetc() << 56);
-        recursion_data_length += ((long long)fin_fgetc() << 48);
-        recursion_data_length += ((long long)fin_fgetc() << 40);
-        recursion_data_length += ((long long)fin_fgetc() << 32);
-        recursion_data_length += ((long long)fin_fgetc() << 24);
-        recursion_data_length += ((long long)fin_fgetc() << 16);
-        recursion_data_length += ((long long)fin_fgetc() << 8);
-        recursion_data_length += (long long)fin_fgetc();
+        recursion_data_length = fin_fget64();
       }
 
       if (DEBUG_MODE) {
@@ -5939,14 +5897,7 @@ while (fin_pos < fin_length) {
 
       long long recursion_data_length = 0;
       if (recursion_used) {
-        recursion_data_length = ((long long)fin_fgetc() << 56);
-        recursion_data_length += ((long long)fin_fgetc() << 48);
-        recursion_data_length += ((long long)fin_fgetc() << 40);
-        recursion_data_length += ((long long)fin_fgetc() << 32);
-        recursion_data_length += ((long long)fin_fgetc() << 24);
-        recursion_data_length += ((long long)fin_fgetc() << 16);
-        recursion_data_length += ((long long)fin_fgetc() << 8);
-        recursion_data_length += (long long)fin_fgetc();
+        recursion_data_length = fin_fget64();
       }
 
       if (DEBUG_MODE) {
@@ -6042,14 +5993,7 @@ while (fin_pos < fin_length) {
 
       long long recursion_data_length = 0;
       if (recursion_used) {
-        recursion_data_length = ((long long)fin_fgetc() << 56);
-        recursion_data_length += ((long long)fin_fgetc() << 48);
-        recursion_data_length += ((long long)fin_fgetc() << 40);
-        recursion_data_length += ((long long)fin_fgetc() << 32);
-        recursion_data_length += ((long long)fin_fgetc() << 24);
-        recursion_data_length += ((long long)fin_fgetc() << 16);
-        recursion_data_length += ((long long)fin_fgetc() << 8);
-        recursion_data_length += (long long)fin_fgetc();
+        recursion_data_length = fin_fget64();
       }
 
       if (DEBUG_MODE) {
@@ -9620,6 +9564,19 @@ unsigned char fin_fgetc() {
     own_fread(temp_buf, 1, 1, fin);
     return temp_buf[0];
   }
+}
+
+long long fin_fget64() {
+  long long result = ((long long)fin_fgetc() << 56);
+  result += ((long long)fin_fgetc() << 48);
+  result += ((long long)fin_fgetc() << 40);
+  result += ((long long)fin_fgetc() << 32);
+  result += ((long long)fin_fgetc() << 24);
+  result += ((long long)fin_fgetc() << 16);
+  result += ((long long)fin_fgetc() << 8);
+  result += (long long)fin_fgetc();
+  
+  return result;
 }
 
 void init_compress_otf() {
