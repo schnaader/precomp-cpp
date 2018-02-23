@@ -2646,7 +2646,7 @@ long long def_compare_bzip2(FILE *source, FILE *compfile, int level, long long& 
   return rek_same_byte_count;
 }
 
-int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out) {
+int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, long long stream_size_in, long long stream_size_out) {
   int ret, flush;
   unsigned have;
   z_stream strm;
@@ -2659,8 +2659,8 @@ int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, 
   if (ret != Z_OK)
     return ret;
 
-  int pos_in = 0;
-  int pos_out = 0;
+  long long pos_in = 0;
+  long long pos_out = 0;
 
   /* compress until end of file */
   do {
@@ -2705,7 +2705,7 @@ int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, 
   return Z_OK;
 }
 
-int def_part_bzip2(FILE *source, FILE *dest, int level, int stream_size_in, int stream_size_out) {
+int def_part_bzip2(FILE *source, FILE *dest, int level, long long stream_size_in, long long stream_size_out) {
   int ret, flush;
   unsigned have;
   bz_stream strm;
@@ -2718,8 +2718,8 @@ int def_part_bzip2(FILE *source, FILE *dest, int level, int stream_size_in, int 
   if (ret != BZ_OK)
     return ret;
 
-  int pos_in = 0;
-  int pos_out = 0;
+  long long pos_in = 0;
+  long long pos_out = 0;
 
   /* compress until end of file */
   do {
@@ -2796,7 +2796,7 @@ size_t fread_skip(unsigned char *ptr, size_t size, size_t count, FILE* stream) {
   return bytes_read;
 }
 
-int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, int stream_size_in, int stream_size_out, int bmp_width) {
+int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, long long stream_size_in, long long stream_size_out, int bmp_width) {
 
   int ret, flush;
   unsigned have;
@@ -2810,8 +2810,8 @@ int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memle
   if (ret != Z_OK)
     return ret;
 
-  int pos_in = 0;
-  int pos_out = 0;
+  long long pos_in = 0;
+  long long pos_out = 0;
   frs_offset = 0;
   frs_skip_len = (4 - (bmp_width % 4));
   frs_line_len = bmp_width;
