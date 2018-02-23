@@ -2491,7 +2491,7 @@ void copy_penalty_bytes(long long& rek_penalty_bytes_len, bool& use_penalty_byte
 }
 
 #define DEF_COMPARE_CHUNK 512
-int def_compare(FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used, int decompressed_bytes_total, bool in_memory) {
+int def_compare(FILE *compfile, int level, int windowbits, int memlevel, int& decompressed_bytes_used, long long decompressed_bytes_total, bool in_memory) {
   int ret, flush;
   unsigned have;
   z_stream strm;
@@ -2517,13 +2517,13 @@ int def_compare(FILE *compfile, int level, int windowbits, int memlevel, int& de
   bool use_penalty_bytes = false;
 
   unsigned char* buf_ptr = decomp_io_buf;
-  int buf_pos = 0;
+  long long buf_pos = 0;
   /* compress until end of file */
   do {
     print_work_sign(true);
 
     if (in_memory) {
-      strm.avail_in = min(decompressed_bytes_total - buf_pos, DEF_COMPARE_CHUNK);
+      strm.avail_in = min((int)(decompressed_bytes_total - buf_pos), DEF_COMPARE_CHUNK);
       strm.next_in = buf_ptr + buf_pos;
       buf_pos += strm.avail_in;
       flush = (buf_pos >= decompressed_bytes_total) ? Z_FINISH : Z_NO_FLUSH;
@@ -3160,7 +3160,7 @@ int def_bzip2(FILE *source, FILE *dest, int level) {
   return BZ_OK;
 }
 
-long long file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, int& decompressed_bytes_used, int decompressed_bytes_total, bool in_memory) {
+long long file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, int& decompressed_bytes_used, long long decompressed_bytes_total, bool in_memory) {
   long long retval;
 
   if (!in_memory) {
@@ -6201,7 +6201,7 @@ int try_to_decompress_bzip2(FILE* file, int compression_level, int& compressed_s
   return r;
 }
 
-void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits, int& compressed_stream_size, int decomp_bytes_total, bool in_memory) {
+void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits, int& compressed_stream_size, long long decomp_bytes_total, bool in_memory) {
             print_work_sign(true);
 
             identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level, identical_bytes_decomp, decomp_bytes_total, in_memory);
@@ -6209,8 +6209,8 @@ void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbit
               if ((identical_bytes > best_identical_bytes) || ((identical_bytes == best_identical_bytes) && (penalty_bytes_len < best_penalty_bytes_len))) {
                 if (identical_bytes > min_ident_size) {
                   if (DEBUG_MODE) {
-                  printf("Identical recompressed bytes: %i of %i\n", identical_bytes, compressed_stream_size);
-                  printf ("Identical decompressed bytes: %i of %i\n", identical_bytes_decomp, decomp_bytes_total);
+                  cout << "Identical recompressed bytes: " << identical_bytes << " of " << compressed_stream_size << endl;
+                  cout << "Identical decompressed bytes: " << identical_bytes_decomp << " of " << decomp_bytes_total << endl;
                   }
 
                   bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
