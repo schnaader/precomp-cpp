@@ -55,6 +55,7 @@
 #define ERR_ONLY_SET_LZMA_FILTERS_ONCE 18
 
 #include <stdio.h>
+#include <iostream>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -1254,8 +1255,7 @@ int init(int argc, char* argv[]) {
         printf("\n");
         printf("Ignore position list:\n");
         for (j = 0; j < ignore_list_len; j++) {
-          print64(ignore_list[j]);
-          printf("\n");
+          cout << ignore_list[j] << endl;
         }
         printf("\n");
       }
@@ -2232,8 +2232,7 @@ int init_comfort(int argc, char* argv[]) {
       printf("\n");
       printf("Ignore position list:\n");
       for (i = 0; i < ignore_list_len; i++) {
-        print64(ignore_list[i]);
-        printf("\n");
+        cout << ignore_list[j] << endl;
       }
       printf("\n");
     }
@@ -2278,17 +2277,9 @@ void denit_compress() {
    if (recursion_depth == 0) {
     if (!DEBUG_MODE) {
     printf(string(14,'\b').c_str());
-    printf("100.00%% - New size: ");
-    print64(fout_length);
-    printf(" instead of ");
-    print64(fin_length);
-    printf("     \n");
+    cout << "100.00% - New size: " << fout_length << " instead of " << fin_length << "     " << endl;
     } else {
-    printf("New size: ");
-    print64(fout_length);
-    printf(" instead of ");
-    print64(fin_length);
-    printf("     \n");
+    cout << "New size: " << fout_length << " instead of " << fin_length << "     " << endl;
     }
    }
   #else
@@ -2400,28 +2391,16 @@ void denit_convert() {
   #ifndef PRECOMPDLL
    if (!DEBUG_MODE) {
    printf(string(14,'\b').c_str());
-   printf("100.00%% - New size: ");
-   print64(fout_length);
-   printf(" instead of ");
-   print64(fin_length);
-   printf("     \n");
+   cout << "100.00% - New size: " << fout_length << " instead of " << fin_length << "     " << endl;
    } else {
-   printf("New size: ");
-   print64(fout_length);
-   printf(" instead of ");
-   print64(fin_length);
-   printf("     \n");
+   cout << "New size: " << fout_length << " instead of " << fin_length << "     " << endl;
    }
    printf("\nDone.\n");
    printf_time(get_time_ms() - start_time);
   #else
    if (!DEBUG_MODE) {
    printf(string(14,'\b').c_str());
-   printf("100.00%% - New size: ");
-   print64(fout_length);
-   printf(" instead of ");
-   print64(fin_length);
-   printf("     \n");
+   cout << "100.00% - New size: " << fout_length << " instead of " << fin_length << "     " << endl;
    printf_time(get_time_ms() - start_time);
    }
   #endif
@@ -3389,9 +3368,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf ("Possible zLib-Stream in PDF found at position ");
-          print64(saved_input_file_pos);
-          printf(", windowbits = %i\n", -windowbits);
+          cout << "Possible zLib-Stream in PDF found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
@@ -3639,9 +3616,7 @@ void try_decompression_zip(int zip_header_length) {
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf ("Possible zLib-Stream in ZIP found at position ");
-          print64(saved_input_file_pos);
-          printf("\n");
+          cout << "Possible zLib-Stream in ZIP found at position " << saved_input_file_pos << endl;
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
@@ -3903,9 +3878,7 @@ bool compress_file(float min_percent, float max_percent) {
         if (DEBUG_MODE) {
         printf("ZIP header detected\n");
         print_debug_percent();
-        printf("ZIP header detected at position ");
-        print64(input_file_pos);
-        printf("\n");
+        cout << "ZIP header detected at position " << input_file_pos << endl;
         }
         unsigned int compressed_size = (in_buf[cb + 21] << 24) + (in_buf[cb + 20] << 16) + (in_buf[cb + 19] << 8) + in_buf[cb + 18];
         unsigned int uncompressed_size = (in_buf[cb + 25] << 24) + (in_buf[cb + 24] << 16) + (in_buf[cb + 23] << 8) + in_buf[cb + 22];
@@ -4486,11 +4459,7 @@ bool compress_file(float min_percent, float max_percent) {
             suppress_mp3_type_until[type] = position_length_sum;
             if (DEBUG_MODE) {
               print_debug_percent();
-              printf ("Unsupported MP3 type found at position ");
-              print64(saved_input_file_pos);
-              printf (", length ");
-              print64(mp3_length);
-              printf ("\n");
+              cout << "Unsupported MP3 type found at position " << saved_input_file_pos << ", length " << mp3_length << endl;
               printf ("Type: %s\n", filetype_description[type]);
             }
           }
@@ -4738,9 +4707,7 @@ while (fin_pos < fin_length) {
     if (uncompressed_data_length == 0) break; // end of PCF file, used by bZip2 compress-on-the-fly
 
     if (DEBUG_MODE) {
-    printf("Uncompressed data, length=");
-    print64(uncompressed_data_length);
-    printf("\n");
+    cout << "Uncompressed data, length=" << uncompressed_data_length << endl;
     }
 
     fast_copy(fin, fout, uncompressed_data_length);
@@ -4938,9 +4905,7 @@ while (fin_pos < fin_length) {
 
       if (DEBUG_MODE) {
         if (recursion_used) {
-          printf("Recursion data length: ");
-          print64(recursion_data_length);
-          printf("\n");
+          cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
           printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
         }
@@ -5053,9 +5018,7 @@ while (fin_pos < fin_length) {
 
       if (DEBUG_MODE) {
         if (recursion_used) {
-          printf("Recursion data length: ");
-          print64(recursion_data_length);
-          printf("\n");
+          cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
           printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
         }
@@ -5644,9 +5607,7 @@ while (fin_pos < fin_length) {
 
       if (DEBUG_MODE) {
         if (recursion_used) {
-          printf("Recursion data length: ");
-          print64(recursion_data_length);
-          printf("\n");
+          cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
           printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
         }
@@ -5753,9 +5714,7 @@ while (fin_pos < fin_length) {
 
       if (DEBUG_MODE) {
         if (recursion_used) {
-          printf("Recursion data length: ");
-          print64(recursion_data_length);
-          printf("\n");
+          cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
           printf("Encoded Length: %i - Decoded length: %i\n", recompressed_data_length, decompressed_data_length);
         }
@@ -5825,9 +5784,7 @@ while (fin_pos < fin_length) {
 
       if (DEBUG_MODE) {
         if (recursion_used) {
-          printf("Recursion data length: ");
-          print64(recursion_data_length);
-          printf("\n");
+          cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
           printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
         }
@@ -5994,9 +5951,7 @@ while (fin_pos < fin_length) {
 
       if (DEBUG_MODE) {
         if (recursion_used) {
-          printf("Recursion data length: ");
-          print64(recursion_data_length);
-          printf("\n");
+          cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
           printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
         }
@@ -6099,9 +6054,7 @@ while (fin_pos < fin_length) {
 
       if (DEBUG_MODE) {
         if (recursion_used) {
-          printf("Recursion data length: ");
-          print64(recursion_data_length);
-          printf("\n");
+          cout << "Recursion data length: " << recursion_data_length << endl;
         } else {
           printf("Recompressed Length: %i - Decompressed length: %i\n", recompressed_data_length, decompressed_data_length);
         }
@@ -6908,9 +6861,7 @@ void try_decompression_gzip(int gzip_header_length) {
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf ("Possible zLib-Stream in GZip found at position ");
-          print64(saved_input_file_pos);
-          printf("\n");
+          cout << "Possible zLib-Stream in GZip found at position " << saved_input_file_pos << endl;
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
@@ -7042,9 +6993,7 @@ void try_decompression_png (int windowbits) {
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf ("Possible zLib-Stream in PNG found at position ");
-          print64(saved_input_file_pos);
-          printf(", windowbits = %i\n", -windowbits);
+          cout << "Possible zLib-Stream in PNG found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
@@ -7157,9 +7106,7 @@ void try_decompression_png_multi(int windowbits) {
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf("Possible zLib-Stream in multiPNG found at position ");
-          print64(saved_input_file_pos);
-          printf(", windowbits = %i\n", -windowbits);
+          cout << "Possible zLib-Stream in multiPNG found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
@@ -7724,9 +7671,7 @@ void try_decompression_gif(unsigned char version[5]) {
 
   if (DEBUG_MODE) {
   print_debug_percent();
-  printf ("Possible GIF found at position ");
-  print64(input_file_pos);
-  printf("\n");
+  cout << "Possible GIF found at position " << input_file_pos << endl;;
   }
 
   seek_64(fin, input_file_pos);
@@ -7875,10 +7820,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           } else {
             printf ("Possible JPG found at position ");
           }
-          print64(saved_input_file_pos);
-          printf (", length ");
-          print64(jpg_length);
-          printf ("\n");
+          cout << saved_input_file_pos << ", length " << jpg_length << endl;
           // do not recompress non-progressive JPGs when prog_only is set
           if ((!progressive_jpg) && (prog_only)) {
             printf("Skipping (only progressive JPGs mode set)\n");
@@ -8069,11 +8011,7 @@ void try_decompression_mp3 (long long mp3_length) {
 
         if (DEBUG_MODE) {
           print_debug_percent();
-          printf ("Possible MP3 found at position ");
-          print64(saved_input_file_pos);
-          printf (", length ");
-          print64(mp3_length);
-          printf ("\n");
+          cout << "Possible MP3 found at position " << saved_input_file_pos << ", length " << mp3_length << endl;
         }
 
         bool mp3_success = false;
@@ -8135,9 +8073,7 @@ void try_decompression_mp3 (long long mp3_length) {
         } else if ((!recompress_success) && (strncmp(recompress_msg, "big value pairs out of bounds", 29) == 0)) {
           suppress_mp3_big_value_pairs_sum = saved_input_file_pos + mp3_length;
           if (DEBUG_MODE) {
-            printf("Ignoring following streams with position/length sum ");
-            print64(suppress_mp3_big_value_pairs_sum);
-            printf(" to avoid slowdown\n");
+            cout << "Ignoring following streams with position/length sum " << suppress_mp3_big_value_pairs_sum << " to avoid slowdown" << endl;
           }
         }
 
@@ -8301,9 +8237,7 @@ void try_decompression_zlib(int windowbits) {
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf("Possible zLib-Stream (intense mode) found at position ");
-          print64(saved_input_file_pos);
-          printf(", windowbits = %i\n", -windowbits);
+          cout << "Possible zLib-Stream (intense mode) found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
@@ -8433,9 +8367,7 @@ void try_decompression_brute() {
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf("Possible zLib-Stream (brute mode) found at position ");
-          print64(saved_input_file_pos);
-          printf("\n");
+          cout << "Possible zLib-Stream (brute mode) found at position " << saved_input_file_pos << endl;
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
@@ -8558,9 +8490,7 @@ void try_decompression_swf(int windowbits) {
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf("Possible zLib-Stream in SWF found at position ");
-          print64(saved_input_file_pos);
-          printf(", windowbits = %i\n", -windowbits);
+          cout << "Possible zLib-Stream in SWF found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
           printf("Compressed size: %i\n", compressed_stream_size);
           printf ("Can be decompressed to %i bytes\n", retval);
           }
@@ -8690,9 +8620,7 @@ void try_decompression_bzip2(int compression_level) {
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf("Possible bZip2-Stream found at position ");
-          print64(saved_input_file_pos);
-          printf(", compression level = %i\n", compression_level);
+          cout << "Possible bZip2-Stream found at position " << saved_input_file_pos << ", compression level = " << compression_level << endl;
           printf("Compressed size: %i\n", compressed_stream_size);
 
           ftempout = tryOpen(tempfile1, "rb");
@@ -9012,9 +8940,7 @@ void try_decompression_base64(int base64_header_length) {
 
           if (DEBUG_MODE) {
           print_debug_percent();
-          printf ("Possible Base64-Stream (line_case %i, line_count %i) found at position ", line_case, line_count);
-          print64(saved_input_file_pos);
-          printf("\n");
+          cout << "Possible Base64-Stream (line_case " << line_case << ", line_count " << line_count << ") found at position " << saved_input_file_pos << endl;
           printf ("Can be decoded to %i bytes\n", identical_bytes);
           }
 
@@ -9243,26 +9169,6 @@ long long fileSize64(char* filename) {
     safe_fclose(&f);
     return result;
   #endif // UNIX
-}
-
-void print64(long long i64) {
-  if (i64 < 0) {
-    printf("ERROR: print64 called with negative value\n");
-    return;
-  }
-
-  char s[25];
-
-  int i = 24, j;
-  do {
-    s[i] = i64 % 10;
-    i--;
-    i64 /= 10;
-  } while (i64 > 0);
-
-  for (j = i+1; j < 25; j++) {
-    printf("%i", s[j]);
-  }
 }
 
 void init_temp_files() {
@@ -9752,11 +9658,7 @@ void init_compress_otf() {
       if (threads > 1) {
         plural = "s";
       }
-      printf("Compressing with LZMA, %i thread%s, memory usage: ", threads, plural.c_str());
-      print64(memory_usage / (1024 * 1024));
-      printf(" MiB, block size: ");
-      print64(block_size / (1024 * 1024));
-      printf(" MiB\n\n");
+      cout << "Compressing with LZMA, " << threads << " thread" << plural.c_str() << ", memory usage: " << memory_usage / (1024 * 1024) << " MiB, block size: " << block_size / (1024 * 1024) << " MiB" << endl << endl;
       break;
     }
   }
