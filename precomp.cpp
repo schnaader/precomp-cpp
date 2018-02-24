@@ -6948,7 +6948,7 @@ void try_decompression_png_multi(int windowbits) {
             int comp_level = (index % 9) + 1;
             int mem_level = (index / 9) + 1;
 
-            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
+            try_recompress(fpng, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
 
             if (final_compression_found){ MTF.Update(); break; }
           }
