@@ -4292,6 +4292,7 @@ bool compress_file(float min_percent, float max_percent) {
         saved_cb = cb;
 
         bool done = false, found = false;
+        bool hasQuantTable = (in_buf[cb + 3] == 0xDB);
         bool progressive_flag = (in_buf[cb + 3] == 0xC2);
         input_file_pos+=2;
 
@@ -4299,13 +4300,32 @@ bool compress_file(float min_percent, float max_percent) {
           seek_64(fin, input_file_pos );
           if ((fread(in, 1, 5, fin) != 5) || (in[0] != 0xFF))
               break;
-
+          int length = (int)in[2]*256+(int)in[3];
           switch (in[1]){
-            case 0xDA : found = true;
+            case 0xDB : {
+              // FF DB XX XX QtId ...
+              // Marker length (XX XX) must be = 2 + (multiple of 65 <= 260)
+              // QtId:
+              // bit 0..3: number of QT (0..3, otherwise error)
+              // bit 4..7: precision of QT, 0 = 8 bit, otherwise 16 bit               
+              if (length<=262 && ((length-2)%65)==0 && in[4]<=3) {
+                hasQuantTable = true;
+                input_file_pos += length+2;
+              }
+              else
+                done = true;
+              break;
+            }
+            case 0xC4 : {
+              done = ((in[4]&0xF)>3 || (in[4]>>4)>1);
+              input_file_pos += length+2;
+              break;
+            }
+            case 0xDA : found = hasQuantTable;
             case 0xD9 : done = true; break; //EOI with no SOS?
             case 0xC2 : progressive_flag = true;
             case 0xC0 : done = (in[4] != 0x08);
-            default: input_file_pos += in[2]*256+in[3]+2;
+            default: input_file_pos += length+2;
           }
         }
         while (!done);
