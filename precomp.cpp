@@ -4310,7 +4310,7 @@ bool compress_file(float min_percent, float max_percent) {
               // bit 4..7: precision of QT, 0 = 8 bit, otherwise 16 bit               
               if (length<=262 && ((length-2)%65)==0 && in[4]<=3) {
                 hasQuantTable = true;
-                offset += length+2;
+                input_file_pos += length+2;
               }
               else
                 done = true;
@@ -4318,7 +4318,7 @@ bool compress_file(float min_percent, float max_percent) {
             }
             case 0xC4 : {
               done = ((in[4]&0xF)>3 || (in[4]>>4)>1);
-              offset += length+2;
+              input_file_pos += length+2;
               break;
             }
             case 0xDA : found = hasQuantTable;
