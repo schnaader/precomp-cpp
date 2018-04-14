@@ -3,7 +3,6 @@ long long def_compare(FILE *compfile, int level, int windowbits, int memlevel, l
 long long def_compare_bzip2(FILE *source, FILE *compfile, int level, long long& decompressed_bytes_used);
 int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, long long stream_size_in, long long stream_size_out);
 int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, long long stream_size_in, long long stream_size_out, int bmp_width);
-int inf(FILE *source, int windowbits, long long& compressed_stream_size, long long& decompressed_stream_size, bool& in_memory);
 void zerr(int ret);
 #ifndef PRECOMPDLL
 #ifndef COMFORT
@@ -32,7 +31,7 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
 void try_decompression_zip(int zip_header_length);
 void try_decompression_gzip(int gzip_header_length);
 void try_decompression_png(int windowbits);
-void try_decompression_png_multi(int windowbits);
+void try_decompression_png_multi(FILE* fpng, int windowbits);
 void try_decompression_gif(unsigned char version[5]);
 void try_decompression_jpg(long long jpg_length, bool progressive_jpg);
 void try_decompression_mp3(long long mp3_length);
@@ -129,24 +128,33 @@ public:
     List[Root=Index].Previous = -1;
   }
 };
+struct recompress_deflate_result;
 
 void write_ftempout_if_not_present(long long byte_count, bool in_memory, bool leave_open = false);
 recursion_result recursion_compress(long long compressed_bytes, long long decompressed_bytes);
 recursion_result recursion_decompress(long long recursion_data_length);
+recursion_result recursion_write_file_and_compress(const recompress_deflate_result&);
 
 // compression-on-the-fly
 enum {OTF_NONE = 0, OTF_BZIP2 = 1, OTF_XZ_MT = 2}; // uncompressed, bzip2, lzma2 multithreaded
 void own_fputc(char c, FILE* f);
 unsigned char fin_fgetc();
-long long fin_fget64();
+int32_t fin_fget32_little_endian();
+int32_t fin_fget32();
+long long fin_fget_vlint();
+void fin_fget_deflate_hdr(recompress_deflate_result&, const unsigned char flags, unsigned char* hdr_data, unsigned& hdr_length, const bool inc_last);
+void fin_fget_recon_data(recompress_deflate_result&);
+bool fin_fget_deflate_rec(recompress_deflate_result&, const unsigned char flags, unsigned char* hdr, unsigned& hdr_length, const bool inc_last, int64_t& rec_length);
+void fin_fget_uncompressed(const recompress_deflate_result&);
 void fout_fputc(char c);
-void fout_fput16(int v);
-void fout_fput24(int v);
 void fout_fput32_little_endian(int v);
 void fout_fput32(int v);
 void fout_fput32(unsigned int v);
-void fout_fput64(long long v);
-void fout_fput64(unsigned long long v);
+void fout_fput_vlint(unsigned long long v);
+void fout_fput_deflate_hdr(const unsigned char type, const unsigned char flags, const recompress_deflate_result&, const unsigned char* hdr_data, const unsigned hdr_length, const bool inc_last);
+void fout_fput_recon_data(const recompress_deflate_result&);
+void fout_fput_deflate_rec(const unsigned char type, const recompress_deflate_result&, const unsigned char* hdr, const unsigned hdr_length, const bool inc_last, const recursion_result& recres);
+void fout_fput_uncompressed(const recompress_deflate_result&);
 void init_compress_otf();
 void denit_compress_otf();
 void init_decompress_otf();
