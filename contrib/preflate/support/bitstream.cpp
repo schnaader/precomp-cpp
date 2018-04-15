@@ -80,7 +80,7 @@ size_t BitInputStream::copyBytesTo(OutputStream& output, const size_t len) {
     _totalBitPos += 8 * w;
     _bufPos += w;
     l += w;
-    if (w != todo) {
+    if (w != todo || eof()) {
       return l;
     }
     _fillBytes();
