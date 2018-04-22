@@ -27,63 +27,6 @@
 
 bool preflate_decode(std::vector<unsigned char>& unpacked_output,
                      std::vector<unsigned char>& preflate_diff,
-                     const std::vector<unsigned char>& deflate_raw) {
-  std::vector<PreflateTokenBlock> blocks;
-  MemStream decIn(deflate_raw);
-  MemStream decUnc;
-  BitInputStream decInBits(decIn);
-  OutputCacheStream decOutCache(decUnc);
-  PreflateBlockDecoder bdec(decInBits, decOutCache);
-  if (bdec.status() != PreflateBlockDecoder::OK) {
-    return false;
-  }
-  bool last;
-  unsigned i = 0;
-  do {
-    PreflateTokenBlock newBlock;
-    bool ok = bdec.readBlock(newBlock, last);
-    if (!ok) {
-      return false;
-    }
-    blocks.push_back(newBlock);
-    ++i;
-  } while (!last);
-  decOutCache.flush();
-
-  unpacked_output = decUnc.extractData();
-
-  PreflateParameters params = estimatePreflateParameters(unpacked_output, blocks);
-  PreflateStatisticalModel model;
-  memset(&model, 0, sizeof(model));
-  PreflateTokenPredictor tokenPredictor(params, unpacked_output);
-  PreflateTreePredictor treePredictor(unpacked_output);
-  for (unsigned i = 0, n = blocks.size(); i < n; ++i) {
-    tokenPredictor.analyzeBlock(i, blocks[i]);
-    treePredictor.analyzeBlock(i, blocks[i]);
-    if (tokenPredictor.predictionFailure || treePredictor.predictionFailure) {
-      return false;
-    }
-    tokenPredictor.updateModel(&model, i);
-    treePredictor.updateModel(&model, i);
-  }
-  PreflateStatisticalEncoder codec(model);
-  codec.encodeHeader();
-  codec.encodeParameters(params);
-  codec.encodeModel();
-  for (unsigned i = 0, n = blocks.size(); i < n; ++i) {
-    tokenPredictor.encodeBlock(&codec, i);
-    treePredictor.encodeBlock(&codec, i);
-    if (tokenPredictor.predictionFailure || treePredictor.predictionFailure) {
-      return false;
-    }
-    tokenPredictor.encodeEOF(&codec, i, i + 1 == blocks.size());
-  }
-  preflate_diff = codec.encodeFinish();
-  return true;
-}
-
-bool preflate_decode(std::vector<unsigned char>& unpacked_output,
-                     std::vector<unsigned char>& preflate_diff,
                      uint64_t& deflate_size,
                      InputStream& deflate_raw,
                      std::function<void(void)> block_callback) {
@@ -123,8 +66,8 @@ bool preflate_decode(std::vector<unsigned char>& unpacked_output,
   uint8_t remaining_bits = decInBits.get(remaining_bit_count);
 
   PreflateParameters params = estimatePreflateParameters(unpacked_output, blocks);
-  PreflateStatisticalModel model;
-  memset(&model, 0, sizeof(model));
+  PreflateStatisticsCounter counter;
+  memset(&counter, 0, sizeof(counter));
   PreflateTokenPredictor tokenPredictor(params, unpacked_output);
   PreflateTreePredictor treePredictor(unpacked_output);
   for (unsigned i = 0, n = blocks.size(); i < n; ++i) {
@@ -133,30 +76,45 @@ bool preflate_decode(std::vector<unsigned char>& unpacked_output,
     if (tokenPredictor.predictionFailure || treePredictor.predictionFailure) {
       return false;
     }
-    tokenPredictor.updateModel(&model, i);
-    treePredictor.updateModel(&model, i);
+    tokenPredictor.updateCounters(&counter, i);
+    treePredictor.updateCounters(&counter, i);
     block_callback();
   }
-  PreflateStatisticalEncoder codec(model);
-  codec.encodeHeader();
-  codec.encodeParameters(params);
-  codec.encodeModel();
+  counter.block.incNonZeroPadding(remaining_bits != 0);
+  PreflateMetaEncoder encoder;
+  PreflatePredictionEncoder pcodec;
+  unsigned modelId = encoder.addModel(counter, params);
+  if (!encoder.beginMetaBlockWithModel(pcodec, modelId)) {
+    return false;
+  }
   for (unsigned i = 0, n = blocks.size(); i < n; ++i) {
-    tokenPredictor.encodeBlock(&codec, i);
-    treePredictor.encodeBlock(&codec, i);
+    tokenPredictor.encodeBlock(&pcodec, i);
+    treePredictor.encodeBlock(&pcodec, i);
     if (tokenPredictor.predictionFailure || treePredictor.predictionFailure) {
       return false;
     }
-    tokenPredictor.encodeEOF(&codec, i, i + 1 == blocks.size());
+    tokenPredictor.encodeEOF(&pcodec, i, i + 1 == blocks.size());
   }
-  if (remaining_bit_count > 0) {
-    if (remaining_bits != 0) {
-      codec.encodeValue(1, 1);
-      codec.encodeValue(remaining_bits, remaining_bit_count);
-    } else {
-      codec.encodeValue(0, 1);
+  pcodec.encodeNonZeroPadding(remaining_bits != 0);
+  if (remaining_bits != 0) {
+    unsigned bitsToSave = bitLength(remaining_bit_count);
+    pcodec.encodeValue(bitsToSave, 3);
+    if (bitsToSave > 1) {
+      pcodec.encodeValue(remaining_bits, bitsToSave - 1);
     }
   }
-  preflate_diff = codec.encodeFinish();
-  return true;
+  if (!encoder.endMetaBlock(pcodec, unpacked_output.size())) {
+    return false;
+  }
+  preflate_diff = encoder.finish();
+  return !encoder.error();
+}
+
+bool preflate_decode(std::vector<unsigned char>& unpacked_output,
+                     std::vector<unsigned char>& preflate_diff,
+                     const std::vector<unsigned char>& deflate_raw) {
+  MemStream mem(deflate_raw);
+  uint64_t raw_size;
+  return preflate_decode(unpacked_output, preflate_diff,
+                         raw_size, mem, [] {}) && raw_size == deflate_raw.size();
 }

@@ -41,6 +41,7 @@ struct PreflateTokenPredictor {
     bool blockSizePredicted;
     bool inputEOF;
     bool lastBlock;
+    uint8_t paddingBits, paddingCounts;
     std::vector<unsigned char> tokenInfo;
     std::vector<signed> correctives;
   };
@@ -50,16 +51,16 @@ struct PreflateTokenPredictor {
                         const std::vector<unsigned char>& dump);
   void analyzeBlock(const unsigned blockno, 
                     const PreflateTokenBlock& block);
-  void updateModel(PreflateStatisticalModel*,
+  void updateCounters(PreflateStatisticsCounter*,
                    const unsigned blockno);
-  void encodeBlock(PreflateStatisticalEncoder*,
+  void encodeBlock(PreflatePredictionEncoder*,
                    const unsigned blockno);
-  void encodeEOF(PreflateStatisticalEncoder*,
+  void encodeEOF(PreflatePredictionEncoder*,
                  const unsigned blockno,
                  const bool lastBlock);
 
-  PreflateTokenBlock decodeBlock(PreflateStatisticalDecoder*);
-  bool decodeEOF(PreflateStatisticalDecoder*);
+  PreflateTokenBlock decodeBlock(PreflatePredictionDecoder*);
+  bool decodeEOF(PreflatePredictionDecoder*);
 
   bool predictEOB();
   PreflateToken predictToken();

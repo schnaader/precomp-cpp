@@ -13,79 +13,40 @@
    limitations under the License. */
 
 #include "preflate_statistical_model.h"
+#include "preflate_token.h"
 #include "support/array_helper.h"
 #include <stdio.h>
 
-void printFlagStatistics(const char *txt, unsigned(&flag)[2]) {
-  if (flag[1]) {
-    printf("%s %g%% (%d)", txt, flag[1] * 100.0 / (flag[0] + flag[1]), flag[0] + flag[1]);
-  }
-}
-void printArrayStatistics(const char *txt, const char* txt2, unsigned data[], unsigned size, unsigned sum, int offset) {
-  bool on = false;
-  for (unsigned i = 0; i < size; ++i) {
-    if (data[i]) {
-      on = true;
-      if (i + 1 == size && txt2) {
-        printf("%s %g%%", txt2, data[i] * 100.0 / sum);
-      } else {
-        printf("%s%d %g%%", txt, i + offset, data[i] * 100.0 / sum);
-      }
-    }
-  }
-  if (on) {
-    printf(" (%d)", sum);
-  }
+unsigned PreflateStatisticsCounter::BlockPrediction::checkDefaultModels() const {
+  unsigned cnt = 0;
+  cnt += sumArray(blockType) == blockType[PreflateTokenBlock::DYNAMIC_HUFF];
+  cnt += sumArray(EOBMisprediction) == EOBMisprediction[0];
+  cnt += sumArray(nonZeroPadding) == nonZeroPadding[0];
+  return cnt;
 }
 
-void PreflateStatisticalModel::print() {
-  printFlagStatistics(", EOB MP", EOBMisprediction);
-  printFlagStatistics(", !LIT MP", LITMisprediction);
-  printFlagStatistics(", !REF MP", REFMisprediction);
-  printFlagStatistics(", !LEN MP", LENMisprediction);
-  printFlagStatistics(", !DIST MP", DISTOnlyMisprediction);
-  unsigned sum;
-  if (LENMisprediction) {
-    sum = sumArray(LENPositiveCorrection)
-      + sumArray(LENNegativeCorrection);
-    printArrayStatistics(" L+", " L+?", LENPositiveCorrection, 6, sum, 1);
-    printArrayStatistics(" L-", " L-?", LENNegativeCorrection, 6, sum, 1);
+unsigned PreflateStatisticsCounter::TreeCodePrediction::checkDefaultModels() const {
+  unsigned cnt = 0;
+  cnt += sumArray(TCCountMisprediction) == TCCountMisprediction[0];
+  cnt += sumArray(TCBitlengthCorrection) == TCBitlengthCorrection[3];
+  cnt += sumArray(LCountMisprediction) == LCountMisprediction[0];
+  cnt += sumArray(DCountMisprediction) == DCountMisprediction[0];
+  for (unsigned i = 0; i < 4; ++i) {
+    cnt += sumArray(LDTypeMisprediction[i]) == LDTypeMisprediction[i][0];
   }
-  sum = sumArray(DISTAfterLenCorrection);
-  if (sum) {
-    printArrayStatistics(" L->D+", " L->D+?", DISTAfterLenCorrection, 4, sum, 0);
-  }
-  sum = sumArray(DISTOnlyCorrection);
-  if (sum) {
-    printArrayStatistics(" ->D+", " L->D+?", DISTOnlyCorrection, 4, sum, 0);
-  }
+  cnt += sumArray(LDTypeReplacement) == 0;
+  cnt += sumArray(LDRepeatCountCorrection) == LDRepeatCountCorrection[1];
+  cnt += sumArray(LDBitlengthCorrection) == LDBitlengthCorrection[4];
+  return cnt;
+}
 
-  printFlagStatistics(", !CT SZ MP", TCCountMisprediction);
-  printFlagStatistics(", !L SZ MP", LCountMisprediction);
-  printFlagStatistics(", !D SZ MP", DCountMisprediction);
-  printFlagStatistics(", !T B MP", LDTypeMisprediction[0]);
-  printFlagStatistics(", !T R MP", LDTypeMisprediction[1]);
-  printFlagStatistics(", !T 0s MP", LDTypeMisprediction[2]);
-  printFlagStatistics(", !T 0l MP", LDTypeMisprediction[3]);
-  sum = sumArray(LDTypeReplacement);
-  if (LDTypeReplacement[0]) {
-    printf(" ->T B %g", LDTypeReplacement[0] * 100.0 / sum);
-  }
-  if (LDTypeReplacement[1]) {
-    printf(" ->T R %g", LDTypeReplacement[1] * 100.0 / sum);
-  }
-  if (LDTypeReplacement[2]) {
-    printf(" ->T 0s %g", LDTypeReplacement[2] * 100.0 / sum);
-  }
-  if (LDTypeReplacement[3]) {
-    printf(" ->T 0l %g", LDTypeReplacement[3] * 100.0 / sum);
-  }
-  sum = sumArray(TCBitlengthPositiveCorrection) + sumArray(TCBitlengthNegativeCorrection);
-  printArrayStatistics(", C BL+", ", C BL+?", TCBitlengthPositiveCorrection, 4, sum, 0);
-  printArrayStatistics(", C BL-", ", C BL-?", TCBitlengthNegativeCorrection, 3, sum, 1);
-  printFlagStatistics(" LD R MP", LDRepeatCountMisprediction);
-  sum = sumArray(LDBitlengthPositiveCorrection) + sumArray(LDBitlengthNegativeCorrection);
-  printArrayStatistics(", LD BL+", ", LD BL+?", LDBitlengthPositiveCorrection, 5, sum, 0);
-  printArrayStatistics(", LD BL-", ", LD BL-?", LDBitlengthNegativeCorrection, 4, sum, 1);
-  printf("\n");
+unsigned PreflateStatisticsCounter::TokenPrediction::checkDefaultModels() const {
+  unsigned cnt = 0;
+  cnt += sumArray(LITMisprediction) == LITMisprediction[0];
+  cnt += sumArray(REFMisprediction) == REFMisprediction[0];
+  cnt += sumArray(LENCorrection) == LENCorrection[6];
+  cnt += sumArray(DISTAfterLenCorrection) == DISTAfterLenCorrection[0];
+  cnt += sumArray(DISTOnlyCorrection) == DISTOnlyCorrection[0];
+  cnt += sumArray(LEN258IrregularEncoding) == LEN258IrregularEncoding[0];
+  return cnt;
 }

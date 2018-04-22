@@ -87,6 +87,44 @@ size_t BitInputStream::copyBytesTo(OutputStream& output, const size_t len) {
   }
   return l;
 }
+size_t BitInputStream::getBytes(uint8_t* data, const size_t size_) {
+  skipToByte();
+  size_t size = size_;
+  while (_bitsRemaining > 0 && size > 0) {
+    *data++ = _bits & 0xff;
+    _bitsRemaining -= 8;
+    _bits >>= 8;
+    _totalBitPos += 8;
+    size--;
+  }
+  while (size > 0) {
+    unsigned todo = std::min(size, (size_t)(_bufSize - _bufPos));
+    memcpy(data, _buffer + _bufPos, todo);
+    data += todo;
+    _totalBitPos += 8 * todo;
+    _bufPos += todo;
+    size -= todo;
+    if (eof()) {
+      return size_ - size;
+    }
+    _fillBytes();
+  }
+  return size_;
+}
+uint64_t BitInputStream::getVLI() {
+  uint64_t result = 0, o = 0;
+  unsigned s = 0, c;
+  unsigned bitsRemaining = ((_bitsRemaining - 1) & 7) + 1;
+  unsigned limit = 1 << (bitsRemaining - 1);
+  while ((c = get(bitsRemaining)) >= limit) {
+    result += ((uint64_t)(c & (limit - 1))) << s;
+    s += (bitsRemaining - 1);
+    o = (o + 1) << (bitsRemaining - 1);
+    bitsRemaining = 8;
+    limit = 128;
+  }
+  return result + o + (((uint64_t)c) << s);
+}
 
 BitOutputStream::BitOutputStream(OutputStream& output)
   : _output(output)
@@ -117,4 +155,21 @@ void BitOutputStream::flush() {
 
   _output.write(_buffer, _bufPos);
   _bufPos = 0;
+}
+void BitOutputStream::putBytes(const uint8_t* data, const size_t size) {
+  flush();
+  _output.write(data, size);
+}
+void BitOutputStream::putVLI(const uint64_t size_) {
+  uint64_t size = size_;
+  unsigned bitsRemaining = 8 - (_bitPos & 7);
+  unsigned limit = 1 << (bitsRemaining - 1);
+  while (size >= limit) {
+    put(size | limit, bitsRemaining);
+    size = (size >> (bitsRemaining - 1)) - 1;
+    bitsRemaining = 8;
+    limit = 128;
+  }
+  put(size, bitsRemaining);
+ 
 }

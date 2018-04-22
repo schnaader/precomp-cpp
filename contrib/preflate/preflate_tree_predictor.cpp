@@ -271,6 +271,7 @@ void PreflateTreePredictor::predictLDTrees(
     unsigned char predictedTreeCodeData = predictCodeData(ptr, targetTreeCodeType, count1, first);
     first = false;
     if (targetTreeCodeType != TCT_BITS) {
+      analysis.correctives.push_back(predictedTreeCodeData);
       if (targetTreeCodeData != predictedTreeCodeData) {
         info |= 8;
         analysis.correctives.push_back(targetTreeCodeData);
@@ -407,8 +408,8 @@ void PreflateTreePredictor::analyzeBlock(
   }
 }
 void PreflateTreePredictor::encodeBlock(
-  PreflateStatisticalEncoder* codec,
-  const unsigned blockno) {
+    PreflatePredictionEncoder* codec,
+    const unsigned blockno) {
   BlockAnalysisResult& analysis = analysisResults[blockno];
   if (analysis.blockType != PreflateTokenBlock::DYNAMIC_HUFF) {
     return;
@@ -416,62 +417,55 @@ void PreflateTreePredictor::encodeBlock(
 
   unsigned infoPos = 0, correctivePos = 0;
   unsigned char info = analysis.tokenInfo[infoPos++];
-  codec->encode(CORR_L_COUNT_MISPREDICTION, info);
+  codec->encodeLiteralCountMisprediction(info);
   if (info) {
     codec->encodeValue(analysis.correctives[correctivePos++] - PreflateConstants::LITERALS - 1, 5);
   }
   info = analysis.tokenInfo[infoPos++];
-  codec->encode(CORR_D_COUNT_MISPREDICTION, info);
+  codec->encodeDistanceCountMisprediction(info);
   if (info) {
     codec->encodeValue(analysis.correctives[correctivePos++], 5);
   }
 
   while ((info = analysis.tokenInfo[infoPos++]) != 0xff) {
     unsigned type = (info & 3);
-    codec->encode(CORR_LD_TYPE_MISPREDICTION, (info & 4) != 0, type);
     if (info & 4) {
       unsigned newType = analysis.correctives[correctivePos++];
-      codec->encode(CORR_LD_TYPE_REPLACEMENT, newType, type);
+      codec->encodeLDTypeCorrection(type, newType);
       type = newType;
+    } else {
+      codec->encodeLDTypeCorrection(type, type);
     }
     if (type != TCT_BITS) {
-      codec->encode(CORR_LD_REPEAT_MISPREDICTION, (info & 8) != 0);
+      unsigned predRepeat = analysis.correctives[correctivePos++];
       if (info & 8) {
         unsigned newRepeat = analysis.correctives[correctivePos++];
-        switch (type) {
-        case TCT_REP:
-          codec->encodeValue(newRepeat - 3, 2);
-          break;
-        case TCT_REPZS:
-          codec->encodeValue(newRepeat - 3, 3);
-          break;
-        case TCT_REPZL:
-          codec->encodeValue(newRepeat - 11, 7);
-          break;
-        }
+        codec->encodeRepeatCountCorrection(predRepeat, newRepeat, type);
+      } else {
+        codec->encodeRepeatCountCorrection(predRepeat, predRepeat, type);
       }
     } else {
       unsigned bl_pred = analysis.correctives[correctivePos++];
       int bl_diff = analysis.correctives[correctivePos++];
-      codec->encode(CORR_LD_BITLENGTH_CORRECTION, bl_diff, bl_pred);
+      codec->encodeLDBitLengthCorrection(bl_pred, bl_pred + bl_diff);
     }
   }
   unsigned blcount = analysis.tokenInfo[infoPos++];
   info = analysis.tokenInfo[infoPos++];
-  codec->encode(CORR_TC_COUNT_MISPREDICTION, info);
+  codec->encodeTreeCodeCountMisprediction(info);
   if (info) {
     codec->encodeValue(blcount - 4, 4);
   }
   for (unsigned i = 0; i < blcount; ++i) {
     int bl_pred = analysis.correctives[correctivePos++];
     int bl_diff = analysis.correctives[correctivePos++];
-    codec->encode(CORR_TC_BITLENGTH_CORRECTION, bl_diff, bl_pred);
+    codec->encodeTreeCodeBitLengthCorrection(bl_pred, bl_pred + bl_diff);
   }
 }
 
-void PreflateTreePredictor::updateModel(
-  PreflateStatisticalModel* model,
-  const unsigned blockno) {
+void PreflateTreePredictor::updateCounters(
+    PreflateStatisticsCounter* model,
+    const unsigned blockno) {
   BlockAnalysisResult& analysis = analysisResults[blockno];
   if (analysis.blockType != PreflateTokenBlock::DYNAMIC_HUFF) {
     return;
@@ -479,56 +473,51 @@ void PreflateTreePredictor::updateModel(
 
   unsigned infoPos = 0, correctivePos = 0;
   unsigned char info = analysis.tokenInfo[infoPos++];
-  model->LCountMisprediction[info]++;
+  model->treecode.incLiteralCountPredictionWrong(info);
   if (info) {
     correctivePos++;
   }
   info = analysis.tokenInfo[infoPos++];
-  model->DCountMisprediction[info]++;
+  model->treecode.incDistanceCountPredictionWrong(info);
   if (info) {
     correctivePos++;
   }
 
   while ((info = analysis.tokenInfo[infoPos++]) != 0xff) {
     unsigned type = (info & 3);
-    model->LDTypeMisprediction[type][(info & 4) != 0]++;
+    model->treecode.incLDCodeTypePredictionWrong(type, (info & 4) != 0);
     if (info & 4) {
       unsigned newType = analysis.correctives[correctivePos++];
-      model->LDTypeReplacement[newType]++;
+      model->treecode.incLDCodeTypeReplacement(newType);
       type = newType;
     }
     if (type != TCT_BITS) {
-      model->LDRepeatCountMisprediction[(info & 8) != 0]++;
+      unsigned predRepeat = analysis.correctives[correctivePos++];
       if (info & 8) {
-        correctivePos++;
+        unsigned newRepeat = analysis.correctives[correctivePos++];
+        model->treecode.incLDCodeRepeatDiffToPrediction(newRepeat - predRepeat);
+      } else {
+        model->treecode.incLDCodeRepeatDiffToPrediction(0);
       }
     } else {
       /*unsigned bl_pred = analysis.correctives[*/correctivePos++/*]*/;
       int bl_diff = analysis.correctives[correctivePos++];
-      if (bl_diff >= 0) {
-        model->LDBitlengthPositiveCorrection[std::min(4, bl_diff)]++;
-      } else {
-        model->LDBitlengthNegativeCorrection[std::min(3, -bl_diff - 1)]++;
-      }
+      model->treecode.incLDCodeLengthDiffToPrediction(bl_diff);
     }
   }
   unsigned blcount = analysis.tokenInfo[infoPos++];
   info = analysis.tokenInfo[infoPos++];
-  model->TCCountMisprediction[info]++;
+  model->treecode.incTreeCodeCountPredictionWrong(info);
   for (unsigned i = 0; i < blcount; ++i) {
     /*int bl_pred = analysis.correctives[*/correctivePos++/*]*/;
     int bl_diff = analysis.correctives[correctivePos++];
-    if (bl_diff >= 0) {
-      model->TCBitlengthPositiveCorrection[std::min(3, bl_diff)]++;
-    } else {
-      model->TCBitlengthNegativeCorrection[std::min(2, -bl_diff - 1)]++;
-    }
+    model->treecode.incTreeCodeLengthDiffToPrediction(bl_diff);
   }
 }
 
 
 unsigned PreflateTreePredictor::reconstructLDTrees(
-    PreflateStatisticalDecoder* codec,
+    PreflatePredictionDecoder* codec,
     unsigned* frequencies,
     unsigned char* targetCodes,
     const unsigned targetCodeSize,
@@ -543,45 +532,27 @@ unsigned PreflateTreePredictor::reconstructLDTrees(
   bool first = true;
   while (count1 + count2 > 0) {
     TreeCodeType predictedTreeCodeType = predictCodeType(ptr, count1, first);
-    if (codec->decode(CORR_LD_TYPE_MISPREDICTION, predictedTreeCodeType)) {
-      unsigned newType = codec->decode(CORR_LD_TYPE_REPLACEMENT, predictedTreeCodeType);
-      switch (newType) {
-      case TCT_BITS:
-        predictedTreeCodeType = TCT_BITS;
-        break;
-      case TCT_REP:
-        predictedTreeCodeType = TCT_REP;
-        break;
-      case TCT_REPZS:
-        predictedTreeCodeType = TCT_REPZS;
-        break;
-      case TCT_REPZL:
-        predictedTreeCodeType = TCT_REPZL;
-        break;
-      }
+    unsigned newType = codec->decodeLDTypeCorrection(predictedTreeCodeType);
+    switch (newType) {
+    case TCT_BITS:
+      predictedTreeCodeType = TCT_BITS;
+      break;
+    case TCT_REP:
+      predictedTreeCodeType = TCT_REP;
+      break;
+    case TCT_REPZS:
+      predictedTreeCodeType = TCT_REPZS;
+      break;
+    case TCT_REPZL:
+      predictedTreeCodeType = TCT_REPZL;
+      break;
     }
     unsigned char predictedTreeCodeData = predictCodeData(ptr, predictedTreeCodeType, count1, first);
     first = false;
     if (predictedTreeCodeType != TCT_BITS) {
-      if (codec->decode(CORR_LD_REPEAT_MISPREDICTION)) {
-        switch (predictedTreeCodeType) {
-        case TCT_REP:
-          predictedTreeCodeData = codec->decodeValue(2) + 3;
-          break;
-        case TCT_REPZS:
-          predictedTreeCodeData = codec->decodeValue(3) + 3;
-          break;
-        case TCT_REPZL:
-          predictedTreeCodeData = codec->decodeValue(7) + 11;
-          break;
-        case TCT_BITS:
-          // unreachable
-          break;
-        }
-      }
+      predictedTreeCodeData = codec->decodeRepeatCountCorrection(predictedTreeCodeData, predictedTreeCodeType);
     } else {
-      int bl_diff = codec->decode(CORR_LD_BITLENGTH_CORRECTION, predictedTreeCodeData);
-      predictedTreeCodeData += bl_diff;
+      predictedTreeCodeData = codec->decodeLDBitLengthCorrection(predictedTreeCodeData);;
     }
     unsigned l;
     if (predictedTreeCodeType != TCT_BITS) {
@@ -625,7 +596,7 @@ unsigned PreflateTreePredictor::reconstructLDTrees(
 
 bool PreflateTreePredictor::decodeBlock(
     PreflateTokenBlock& block, 
-    PreflateStatisticalDecoder* codec) {
+    PreflatePredictionDecoder* codec) {
   if (block.type != PreflateTokenBlock::DYNAMIC_HUFF) {
     return true;
   }
@@ -637,13 +608,13 @@ bool PreflateTreePredictor::decodeBlock(
   unsigned char bitLengths[PreflateConstants::LD_CODES];
   memset(bitLengths, 0, sizeof(bitLengths));
   unsigned predictedLTreeSize = buildLBitlenghs(bitLengths, Lcodes);
-  if (codec->decode(CORR_L_COUNT_MISPREDICTION)) {
+  if (codec->decodeLiteralCountMisprediction()) {
     predictedLTreeSize = codec->decodeValue(5) + PreflateConstants::LITERALS + 1;
   }
   block.nlen = predictedLTreeSize;
 
   unsigned predictedDTreeSize = buildDBitlenghs(bitLengths + predictedLTreeSize, Dcodes);
-  if (codec->decode(CORR_D_COUNT_MISPREDICTION)) {
+  if (codec->decodeDistanceCountMisprediction()) {
     predictedDTreeSize = codec->decodeValue(5);
   }
   block.ndist = predictedDTreeSize;
@@ -658,15 +629,14 @@ bool PreflateTreePredictor::decodeBlock(
 
   unsigned char simpleCodeTree[PreflateConstants::BL_CODES];
   unsigned predictedCTreeSize = buildTCBitlengths(simpleCodeTree, BLfreqs);
-  if (codec->decode(CORR_TC_COUNT_MISPREDICTION)) {
+  if (codec->decodeTreeCodeCountMisprediction()) {
     predictedCTreeSize = codec->decodeValue(4) + 4;
   }
   block.ncode = predictedCTreeSize;
   unsigned char shuffledCodeTree[PreflateConstants::BL_CODES];
   for (unsigned i = 0; i < predictedCTreeSize; ++i) {
     unsigned predictedBL = simpleCodeTree[PreflateConstants::treeCodeOrderTable[i]];
-    int bl_diff = codec->decode(CORR_TC_BITLENGTH_CORRECTION, predictedBL);
-    shuffledCodeTree[i] = predictedBL + bl_diff;
+    shuffledCodeTree[i] = codec->decodeTreeCodeBitLengthCorrection(predictedBL);
   }
   block.treecodes.reserve(predictedCTreeSize + targetCodeSize);
   block.treecodes.insert(block.treecodes.end(), shuffledCodeTree, shuffledCodeTree + predictedCTreeSize);

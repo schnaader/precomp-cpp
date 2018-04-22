@@ -19,7 +19,7 @@
 // version information
 #define V_MAJOR 0
 #define V_MINOR 4
-#define V_MINOR2 128
+#define V_MINOR2 129
 //#define V_STATE "ALPHA"
 #define V_STATE "EXPERIMENTAL (w/ preflate support)"
 #define V_MSG "USE FOR TESTING ONLY"

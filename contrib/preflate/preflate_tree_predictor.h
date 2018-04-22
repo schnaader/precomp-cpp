@@ -21,8 +21,9 @@
 #include "preflate_input.h"
 #include "preflate_parameter_estimator.h"
 
-struct PreflateStatisticalModel;
-struct PreflateStatisticalCodec;
+struct PreflateStatisticsCounter;
+struct PreflatePredictionDecoder;
+struct PreflatePredictionEncoder;
 
 enum TreeCodeType {
   TCT_BITS = 0, TCT_REP = 1, TCT_REPZS = 2, TCT_REPZL = 3
@@ -77,7 +78,7 @@ struct PreflateTreePredictor {
                       const unsigned symDCount,
                       const unsigned char* targetCodes,
                       const unsigned targetCodeSize);
-  unsigned reconstructLDTrees(PreflateStatisticalDecoder* codec,
+  unsigned reconstructLDTrees(PreflatePredictionDecoder* codec,
                       unsigned* frequencies,
                       unsigned char* targetCodes,
                       unsigned targetCodeSize,
@@ -88,12 +89,12 @@ struct PreflateTreePredictor {
   PreflateTreePredictor(const std::vector<unsigned char>& dump);
   void analyzeBlock(const unsigned blockno,
                     const PreflateTokenBlock& block);
-  void updateModel(PreflateStatisticalModel*,
+  void updateCounters(PreflateStatisticsCounter*,
                    const unsigned blockno);
-  void encodeBlock(PreflateStatisticalEncoder*,
+  void encodeBlock(PreflatePredictionEncoder*,
                    const unsigned blockno);
 
-  bool decodeBlock(PreflateTokenBlock& block, PreflateStatisticalDecoder*);
+  bool decodeBlock(PreflateTokenBlock& block, PreflatePredictionDecoder*);
 };
 
 #endif /* PREFLATE_TREE_PREDICTOR_H */

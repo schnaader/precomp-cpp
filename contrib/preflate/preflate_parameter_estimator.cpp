@@ -33,10 +33,7 @@ unsigned char estimatePreflateMemLevel(const unsigned maxBlockSize_) {
 unsigned char estimatePreflateWindowBits(const unsigned maxDist_) {
   unsigned maxDist = maxDist_;
   maxDist += PreflateConstants::MIN_LOOKAHEAD;
-  unsigned wbits = 0;
-  while (maxDist > 0) {
-    ++wbits; maxDist >>= 1;
-  }
+  unsigned wbits = bitLength(maxDist - 1);
   wbits = std::min(std::max(wbits, 9u), 15u);
   return wbits;
 }

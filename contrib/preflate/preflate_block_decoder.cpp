@@ -48,10 +48,8 @@ bool PreflateBlockDecoder::readBlock(PreflateTokenBlock &block, bool &last) {
     return false;
   case 0: {
     block.type = PreflateTokenBlock::STORED;
-    if (!_checkLastBitsOfByte()) {
-      return _error(STORED_BLOCK_PADDING_MISMATCH);
-    }
-    _skipToByte();
+    block.paddingBitCount = (-_input.bitPos()) & 7;
+    block.paddingBits = _input.get(block.paddingBitCount);
     size_t len = _readBits(16);
     size_t ilen = _readBits(16);
     if ((len ^ ilen) != 0xffff) {
@@ -90,9 +88,8 @@ bool PreflateBlockDecoder::readBlock(PreflateTokenBlock &block, bool &last) {
         unsigned len = PreflateConstants::MIN_MATCH
           + PreflateConstants::lengthBaseTable[lcode]
           + _readBits(PreflateConstants::lengthExtraTable[lcode]);
-        // todo: handle second version of len 258
         if (len == 258 && lcode != PreflateConstants::L_CODES - PreflateConstants::LITERALS - 2) {
-          return _error(BADLY_CODED_MAX_LENGTH);
+          len |= 512;
         }
         unsigned dcode = _distDecoder->decode(_input);
         if (dcode > PreflateConstants::D_CODES) {

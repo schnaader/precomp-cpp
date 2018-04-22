@@ -53,6 +53,7 @@ struct PreflateTokenBlock {
   uint64_t uncompressedLen;
   int32_t contextLen; // prefix size required to handle all references
   unsigned short nlen, ndist, ncode;
+  uint8_t paddingBitCount, paddingBits;
   std::vector<unsigned char> treecodes;
   std::vector<PreflateToken> tokens;
 

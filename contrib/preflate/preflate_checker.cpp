@@ -32,8 +32,8 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
   printf("Checking raw deflate file of size %d\n", (int)deflate_raw.size());
 
   std::vector<unsigned char> unpacked_output;
-  std::vector<PreflateTokenBlock> blocks;
-  if (!preflate_unpack(unpacked_output, blocks, deflate_raw)) {
+  std::vector<PreflateTokenBlock> blocksRef;
+  if (!preflate_unpack(unpacked_output, blocksRef, deflate_raw)) {
     printf("inflating error (modified zlib)\n");
     return false;
   }
@@ -42,7 +42,7 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
   MemStream decUnc;
   BitInputStream decInBits(decIn);
   OutputCacheStream decOutCache(decUnc);
-  std::vector<PreflateTokenBlock> blocks2;
+  std::vector<PreflateTokenBlock> blocks;
   PreflateBlockDecoder bdec(decInBits, decOutCache);
   if (bdec.status() != PreflateBlockDecoder::OK) {
     return false;
@@ -56,14 +56,14 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
       printf("inflating error (preflate)\n");
       return false;
     }
-    if ((last && i + 1 != blocks.size())
-      || (!last && i + 1 == blocks.size())) {
+    if ((last && i + 1 != blocksRef.size())
+      || (!last && i + 1 == blocksRef.size())) {
       return false;
     }
-    if (!isEqual(newBlock, blocks[i])) {
+    if (!isEqual(newBlock, blocksRef[i])) {
       return false;
     }
-    blocks2.push_back(newBlock);
+    blocks.push_back(newBlock);
     ++i;
   } while (!last);
   decOutCache.flush();
@@ -84,8 +84,8 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
          paramsE.veryFarMatchesDetected, paramsE.matchesToStartDetected,
          paramsE.log2OfMaxChainDepthM1);
 
-  PreflateStatisticalModel modelE;
-  memset(&modelE, 0, sizeof(modelE));
+  PreflateStatisticsCounter counterE;
+  memset(&counterE, 0, sizeof(counterE));
   PreflateTokenPredictor tokenPredictorE(paramsE, unpacked_output);
   PreflateTreePredictor treePredictorE(unpacked_output);
   for (unsigned i = 0, n = blocks.size(); i < n; ++i) {
@@ -99,49 +99,48 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
       printf("block %d: compress failed tree prediction\n", i);
       return false;
     }
-    tokenPredictorE.updateModel(&modelE, i);
-    treePredictorE.updateModel(&modelE, i);
+    tokenPredictorE.updateCounters(&counterE, i);
+    treePredictorE.updateCounters(&counterE, i);
   }
 
-  modelE.print();
+  counterE.print();
 
-  PreflateStatisticalEncoder codecE(modelE);
-  codecE.encodeHeader();
-  codecE.encodeParameters(paramsE);
-  codecE.encodeModel();
+  PreflateMetaEncoder codecE;
+  if (codecE.error()) {
+    return false;
+  }
+  PreflatePredictionEncoder pcodecE;
+  unsigned modelId = codecE.addModel(counterE, paramsE);
+  if (!codecE.beginMetaBlockWithModel(pcodecE, modelId)) {
+    return false;
+  }
   for (unsigned i = 0, n = blocks.size(); i < n; ++i) {
-    tokenPredictorE.encodeBlock(&codecE, i);
+    tokenPredictorE.encodeBlock(&pcodecE, i);
     if (tokenPredictorE.predictionFailure) {
       printf("block %d: compress failed token encoding\n", i);
       return false;
     }
-    treePredictorE.encodeBlock(&codecE, i);
+    treePredictorE.encodeBlock(&pcodecE, i);
     if (treePredictorE.predictionFailure) {
       printf("block %d: compress failed tree encoding\n", i);
       return false;
     }
-    tokenPredictorE.encodeEOF(&codecE, i, i + 1 == blocks.size());
+    tokenPredictorE.encodeEOF(&pcodecE, i, i + 1 == blocks.size());
   }
-  std::vector<unsigned char> preflate_diff = codecE.encodeFinish();
+  if (!codecE.endMetaBlock(pcodecE, unpacked_output.size())) {
+    return false;
+  }
+  std::vector<unsigned char> preflate_diff = codecE.finish();
   printf("Prediction diff has size %d\n", (int)preflate_diff.size());
 
   // Decode
-  PreflateStatisticalDecoder codecD(preflate_diff);
-  if (!codecD.decodeHeader()) {
-    printf("header decoding failed\n");
-    return false;
-  }
+  PreflateMetaDecoder codecD(preflate_diff, unpacked_output);
+  PreflatePredictionDecoder pcodecD;
   PreflateParameters paramsD;
-  if (!codecD.decodeParameters(paramsD)) {
-    printf("parameter decoding failed\n");
+  if (codecD.error() || codecD.metaBlockCount() != 1) {
     return false;
   }
-  if (paramsD.strategy != paramsE.strategy) {
-    printf("parameter decoding failed: strategy mismatch\n");
-    return false;
-  }
-  if (paramsD.huffStrategy != paramsE.huffStrategy) {
-    printf("parameter decoding failed: huff strategy mismatch\n");
+  if (!codecD.beginMetaBlock(pcodecD, paramsD, 0)) {
     return false;
   }
   if (paramsD.windowBits != paramsE.windowBits) {
@@ -156,20 +155,20 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
     printf("parameter decoding failed: compLevel mismatch\n");
     return false;
   }
-  if (paramsD.zlibCompatible != paramsE.zlibCompatible
-      || paramsD.farLen3MatchesDetected != paramsE.farLen3MatchesDetected
+  if (paramsD.zlibCompatible != paramsE.zlibCompatible) {
+    printf("parameter decoding failed: zlib compatible flag mismatch\n");
+    return false;
+  }
+  if (!paramsD.zlibCompatible && (0
+//      || paramsD.farLen3MatchesDetected != paramsE.farLen3MatchesDetected
       || paramsD.veryFarMatchesDetected != paramsE.veryFarMatchesDetected
       || paramsD.matchesToStartDetected != paramsE.matchesToStartDetected
-      || paramsD.log2OfMaxChainDepthM1 != paramsE.log2OfMaxChainDepthM1) {
-    printf("parameter decoding failed: flag mismatch\n");
+      || paramsD.log2OfMaxChainDepthM1 != paramsE.log2OfMaxChainDepthM1)) {
+    printf("parameter decoding failed: non-zlib flag mismatch\n");
     return false;
   }
 
-  if (!codecD.decodeModel()) {
-    printf("model decoding failed\n");
-    return false;
-  }
-  if (!isEqual(*codecD.model, *codecE.model)) {
+  if (!isEqual(pcodecD, pcodecE)) {
     printf("decoded model differs from original\n");
     return false;
   }
@@ -188,7 +187,7 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
       printf("block number too big: org %d, new %d\n", (int)blocks.size(), blockno);
       return false;
     }
-    PreflateTokenBlock block = tokenPredictorD.decodeBlock(&codecD);
+    PreflateTokenBlock block = tokenPredictorD.decodeBlock(&pcodecD);
     if (tokenPredictorD.predictionFailure) {
       printf("block %d: token uncompress failed\n", blockno);
       return false;
@@ -212,7 +211,7 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
       return false;
     }
 
-    if (!treePredictorD.decodeBlock(block, &codecD)) {
+    if (!treePredictorD.decodeBlock(block, &pcodecD)) {
       printf("block %d: tree uncompress failed\n", blockno);
       return false;
     }
@@ -241,10 +240,13 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
         return false;
       }
     }
-    eof = tokenPredictorD.decodeEOF(&codecD);
+    eof = tokenPredictorD.decodeEOF(&pcodecD);
     deflater.writeBlock(block, eof);
     ++blockno;
   } while (!eof);
+  if (!codecD.endMetaBlock(pcodecD)) {
+    return false;
+  }
   deflater.flush();
 
   std::vector<unsigned char> deflate_raw_out = mem.extractData();

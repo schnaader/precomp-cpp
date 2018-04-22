@@ -71,6 +71,8 @@ public:
     return v;
   }
   size_t copyBytesTo(OutputStream& output, const size_t len);
+  size_t getBytes(uint8_t* data, const size_t size);
+  uint64_t getVLI();
 
 private:
   void _fillBytes();
@@ -108,6 +110,8 @@ public:
   unsigned bitPos() const {
     return _bitPos;
   }
+  void putBytes(const uint8_t* data, const size_t size);
+  void putVLI(const uint64_t size);
 
 private:
   void _flush();

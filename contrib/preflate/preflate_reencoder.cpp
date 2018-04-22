@@ -21,57 +21,20 @@
 #include "support/bitstream.h"
 #include "support/memstream.h"
 
-bool preflate_reencode(std::vector<unsigned char>& deflate_raw,
-                       const std::vector<unsigned char>& preflate_diff,
-                       const std::vector<unsigned char>& unpacked_input) {
-  PreflateStatisticalDecoder codec(preflate_diff);
-  if (!codec.decodeHeader()) {
-    return false;
-  }
-  PreflateParameters params;
-  if (!codec.decodeParameters(params)) {
-    return false;
-  }
-  if (!codec.decodeModel()) {
-    return false;
-  }
-  PreflateTokenPredictor tokenPredictor(params, unpacked_input);
-  PreflateTreePredictor treePredictor(unpacked_input);
-
-  MemStream mem;
-  BitOutputStream bos(mem);
-
-  PreflateBlockReencoder deflater(bos, unpacked_input);
-  bool eof = true;
-  do {
-    PreflateTokenBlock block = tokenPredictor.decodeBlock(&codec);
-    if (!treePredictor.decodeBlock(block, &codec)) {
-      return false;
-    }
-    if (tokenPredictor.predictionFailure || treePredictor.predictionFailure) {
-      return false;
-    }
-    eof = tokenPredictor.decodeEOF(&codec);
-
-    deflater.writeBlock(block, eof);
-  } while (!eof);
-  deflater.flush();
-  deflate_raw = mem.extractData();
-  return true;
-}
 bool preflate_reencode(OutputStream& os,
                        const std::vector<unsigned char>& preflate_diff,
                        const std::vector<unsigned char>& unpacked_input,
                        std::function<void(void)> block_callback) {
-  PreflateStatisticalDecoder codec(preflate_diff);
-  if (!codec.decodeHeader()) {
+  PreflateMetaDecoder decoder(preflate_diff, unpacked_input);
+  if (decoder.error()) {
     return false;
   }
+  if (decoder.metaBlockCount() != 1) {
+    return false;
+  }
+  PreflatePredictionDecoder pcodec;
   PreflateParameters params;
-  if (!codec.decodeParameters(params)) {
-    return false;
-  }
-  if (!codec.decodeModel()) {
+  if (!decoder.beginMetaBlock(pcodec, params, 0)) {
     return false;
   }
   PreflateTokenPredictor tokenPredictor(params, unpacked_input);
@@ -82,25 +45,38 @@ bool preflate_reencode(OutputStream& os,
   PreflateBlockReencoder deflater(bos, unpacked_input);
   bool eof = true;
   do {
-    PreflateTokenBlock block = tokenPredictor.decodeBlock(&codec);
-    if (!treePredictor.decodeBlock(block, &codec)) {
+    PreflateTokenBlock block = tokenPredictor.decodeBlock(&pcodec);
+    if (!treePredictor.decodeBlock(block, &pcodec)) {
       return false;
     }
     if (tokenPredictor.predictionFailure || treePredictor.predictionFailure) {
       return false;
     }
-    eof = tokenPredictor.decodeEOF(&codec);
+    eof = tokenPredictor.decodeEOF(&pcodec);
 
     deflater.writeBlock(block, eof);
     block_callback();
   } while (!eof);
-  uint8_t remaining_bit_count = (8 - bos.bitPos()) & 7;
-  if (remaining_bit_count > 0) {
-    bool non_zero_bits = codec.decodeValue(1) != 0;
-    if (non_zero_bits) {
-      bos.put(codec.decodeValue(remaining_bit_count), remaining_bit_count);
+  bool non_zero_bits = pcodec.decodeValue(1) != 0;
+  if (non_zero_bits) {
+    unsigned bitsToLoad = pcodec.decodeValue(3);
+    unsigned padding = 0;
+    if (bitsToLoad > 0) {
+      padding = (1 << (bitsToLoad - 1)) + pcodec.decodeValue(bitsToLoad - 1);
     }
+    bos.put(padding, bitsToLoad);
+  }
+  if (!decoder.endMetaBlock(pcodec)) {
+    return false;
   }
   deflater.flush();
   return true;
+}
+bool preflate_reencode(std::vector<unsigned char>& deflate_raw,
+                       const std::vector<unsigned char>& preflate_diff,
+                       const std::vector<unsigned char>& unpacked_input) {
+  MemStream mem;
+  bool result = preflate_reencode(mem, preflate_diff, unpacked_input, [] {});
+  deflate_raw = mem.extractData();
+  return result;
 }

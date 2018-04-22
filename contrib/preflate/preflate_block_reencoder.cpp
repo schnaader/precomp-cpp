@@ -123,11 +123,19 @@ bool PreflateBlockReencoder::_writeTokens(const std::vector<PreflateToken>& toke
       unsigned char literal = _uncompressedData[_uncompressedDataPos++];
       _litLenEncoder->encode(_output, literal);
     } else {
-      unsigned lencode = PreflateConstants::LCode(token.len);
-      _litLenEncoder->encode(_output, PreflateConstants::LITERALS + 1 + lencode);
-      unsigned lenextra = PreflateConstants::lengthExtraTable[lencode];
-      if (lenextra) {
-        _output.put(token.len - PreflateConstants::MIN_MATCH - PreflateConstants::lengthBaseTable[lencode], lenextra);
+      // handle irregular length of 258
+      if (token.len == 258 + 512) {
+        unsigned lencode = PreflateConstants::LCode(token.len);
+        _litLenEncoder->encode(_output, PreflateConstants::L_CODES - PreflateConstants::LITERALS - 3);
+        _output.put(31, 5);
+        token.len -= 512;
+      } else {
+        unsigned lencode = PreflateConstants::LCode(token.len);
+        _litLenEncoder->encode(_output, PreflateConstants::LITERALS + 1 + lencode);
+        unsigned lenextra = PreflateConstants::lengthExtraTable[lencode];
+        if (lenextra) {
+          _output.put(token.len - PreflateConstants::MIN_MATCH - PreflateConstants::lengthBaseTable[lencode], lenextra);
+        }
       }
       unsigned distcode = PreflateConstants::DCode(token.dist);
       _distEncoder->encode(_output, distcode);
@@ -169,16 +177,15 @@ bool PreflateBlockReencoder::writeBlock(const PreflateTokenBlock& block, bool la
     break;
   case PreflateTokenBlock::STORED:
     _output.put(0, 2); //
+    _output.put(block.paddingBits, block.paddingBitCount);
     _output.fillByte();
     _output.put(block.uncompressedLen, 16); //
     _output.put(~block.uncompressedLen, 16); //
     if (_uncompressedDataPos + block.uncompressedLen > _uncompressedData.size()) {
       return _error(LITERAL_OUT_OF_BOUNDS);
     }
-    for (unsigned i = 0; i < block.uncompressedLen; ++i) {
-      unsigned char literal = _uncompressedData[_uncompressedDataPos++];
-      _output.put(literal, 8);
-    }
+    _output.putBytes(_uncompressedData.data() + _uncompressedDataPos, block.uncompressedLen);
+    _uncompressedDataPos += block.uncompressedLen;
     break;
   }
   return true;

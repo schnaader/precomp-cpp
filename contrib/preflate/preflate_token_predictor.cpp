@@ -40,10 +40,10 @@ bool PreflateTokenPredictor::predictEOB() {
   return state.availableInputSize() == 0 || currentTokenCount == state.maxTokenCount;
 }
 void PreflateTokenPredictor::commitToken(const PreflateToken& t) {
-  if (fast && t.len > state.lazyMatchLength()) {
-    hash.skipHash(t.len);
+  if (fast && (t.len & 511) > state.lazyMatchLength()) {
+    hash.skipHash(t.len & 511);
   } else {
-    hash.updateHash(t.len);
+    hash.updateHash(t.len & 511);
   }
 }
 #  define TOO_FAR 4096
@@ -160,19 +160,20 @@ void PreflateTokenPredictor::analyzeBlock(
     analysis.tokenCount = block.uncompressedLen;
     hash.updateHash(block.uncompressedLen);
     analysis.inputEOF = state.availableInputSize() == 0;
+    analysis.paddingBits = block.paddingBits;
+    analysis.paddingCounts = block.paddingBitCount;
     return;
   }
 
   for (unsigned i = 0, n = block.tokens.size(); i < n; ++i) {
     PreflateToken targetToken = block.tokens[i];
-    if (targetToken.len > 258) {
-      predictionFailure = true;
-      return;
-    }
+    unsigned orgTargetTokenLen = targetToken.len;
+    targetToken.len &= 511;
     if (predictEOB()) {
       analysis.blockSizePredicted = false;
     }
     PreflateToken predictedToken = predictToken();
+//    printf("T(%d,%d) -> P(%d,%d)\n", targetToken.len, targetToken.dist, predictedToken.len, predictedToken.dist);
 
     if (targetToken.len == 1) {
       if (predictedToken.len > 1) {
@@ -215,6 +216,12 @@ void PreflateTokenPredictor::analyzeBlock(
         }
       }
     }
+    if ((orgTargetTokenLen & 511) == 258) {
+      analysis.tokenInfo[currentTokenCount] += 16;
+      if (orgTargetTokenLen & 512) {
+        analysis.tokenInfo[currentTokenCount] += 32;
+      }
+    }
     commitToken(targetToken);
     ++currentTokenCount;
   }
@@ -225,18 +232,27 @@ void PreflateTokenPredictor::analyzeBlock(
 }
 
 void PreflateTokenPredictor::encodeBlock(
-    PreflateStatisticalEncoder* codec,
+    PreflatePredictionEncoder* codec,
     const unsigned blockno) {
   BlockAnalysisResult& analysis = analysisResults[blockno];
 
-  codec->encode(CORR_BLOCK_TYPE, analysis.type);
+  codec->encodeBlockType(analysis.type);
 
   if (analysis.type == PreflateTokenBlock::STORED) {
     codec->encodeValue(analysis.tokenCount, 16);
+    bool pad = analysis.paddingBits != 0;
+    codec->encodeNonZeroPadding(pad);
+    if (pad) {
+      unsigned bitsToSave = bitLength(analysis.paddingBits);
+      codec->encodeValue(bitsToSave, 3);
+      if (bitsToSave > 1) {
+        codec->encodeValue(analysis.paddingBits, bitsToSave - 1);
+      }
+    }
     return;
   }
 
-  codec->encode(CORR_EOB_MISPREDICTION, !analysis.blockSizePredicted);
+  codec->encodeEOBMisprediction(!analysis.blockSizePredicted);
   if (!analysis.blockSizePredicted) {
     unsigned blocksizeBits = bitLength(analysis.tokenCount);
     codec->encodeValue(blocksizeBits, 5);
@@ -250,36 +266,40 @@ void PreflateTokenPredictor::encodeBlock(
     unsigned char info = analysis.tokenInfo[i];
     switch (info & 3) {
     case 0: // well predicted LIT
-      codec->encode(CORR_LIT_MISPREDICTION, 0);
+      codec->encodeLiteralPredictionWrong(false);
       continue;
     case 2: // badly predicted LIT
-      codec->encode(CORR_REF_MISPREDICTION, 1);
+      codec->encodeReferencePredictionWrong(true);
       continue;
     case 1: // well predicted REF
-      codec->encode(CORR_REF_MISPREDICTION, 0);
+      codec->encodeReferencePredictionWrong(false);
       break;
     case 3: // badly predicted REF
-      codec->encode(CORR_LIT_MISPREDICTION, 1);
+      codec->encodeLiteralPredictionWrong(true);
       break;
     }
-    codec->encode(CORR_LEN_MISPREDICTION, (info & 4) != 0);
     if (info & 4) {
       int pred = analysis.correctives[correctivePos++];
       int diff = analysis.correctives[correctivePos++];
       int hops = analysis.correctives[correctivePos++];
-      codec->encode(CORR_LEN_CORRECTION, diff, pred);
-      codec->encode(CORR_DIST_AFTER_LEN_CORRECTION, hops);
+      codec->encodeLenCorrection(pred, pred + diff);
+      codec->encodeDistAfterLenCorrection(hops);
     } else {
-      codec->encode(CORR_DIST_ONLY_MISPREDICTION, (info & 8) != 0);
+      codec->encodeLenCorrection(3, 3);
       if (info & 8) {
         int hops = analysis.correctives[correctivePos++];
-        codec->encode(CORR_DIST_ONLY_CORRECTION, hops);
+        codec->encodeDistOnlyCorrection(hops);
+      } else {
+        codec->encodeDistOnlyCorrection(0);
       }
+    }
+    if (info & 16) {
+      codec->encodeIrregularLen258((info & 32) != 0);
     }
   }
 }
 void PreflateTokenPredictor::encodeEOF(
-    PreflateStatisticalEncoder* codec,
+    PreflatePredictionEncoder* codec,
     const unsigned blockno,
     const bool lastBlock) {
   BlockAnalysisResult& analysis = analysisResults[blockno];
@@ -294,70 +314,81 @@ void PreflateTokenPredictor::encodeEOF(
   }
 }
 
-void PreflateTokenPredictor::updateModel(
-  PreflateStatisticalModel* model,
+void PreflateTokenPredictor::updateCounters(
+  PreflateStatisticsCounter* model,
   const unsigned blockno) {
   BlockAnalysisResult& analysis = analysisResults[blockno];
 
-  model->blockType[analysis.type]++;
+  model->block.incBlockType(analysis.type);
 
   if (analysis.type == PreflateTokenBlock::STORED) {
+    model->block.incNonZeroPadding(analysis.paddingBits != 0);
     return;
   }
 
-  model->EOBMisprediction[!analysis.blockSizePredicted]++;
+  model->block.incEOBPredictionWrong(!analysis.blockSizePredicted);
 
   unsigned correctivePos = 0;
   for (unsigned i = 0, n = analysis.tokenCount; i < n; ++i) {
     unsigned char info = analysis.tokenInfo[i];
     switch (info & 3) {
     case 0: // well predicted LIT
-      model->LITMisprediction[0]++;
+      model->token.incLiteralPredictionWrong(false);
       continue;
     case 2: // badly predicted LIT
-      model->REFMisprediction[1]++;
+      model->token.incReferencePredictionWrong(true);
       continue;
     case 1: // well predicted REF
-      model->REFMisprediction[0]++;
+      model->token.incReferencePredictionWrong(false);
       break;
     case 3: // badly predicted REF
-      model->LITMisprediction[1]++;
+      model->token.incLiteralPredictionWrong(true);
       break;
     }
-    model->LENMisprediction[(info & 4) != 0]++;
     if (info & 4) {
       /*int pred = analysis.correctives[*/correctivePos++/*]*/;
       int diff = analysis.correctives[correctivePos++];
       int hops = analysis.correctives[correctivePos++];
-      if (diff > 0) {
-        model->LENPositiveCorrection[std::min(5, diff - 1)]++;
-      } else {
-        model->LENNegativeCorrection[std::min(5, -diff - 1)]++;
-      }
-      model->DISTAfterLenCorrection[std::min(3, hops)]++;
+      model->token.incLengthDiffToPrediction(diff);
+      model->token.incDistanceDiffToPredictionAfterIncorrectLengthPrediction(hops);
     } else {
-      model->DISTOnlyMisprediction[(info & 8) != 0]++;
+      model->token.incLengthDiffToPrediction(0);
       if (info & 8) {
         int hops = analysis.correctives[correctivePos++];
-        model->DISTOnlyCorrection[std::min(3, hops)]++;
+        model->token.incDistanceDiffToPredictionAfterCorrectLengthPrediction(hops);
+      } else {
+        model->token.incDistanceDiffToPredictionAfterCorrectLengthPrediction(0);
       }
+    }
+    if (info & 16) {
+      model->token.incIrregularLength258Encoding((info & 32) != 0);
     }
   }
 }
 
 PreflateTokenBlock PreflateTokenPredictor::decodeBlock(
-    PreflateStatisticalDecoder* codec) {
+    PreflatePredictionDecoder* codec) {
   PreflateTokenBlock block;
   currentTokenCount = 0;
   prevLen = 0;
   pendingToken = PreflateToken(PreflateToken::NONE);
   unsigned blocksize = 0;
   bool checkEOB = true;
-  unsigned bt = codec->decode(CORR_BLOCK_TYPE);
+  unsigned bt = codec->decodeBlockType();
   switch (bt) {
   case PreflateTokenBlock::STORED:
     block.type = PreflateTokenBlock::STORED;
     block.uncompressedLen = codec->decodeValue(16);
+    block.paddingBits = 0;
+    block.paddingBitCount = 0;
+    if (codec->decodeNonZeroPadding()) {
+      block.paddingBitCount = codec->decodeValue(3);
+      if (block.paddingBitCount > 0) {
+        block.paddingBits = (1 << (block.paddingBitCount - 1)) + codec->decodeValue(block.paddingBitCount - 1);
+      } else {
+        block.paddingBits = 0;
+      }
+    }
     hash.updateHash(block.uncompressedLen);
     return block;
   case PreflateTokenBlock::STATIC_HUFF:
@@ -368,7 +399,7 @@ PreflateTokenBlock PreflateTokenPredictor::decodeBlock(
     break;
   }
 
-  if (codec->decode(CORR_EOB_MISPREDICTION)) {
+  if (codec->decodeEOBMisprediction()) {
     unsigned blocksizeBits = codec->decodeValue(5);
     if (blocksizeBits >= 2) {
       blocksize = codec->decodeValue(blocksizeBits);
@@ -383,8 +414,9 @@ PreflateTokenBlock PreflateTokenPredictor::decodeBlock(
   while ((checkEOB && !predictEOB())
          || (!checkEOB && currentTokenCount < blocksize)) {
     PreflateToken predictedToken = predictToken();
+//    printf("P(%d,%d)\n", predictedToken.len, predictedToken.dist);
     if (predictedToken.len == 1) {
-      unsigned notok = codec->decode(CORR_LIT_MISPREDICTION);
+      unsigned notok = codec->decodeLiteralPredictionWrong();
       if (!notok) {
         block.tokens.push_back(predictedToken);
         commitToken(predictedToken);
@@ -396,7 +428,7 @@ PreflateTokenBlock PreflateTokenPredictor::decodeBlock(
         return PreflateTokenBlock();
       }
     } else {
-      unsigned notok = codec->decode(CORR_REF_MISPREDICTION);
+      unsigned notok = codec->decodeReferencePredictionWrong();
       if (notok) {
         predictedToken.len = 1;
         predictedToken.dist = 0;
@@ -406,11 +438,10 @@ PreflateTokenBlock PreflateTokenPredictor::decodeBlock(
         continue;
       }
     }
-    bool lennotok = codec->decode(CORR_LEN_MISPREDICTION);
-    if (lennotok) {
-      int lendiff = codec->decode(CORR_LEN_CORRECTION, predictedToken.len);
-      int hops    = codec->decode(CORR_DIST_AFTER_LEN_CORRECTION);
-      predictedToken.len += lendiff;
+    unsigned newLen = codec->decodeLenCorrection(predictedToken.len);
+    if (newLen != predictedToken.len) {
+      unsigned hops = codec->decodeDistAfterLenCorrection();
+      predictedToken.len = newLen;
       predictedToken.dist = state.firstMatch(predictedToken.len);
       if (hops) {
         predictedToken.dist = recalculateDistance(predictedToken, hops);
@@ -421,16 +452,18 @@ PreflateTokenBlock PreflateTokenPredictor::decodeBlock(
         return PreflateTokenBlock();
       }
     } else {
-      bool distnotok = codec->decode(CORR_DIST_ONLY_MISPREDICTION);
-      if (distnotok) {
-        int hops = codec->decode(CORR_DIST_ONLY_CORRECTION);
-        if (hops) {
-          predictedToken.dist = recalculateDistance(predictedToken, hops);
-        }
+      unsigned hops = codec->decodeDistOnlyCorrection();
+      if (hops) {
+        predictedToken.dist = recalculateDistance(predictedToken, hops);
         if (predictedToken.dist == 0) {
           predictionFailure = true;
           return PreflateTokenBlock();
         }
+      }
+    }
+    if (predictedToken.len == 258) {
+      if (codec->decodeIrregularLen258()) {
+        predictedToken.len |= 512;
       }
     }
     block.tokens.push_back(predictedToken);
@@ -439,7 +472,7 @@ PreflateTokenBlock PreflateTokenPredictor::decodeBlock(
   }
   return block;
 }
-bool PreflateTokenPredictor::decodeEOF(PreflateStatisticalDecoder* codec) {
+bool PreflateTokenPredictor::decodeEOF(PreflatePredictionDecoder* codec) {
   if (state.availableInputSize() == 0) {
     return codec->decodeValue(1) == 0;
   }
