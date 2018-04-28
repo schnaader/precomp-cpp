@@ -40,15 +40,15 @@ void PreflateBlockReencoder::_setupStaticTables() {
 }
 
 bool PreflateBlockReencoder::_buildAndWriteDynamicTables(const PreflateTokenBlock& block) {
-  if (block.ncode < 4 || block.ncode > PreflateConstants::BL_CODES
+  if (block.ncode < 4 || block.ncode > PreflateConstants::CODETREE_CODE_COUNT
       || block.treecodes.size() < (size_t)block.ncode
-      || block.nlen < PreflateConstants::LITERALS + 1
-      || block.nlen > PreflateConstants::L_CODES
-      || block.ndist < 1 || block.ndist > PreflateConstants::D_CODES) {
+      || block.nlen < PreflateConstants::NONLEN_CODE_COUNT
+      || block.nlen > PreflateConstants::LITLEN_CODE_COUNT
+      || block.ndist < 1 || block.ndist > PreflateConstants::DIST_CODE_COUNT) {
     return _error(TREE_OUT_OF_RANGE);
   }
-  unsigned char tcBitLengths[PreflateConstants::BL_CODES];
-  unsigned char ldBitLengths[PreflateConstants::LD_CODES];
+  unsigned char tcBitLengths[PreflateConstants::CODETREE_CODE_COUNT];
+  unsigned char ldBitLengths[PreflateConstants::LITLENDIST_CODE_COUNT];
   memset(tcBitLengths, 0, sizeof(tcBitLengths));
   memset(ldBitLengths, 0, sizeof(ldBitLengths));
 
@@ -57,7 +57,7 @@ bool PreflateBlockReencoder::_buildAndWriteDynamicTables(const PreflateTokenBloc
     _output.put(tc, 3);
     tcBitLengths[PreflateConstants::treeCodeOrderTable[i]] = tc;
   }
-  HuffmanEncoder tcTree(tcBitLengths, PreflateConstants::BL_CODES, true);
+  HuffmanEncoder tcTree(tcBitLengths, PreflateConstants::CODETREE_CODE_COUNT, true);
   if (tcTree.error()) {
     return _error(BAD_CODE_TREE);
   }
@@ -124,14 +124,12 @@ bool PreflateBlockReencoder::_writeTokens(const std::vector<PreflateToken>& toke
       _litLenEncoder->encode(_output, literal);
     } else {
       // handle irregular length of 258
-      if (token.len == 258 + 512) {
-        unsigned lencode = PreflateConstants::LCode(token.len);
-        _litLenEncoder->encode(_output, PreflateConstants::L_CODES - PreflateConstants::LITERALS - 3);
+      if (token.irregular258) {
+        _litLenEncoder->encode(_output, PreflateConstants::LITLEN_CODE_COUNT - 2);
         _output.put(31, 5);
-        token.len -= 512;
       } else {
         unsigned lencode = PreflateConstants::LCode(token.len);
-        _litLenEncoder->encode(_output, PreflateConstants::LITERALS + 1 + lencode);
+        _litLenEncoder->encode(_output, PreflateConstants::NONLEN_CODE_COUNT + lencode);
         unsigned lenextra = PreflateConstants::lengthExtraTable[lencode];
         if (lenextra) {
           _output.put(token.len - PreflateConstants::MIN_MATCH - PreflateConstants::lengthBaseTable[lencode], lenextra);
@@ -146,7 +144,7 @@ bool PreflateBlockReencoder::_writeTokens(const std::vector<PreflateToken>& toke
       _uncompressedDataPos += token.len;
     }
   }
-  _litLenEncoder->encode(_output, PreflateConstants::LITERALS);
+  _litLenEncoder->encode(_output, PreflateConstants::LITERAL_COUNT); // EOB
   return true;
 }
 
@@ -158,7 +156,7 @@ bool PreflateBlockReencoder::writeBlock(const PreflateTokenBlock& block, bool la
   switch (block.type) {
   case PreflateTokenBlock::DYNAMIC_HUFF:
     _output.put(2, 2); //
-    _output.put(block.nlen - PreflateConstants::LITERALS - 1, 5);
+    _output.put(block.nlen - PreflateConstants::NONLEN_CODE_COUNT, 5);
     _output.put(block.ndist - 1, 5);
     _output.put(block.ncode - 4, 4);
     if (!_buildAndWriteDynamicTables(block)) {

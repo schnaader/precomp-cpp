@@ -20,6 +20,11 @@ MemStream::MemStream() : _pos(0) {}
 MemStream::MemStream(const std::vector<uint8_t>& content)
   : _data(content)
   , _pos(0) {}
+MemStream::MemStream(const std::vector<uint8_t>& content, const size_t off, const size_t sz)
+  : _data(std::max(std::min(content.size(), off + sz), off) - off)
+  , _pos(0) {
+  memcpy(_data.data(), content.data() + off, _data.size());
+}
 
 bool MemStream::eof() const {
   return _pos == _data.size();

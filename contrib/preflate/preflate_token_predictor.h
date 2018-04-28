@@ -27,6 +27,7 @@ struct PreflateStatisticalCodec;
 struct PreflateTokenPredictor {
   PreflatePredictorState state;
   PreflateHashChainExt     hash;
+  PreflateSeqChain     seq;
   PreflateParameters     params;
   bool predictionFailure;
   bool                  fast;

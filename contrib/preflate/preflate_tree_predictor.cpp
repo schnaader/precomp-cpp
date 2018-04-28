@@ -90,10 +90,10 @@ unsigned PreflateTreePredictor::calcBitLengths(
     const unsigned symCount,
     const unsigned maxBits,
     const unsigned minMaxCode) {
-  FreqIdxPair toSort[PreflateConstants::L_CODES];
-  TreeNode nodes[PreflateConstants::L_CODES * 2 + 1];
-  unsigned char nodeBitLen[PreflateConstants::L_CODES * 2 + 1];
-  unsigned char nodeDepth[PreflateConstants::L_CODES * 2 + 1];
+  FreqIdxPair toSort[PreflateConstants::LITLEN_CODE_COUNT];
+  TreeNode nodes[PreflateConstants::LITLEN_CODE_COUNT * 2 + 1];
+  unsigned char nodeBitLen[PreflateConstants::LITLEN_CODE_COUNT * 2 + 1];
+  unsigned char nodeDepth[PreflateConstants::LITLEN_CODE_COUNT * 2 + 1];
   memset(nodeBitLen, 0, sizeof(nodeBitLen));
   memset(nodeDepth, 0, sizeof(nodeDepth));
   unsigned maxCode = 0, len = 0, nodeCount = 0, nodeId = symCount;
@@ -240,7 +240,7 @@ void PreflateTreePredictor::predictLDTrees(
     const unsigned symDCount,
     const unsigned char* targetCodes,
     const unsigned targetCodeSize) {
-  memset(frequencies, 0, sizeof(unsigned) * PreflateConstants::BL_CODES);
+  memset(frequencies, 0, sizeof(unsigned) * PreflateConstants::CODETREE_CODE_COUNT);
   const unsigned char* ptr = symBitLen;
   const unsigned char* code = targetCodes;
   unsigned codeSize = targetCodeSize;
@@ -315,8 +315,8 @@ void PreflateTreePredictor::collectTokenStatistics(
     unsigned& Lcount,
     unsigned& Dcount,
     const PreflateTokenBlock& block) {
-  memset(Lcodes, 0, sizeof(unsigned) * PreflateConstants::L_CODES);
-  memset(Dcodes, 0, sizeof(unsigned) * PreflateConstants::D_CODES);
+  memset(Lcodes, 0, sizeof(unsigned) * PreflateConstants::LITLEN_CODE_COUNT);
+  memset(Dcodes, 0, sizeof(unsigned) * PreflateConstants::DIST_CODE_COUNT);
   Lcount = 0;
   Dcount = 0;
   for (unsigned i = 0, n = block.tokens.size(); i < n; ++i) {
@@ -326,7 +326,7 @@ void PreflateTreePredictor::collectTokenStatistics(
       Lcount++;
       input.advance(1);
     } else {
-      Lcodes[PreflateConstants::LITERALS + 1 + PreflateConstants::LCode(targetToken.len)]++;
+      Lcodes[PreflateConstants::NONLEN_CODE_COUNT + PreflateConstants::LCode(targetToken.len)]++;
       Lcount++;
       Dcodes[PreflateConstants::DCode(targetToken.dist)]++;
       Dcount++;
@@ -338,19 +338,19 @@ void PreflateTreePredictor::collectTokenStatistics(
 unsigned PreflateTreePredictor::buildLBitlenghs(
     unsigned char bitLengths[],
     unsigned Lcodes[]) {
-  return calcBitLengths(bitLengths, Lcodes, PreflateConstants::L_CODES, 15, PreflateConstants::LITERALS + 1);
+  return calcBitLengths(bitLengths, Lcodes, PreflateConstants::LITLEN_CODE_COUNT, 15, PreflateConstants::NONLEN_CODE_COUNT);
 }
 unsigned PreflateTreePredictor::buildDBitlenghs(
   unsigned char bitLengths[],
   unsigned Dcodes[]) {
-  return calcBitLengths(bitLengths, Dcodes, PreflateConstants::D_CODES, 15, 0);
+  return calcBitLengths(bitLengths, Dcodes, PreflateConstants::DIST_CODE_COUNT, 15, 0);
 }
 unsigned PreflateTreePredictor::buildTCBitlengths(
-    unsigned char (&simpleCodeTree)[PreflateConstants::BL_CODES],
-    unsigned (&BLfreqs)[PreflateConstants::BL_CODES]) {
+    unsigned char (&simpleCodeTree)[PreflateConstants::CODETREE_CODE_COUNT],
+    unsigned (&BLfreqs)[PreflateConstants::CODETREE_CODE_COUNT]) {
   memset(simpleCodeTree, 0, sizeof(simpleCodeTree));
-  calcBitLengths(simpleCodeTree, BLfreqs, PreflateConstants::BL_CODES, 7, 0);
-  unsigned predictedCTreeSize = PreflateConstants::BL_CODES;
+  calcBitLengths(simpleCodeTree, BLfreqs, PreflateConstants::CODETREE_CODE_COUNT, 7, 0);
+  unsigned predictedCTreeSize = PreflateConstants::CODETREE_CODE_COUNT;
   while (predictedCTreeSize > 4 
          && simpleCodeTree[PreflateConstants::treeCodeOrderTable[predictedCTreeSize - 1]] == 0) {
     --predictedCTreeSize;
@@ -371,11 +371,11 @@ void PreflateTreePredictor::analyzeBlock(
     return;
   }
 
-  unsigned Lcodes[PreflateConstants::L_CODES], Dcodes[PreflateConstants::D_CODES];
+  unsigned Lcodes[PreflateConstants::LITLEN_CODE_COUNT], Dcodes[PreflateConstants::DIST_CODE_COUNT];
   unsigned Lcount = 0, Dcount = 0;
   collectTokenStatistics(Lcodes, Dcodes, Lcount, Dcount, block);
 
-  unsigned char bitLengths[PreflateConstants::LD_CODES];
+  unsigned char bitLengths[PreflateConstants::LITLENDIST_CODE_COUNT];
   memset(bitLengths, 0, sizeof(bitLengths));
   unsigned predictedLTreeSize = buildLBitlenghs(bitLengths, Lcodes);
   analysis.tokenInfo.push_back(predictedLTreeSize != block.nlen);
@@ -391,12 +391,12 @@ void PreflateTreePredictor::analyzeBlock(
   }
   predictedDTreeSize = block.ndist;
 
-  unsigned BLfreqs[PreflateConstants::BL_CODES];
+  unsigned BLfreqs[PreflateConstants::CODETREE_CODE_COUNT];
   const unsigned char* targetCodes = &block.treecodes[0];
   unsigned targetCodeSize = block.treecodes.size();
   predictLDTrees(analysis, BLfreqs, bitLengths, predictedLTreeSize, predictedDTreeSize, targetCodes + block.ncode, targetCodeSize - block.ncode);
 
-  unsigned char simpleCodeTree[PreflateConstants::BL_CODES];
+  unsigned char simpleCodeTree[PreflateConstants::CODETREE_CODE_COUNT];
   unsigned predictedCTreeSize = buildTCBitlengths(simpleCodeTree, BLfreqs);
   analysis.tokenInfo.push_back(block.ncode);
   analysis.tokenInfo.push_back(predictedCTreeSize != block.ncode);
@@ -419,7 +419,7 @@ void PreflateTreePredictor::encodeBlock(
   unsigned char info = analysis.tokenInfo[infoPos++];
   codec->encodeLiteralCountMisprediction(info);
   if (info) {
-    codec->encodeValue(analysis.correctives[correctivePos++] - PreflateConstants::LITERALS - 1, 5);
+    codec->encodeValue(analysis.correctives[correctivePos++] - PreflateConstants::NONLEN_CODE_COUNT, 5);
   }
   info = analysis.tokenInfo[infoPos++];
   codec->encodeDistanceCountMisprediction(info);
@@ -524,7 +524,7 @@ unsigned PreflateTreePredictor::reconstructLDTrees(
     const unsigned char* symBitLen,
     const unsigned symLCount,
     const unsigned symDCount) {
-  memset(frequencies, 0, sizeof(unsigned) * PreflateConstants::BL_CODES);
+  memset(frequencies, 0, sizeof(unsigned) * PreflateConstants::CODETREE_CODE_COUNT);
   const unsigned char* ptr = symBitLen;
   unsigned osize = 0;
   unsigned count1 = symLCount;
@@ -601,15 +601,15 @@ bool PreflateTreePredictor::decodeBlock(
     return true;
   }
 
-  unsigned Lcodes[PreflateConstants::L_CODES], Dcodes[PreflateConstants::D_CODES];
+  unsigned Lcodes[PreflateConstants::LITLEN_CODE_COUNT], Dcodes[PreflateConstants::DIST_CODE_COUNT];
   unsigned Lcount = 0, Dcount = 0;
   collectTokenStatistics(Lcodes, Dcodes, Lcount, Dcount, block);
 
-  unsigned char bitLengths[PreflateConstants::LD_CODES];
+  unsigned char bitLengths[PreflateConstants::LITLENDIST_CODE_COUNT];
   memset(bitLengths, 0, sizeof(bitLengths));
   unsigned predictedLTreeSize = buildLBitlenghs(bitLengths, Lcodes);
   if (codec->decodeLiteralCountMisprediction()) {
-    predictedLTreeSize = codec->decodeValue(5) + PreflateConstants::LITERALS + 1;
+    predictedLTreeSize = codec->decodeValue(5) + PreflateConstants::NONLEN_CODE_COUNT;
   }
   block.nlen = predictedLTreeSize;
 
@@ -619,21 +619,21 @@ bool PreflateTreePredictor::decodeBlock(
   }
   block.ndist = predictedDTreeSize;
 
-  unsigned BLfreqs[PreflateConstants::BL_CODES];
-  unsigned char compressedLDtrees[PreflateConstants::LD_CODES];
-  unsigned targetCodeSize = reconstructLDTrees(codec, BLfreqs, compressedLDtrees, PreflateConstants::LD_CODES,
+  unsigned BLfreqs[PreflateConstants::CODETREE_CODE_COUNT];
+  unsigned char compressedLDtrees[PreflateConstants::LITLENDIST_CODE_COUNT];
+  unsigned targetCodeSize = reconstructLDTrees(codec, BLfreqs, compressedLDtrees, PreflateConstants::LITLENDIST_CODE_COUNT,
                                                bitLengths, predictedLTreeSize, predictedDTreeSize);
   if (predictionFailure) {
     return false;
   }
 
-  unsigned char simpleCodeTree[PreflateConstants::BL_CODES];
+  unsigned char simpleCodeTree[PreflateConstants::CODETREE_CODE_COUNT];
   unsigned predictedCTreeSize = buildTCBitlengths(simpleCodeTree, BLfreqs);
   if (codec->decodeTreeCodeCountMisprediction()) {
     predictedCTreeSize = codec->decodeValue(4) + 4;
   }
   block.ncode = predictedCTreeSize;
-  unsigned char shuffledCodeTree[PreflateConstants::BL_CODES];
+  unsigned char shuffledCodeTree[PreflateConstants::CODETREE_CODE_COUNT];
   for (unsigned i = 0; i < predictedCTreeSize; ++i) {
     unsigned predictedBL = simpleCodeTree[PreflateConstants::treeCodeOrderTable[i]];
     shuffledCodeTree[i] = codec->decodeTreeCodeBitLengthCorrection(predictedBL);

@@ -20,7 +20,6 @@
 #include "preflate_statistical_model.h"
 #include "preflate_token_predictor.h"
 #include "preflate_tree_predictor.h"
-#include "preflate_unpack.h"
 #include "support/bitstream.h"
 #include "support/memstream.h"
 #include "support/outputcachestream.h"
@@ -29,7 +28,8 @@ bool preflate_decode(std::vector<unsigned char>& unpacked_output,
                      std::vector<unsigned char>& preflate_diff,
                      uint64_t& deflate_size,
                      InputStream& deflate_raw,
-                     std::function<void(void)> block_callback) {
+                     std::function<void(void)> block_callback,
+                     const size_t min_deflate_size) {
   deflate_size = 0;
   uint64_t deflate_bits = 0;
   size_t prevBitPos = 0;
@@ -62,6 +62,9 @@ bool preflate_decode(std::vector<unsigned char>& unpacked_output,
   decOutCache.flush();
   unpacked_output = decUnc.extractData();
   deflate_size = (deflate_bits + 7) >> 3;
+  if (deflate_size < min_deflate_size) {
+    return false;
+  }
   uint8_t remaining_bit_count = (8 - deflate_bits) & 7;
   uint8_t remaining_bits = decInBits.get(remaining_bit_count);
 
@@ -97,10 +100,10 @@ bool preflate_decode(std::vector<unsigned char>& unpacked_output,
   }
   pcodec.encodeNonZeroPadding(remaining_bits != 0);
   if (remaining_bits != 0) {
-    unsigned bitsToSave = bitLength(remaining_bit_count);
+    unsigned bitsToSave = bitLength(remaining_bits);
     pcodec.encodeValue(bitsToSave, 3);
     if (bitsToSave > 1) {
-      pcodec.encodeValue(remaining_bits, bitsToSave - 1);
+      pcodec.encodeValue(remaining_bits & ((1 << (bitsToSave - 1)) - 1), bitsToSave - 1);
     }
   }
   if (!encoder.endMetaBlock(pcodec, unpacked_output.size())) {
@@ -116,5 +119,5 @@ bool preflate_decode(std::vector<unsigned char>& unpacked_output,
   MemStream mem(deflate_raw);
   uint64_t raw_size;
   return preflate_decode(unpacked_output, preflate_diff,
-                         raw_size, mem, [] {}) && raw_size == deflate_raw.size();
+                         raw_size, mem, [] {}, 0) && raw_size == deflate_raw.size();
 }

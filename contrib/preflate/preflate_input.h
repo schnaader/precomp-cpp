@@ -26,6 +26,10 @@ public:
     return _pos;
   }
 
+  const unsigned size() const {
+    return _size;
+  }
+
   const unsigned char* curChars(int offset = 0) const {
     return _data + _pos + offset;
   }

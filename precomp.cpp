@@ -19,7 +19,7 @@
 // version information
 #define V_MAJOR 0
 #define V_MINOR 4
-#define V_MINOR2 129
+#define V_MINOR2 131
 //#define V_STATE "ALPHA"
 #define V_STATE "EXPERIMENTAL (w/ preflate support)"
 #define V_MSG "USE FOR TESTING ONLY"
@@ -537,7 +537,7 @@ int init(int argc, char* argv[]) {
   }
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2018 by Christian Schneider\n");
-  printf("- experimental preflate support - Copyright 2018 by Dirk Steinke\n\n");
+  printf("- experimental preflate v0.2.1 support - Copyright 2018 by Dirk Steinke\n\n");
 
   // init compression and memory level count
   bool use_zlib_level[81];
@@ -3117,7 +3117,8 @@ recompress_deflate_result try_recompression_deflate(FILE* file) {
   std::vector<unsigned char> unpacked_output;
   uint64_t compressed_stream_size = 0;
   result.accepted = preflate_decode(unpacked_output, result.recon_data, 
-                                    compressed_stream_size, is, []() { print_work_sign(true); });
+                                    compressed_stream_size, is, []() { print_work_sign(true); },
+                                    0); // you can set a minimum deflate stream size here
   result.compressed_stream_size = compressed_stream_size;
   result.uncompressed_stream_size = unpacked_output.size();
   {
@@ -3451,13 +3452,25 @@ void try_decompression_deflate_type(unsigned& dcounter, unsigned& rcounter,
 
       // end uncompressed data
 
+      debug_pos();
+
       compressed_data_found = true;
       end_uncompressed_data();
 
-      debug_pos();
-
       // check recursion
       recursion_result r = recursion_write_file_and_compress(rdres);
+
+#if 0
+      // Do we really want to allow uncompressed streams that are smaller than the compressed
+      // ones? (It makes sense if the uncompressed stream contains a JPEG, or something similar.
+      if (rdres.uncompressed_stream_size <= rdres.compressed_stream_size && !r.success) {
+        recompressed_streams_count--;
+        compressed_data_found = false;
+        return;
+      }
+#endif
+
+      debug_pos();
 
       // write compressed data header without first bytes
       fout_fput_deflate_rec(type, rdres, hdr, hdr_length, inc_last, r);

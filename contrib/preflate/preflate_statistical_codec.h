@@ -16,8 +16,7 @@
 #define PREFLATE_STATISTICAL_CODEC_H
 
 #include <vector>
-#include "packARI/source/bitops.h"
-#include "packARI/source/aricoder.h"
+#include "support/arithmetic_coder.h"
 #include "support/bit_helper.h"
 #include "support/bitstream.h"
 #include "support/memstream.h"
@@ -38,37 +37,32 @@ struct PreflateSubModel {
       arr[i] = bounds[rids[i] + 1] - bounds[rids[i]];
     }
   }
-  void read(aricoder*, const uint8_t);
-  void write(aricoder*, const uint8_t) const;
-  void encode(aricoder* codec, const unsigned item) const {
-    symbol s;
-    s.scale = 1 << 16;
-    s.low_count = bounds[rids[item]];
-    s.high_count = bounds[rids[item] + 1];
-    codec->encode(&s);
-  }
-  unsigned decode(aricoder* codec) const {
-    symbol s;
-    s.scale = 1 << 16;
-    unsigned cnt = codec->decode_count(&s);
-    for (unsigned i = 0; i < N; ++i) {
-      if (cnt < bounds[i + 1]) {
-        s.low_count = bounds[i];
-        s.high_count = bounds[i + 1];
-        codec->decode(&s);
-        return ids[i];
-      }
+  void read(ArithmeticDecoder&, const uint8_t);
+  void write(ArithmeticEncoder&, const uint8_t) const;
+  void encode(ArithmeticEncoder& codec, const unsigned item) const {
+    if (!isFixed) {
+      size_t idx = rids[item];
+      codec.encodeShiftScale(scaleDownBits, scaledDownBounds[idx], scaledDownBounds[idx + 1]);
     }
-    return 0;
+  }
+  unsigned decode(ArithmeticDecoder& codec) const {
+    if (isFixed) {
+      return ids[N - 1];
+    }
+    unsigned val = codec.decodeShiftScale(scaleDownBits, scaledDownBounds, N);
+    return ids[val];
   }
   bool isEqualTo(const PreflateSubModel<N>& m) const;
 
   unsigned bounds[N + 1];
+  unsigned scaledDownBounds[N + 1];
   unsigned short ids[N + 1], rids[N + 1];
-  bool isDefault;
+  uint8_t scaleDownBits;
+  bool isDefault, isFixed;
 
 private:
   void build_impl(const unsigned* arr, const unsigned defval, const uint8_t prec);
+  void build_scale_down();
   template <unsigned NEG, unsigned POS>
   friend struct PreflateCorrectionSubModel;
 };
@@ -82,9 +76,9 @@ struct PreflateCorrectionSubModel {
     build_impl(arr, defval, prec);
   }
   void buildDefault(const unsigned defval);
-  void read(aricoder*, const uint8_t);
-  void write(aricoder*, const uint8_t) const;
-  void encode(aricoder* codec, const unsigned actvalue,
+  void read(ArithmeticDecoder&, const uint8_t);
+  void write(ArithmeticEncoder&, const uint8_t) const;
+  void encode(ArithmeticEncoder& codec, const unsigned actvalue,
               const unsigned refvalue,
               const unsigned minvalue,
               const unsigned maxvalue) {
@@ -97,7 +91,7 @@ struct PreflateCorrectionSubModel {
       sign.encode(codec, 1);
       if (diff >= (int)POS) {
         pos.encode(codec, POS - 1);
-        PreflateBaseModel::encodeValue(codec, diff - POS, bitLength(maxvalue - POS - refvalue));
+        codec.encodeBits(diff - POS, bitLength(maxvalue - POS - refvalue));
       } else {
         pos.encode(codec, diff - 1);
       }
@@ -105,13 +99,13 @@ struct PreflateCorrectionSubModel {
       sign.encode(codec, 2);
       if (-diff >= (int)NEG) {
         neg.encode(codec, NEG - 1);
-        PreflateBaseModel::encodeValue(codec, -diff - NEG, bitLength(refvalue - NEG - minvalue));
+        codec.encodeBits(-diff - NEG, bitLength(refvalue - NEG - minvalue));
       } else {
         neg.encode(codec, -diff - 1);
       }
     }
   }
-  unsigned decode(aricoder* codec,
+  unsigned decode(ArithmeticDecoder& codec,
              const unsigned refvalue,
              const unsigned minvalue,
              const unsigned maxvalue) {
@@ -122,14 +116,14 @@ struct PreflateCorrectionSubModel {
     if (s == 1) {
       int diff = pos.decode(codec);
       if (diff >= (int)(POS - 1)) {
-        return refvalue + PreflateBaseModel::decodeValue(codec, bitLength(maxvalue - POS - refvalue)) + POS;
+        return refvalue + codec.decodeBits(bitLength(maxvalue - POS - refvalue)) + POS;
       } else {
         return refvalue + diff + 1;
       }
     } else {
       int diff = neg.decode(codec);
       if (diff >= (int)(NEG - 1)) {
-        return refvalue - PreflateBaseModel::decodeValue(codec, bitLength(refvalue - NEG - minvalue)) - NEG;
+        return refvalue - codec.decodeBits(bitLength(refvalue - NEG - minvalue)) - NEG;
       } else {
         return refvalue - diff - 1;
       }
@@ -158,36 +152,30 @@ struct PreflateModelCodec {
   PreflateModelCodec();
   void initDefault();
   void read(const PreflateStatisticsCounter&);
-  void readFromStream(aricoder*);
-  void writeToStream(aricoder*);
+  void readFromStream(ArithmeticDecoder&);
+  void writeToStream(ArithmeticEncoder&);
 };
 
 struct PreflateBaseModel {
 public:
   PreflateBaseModel();
-  void setStream(aricoder*);
+  void setEncoderStream(ArithmeticEncoder*);
+  void setDecoderStream(ArithmeticDecoder*);
 
-  static void encodeValue(aricoder* codec, const unsigned value, const unsigned maxBits) {
-    symbol s;
-    s.scale = 1 << maxBits;
-    s.low_count = value;
-    s.high_count = value + 1;
-    codec->encode(&s);
+  static void encodeValue(ArithmeticEncoder& codec, const unsigned value, const unsigned maxBits) {
+#ifdef _DEBUG
+    _ASSERT(value < (1 << maxBits));
+#endif
+    return codec.encodeBits(value, maxBits);
   }
   void encodeValue(const unsigned value, const unsigned maxBits) {
-    encodeValue(codec, value, maxBits);
+    encodeValue(*encoder, value, maxBits);
   }
-  static unsigned decodeValue(aricoder* codec, const unsigned maxBits) {
-    symbol s;
-    s.scale = 1 << maxBits;
-    unsigned cnt = codec->decode_count(&s);
-    s.low_count = cnt;
-    s.high_count = cnt + 1;
-    codec->decode(&s);
-    return cnt;
+  static unsigned decodeValue(ArithmeticDecoder& codec, const unsigned maxBits) {
+    return codec.decodeBits(maxBits);
   }
   unsigned decodeValue(const unsigned maxBits) {
-    return decodeValue(codec, maxBits);
+    return decodeValue(*decoder, maxBits);
   }
 
 protected:
@@ -207,7 +195,8 @@ protected:
   void writeSubModel(const PreflateCorrectionSubModel<N, M>& sm, const bool isFullDef, const PreflateModelCodec& cc,
                      const unsigned defVal, const uint8_t prec = 16);
 
-  aricoder* codec;
+  ArithmeticEncoder* encoder;
+  ArithmeticDecoder* decoder;
 };
 
 struct PreflateBlockPredictionModel : public PreflateBaseModel {
@@ -217,23 +206,23 @@ public:
   void writeToStream(const PreflateModelCodec&);
 
   unsigned decodeBlockType() {
-    return blockType.decode(codec);
+    return blockType.decode(*decoder);
   }
   bool decodeEOBMisprediction() {
-    return EOBMisprediction.decode(codec);
+    return EOBMisprediction.decode(*decoder);
   }
   bool decodeNonZeroPadding() {
-    return nonZeroPadding.decode(codec);
+    return nonZeroPadding.decode(*decoder);
   }
 
   void encodeBlockType(const unsigned type) {
-    blockType.encode(codec, type);
+    blockType.encode(*encoder, type);
   }
   void encodeEOBMisprediction(const bool misprediction) {
-    EOBMisprediction.encode(codec, misprediction);
+    EOBMisprediction.encode(*encoder, misprediction);
   }
   void encodeNonZeroPadding(const bool nonzeropadding) {
-    nonZeroPadding.encode(codec, nonzeropadding);
+    nonZeroPadding.encode(*encoder, nonzeropadding);
   }
 
   bool isEqualTo(const PreflateBlockPredictionModel& m) const;
@@ -252,51 +241,51 @@ public:
   void writeToStream(const PreflateModelCodec& cc);
 
   bool decodeTreeCodeCountMisprediction() {
-    return TCCountMisprediction.decode(codec);
+    return TCCountMisprediction.decode(*decoder);
   }
   bool decodeLiteralCountMisprediction() {
-    return LCountMisprediction.decode(codec);
+    return LCountMisprediction.decode(*decoder);
   }
   bool decodeDistanceCountMisprediction() {
-    return DCountMisprediction.decode(codec);
+    return DCountMisprediction.decode(*decoder);
   }
   int decodeTreeCodeBitLengthCorrection(unsigned predval) {
-    return TCBitlengthCorrection.decode(codec, predval, 0, 7);
+    return TCBitlengthCorrection.decode(*decoder, predval, 0, 7);
   }
   unsigned decodeLDTypeCorrection(unsigned predtype) {
-    return DerivedLDTypeReplacement[predtype].decode(codec);
+    return DerivedLDTypeReplacement[predtype].decode(*decoder);
   }
   unsigned decodeRepeatCountCorrection(const unsigned predval, const unsigned ldtype) {
     static const uint8_t minVal[4] = {0, 3, 3, 11};
     static const uint8_t lenVal[4] = {0, 3, 7, 127};
-    return LDRepeatCountCorrection.decode(codec, predval, minVal[ldtype], minVal[ldtype] + lenVal[ldtype]);
+    return LDRepeatCountCorrection.decode(*decoder, predval, minVal[ldtype], minVal[ldtype] + lenVal[ldtype]);
   }
   int decodeLDBitLengthCorrection(unsigned predval) {
-    return LDBitlengthCorrection.decode(codec, predval, 0, 15);
+    return LDBitlengthCorrection.decode(*decoder, predval, 0, 15);
   }
 
   void encodeTreeCodeCountMisprediction(const bool misprediction) {
-    TCCountMisprediction.encode(codec, misprediction);
+    TCCountMisprediction.encode(*encoder, misprediction);
   }
   void encodeLiteralCountMisprediction(const bool misprediction) {
-    LCountMisprediction.encode(codec, misprediction);
+    LCountMisprediction.encode(*encoder, misprediction);
   }
   void encodeDistanceCountMisprediction(const bool misprediction) {
-    DCountMisprediction.encode(codec, misprediction);
+    DCountMisprediction.encode(*encoder, misprediction);
   }
   void encodeTreeCodeBitLengthCorrection(const unsigned predval, const unsigned actval) {
-    TCBitlengthCorrection.encode(codec, actval, predval, 0, 7);
+    TCBitlengthCorrection.encode(*encoder, actval, predval, 0, 7);
   }
   void encodeLDTypeCorrection(const unsigned predval, const unsigned actval) {
-    DerivedLDTypeReplacement[predval].encode(codec, actval);
+    DerivedLDTypeReplacement[predval].encode(*encoder, actval);
   }
   void encodeRepeatCountCorrection(const unsigned predval, const unsigned actval, unsigned ldtype) {
     static const uint8_t minVal[4] = {0, 3, 3, 11};
     static const uint8_t lenVal[4] = {0, 3, 7, 127};
-    LDRepeatCountCorrection.encode(codec, actval, predval, minVal[ldtype], minVal[ldtype] + lenVal[ldtype]);
+    LDRepeatCountCorrection.encode(*encoder, actval, predval, minVal[ldtype], minVal[ldtype] + lenVal[ldtype]);
   }
   void encodeLDBitLengthCorrection(const unsigned predval, const unsigned actval) {
-    LDBitlengthCorrection.encode(codec, actval, predval, 0, 15);
+    LDBitlengthCorrection.encode(*encoder, actval, predval, 0, 15);
   }
 
   bool isEqualTo(const PreflateTreeCodePredictionModel& m) const;
@@ -322,41 +311,41 @@ public:
   void writeToStream(const PreflateModelCodec& cc);
 
   bool decodeLiteralPredictionWrong() {
-    return LITMisprediction.decode(codec);
+    return LITMisprediction.decode(*decoder);
   }
   bool decodeReferencePredictionWrong() {
-    return REFMisprediction.decode(codec);
+    return REFMisprediction.decode(*decoder);
   }
   int decodeLenCorrection(const unsigned predval) {
-    return LENCorrection.decode(codec, predval, 3, 258);
+    return LENCorrection.decode(*decoder, predval, 3, 258);
   }
   unsigned decodeDistOnlyCorrection() {
-    return DISTOnlyCorrection.decode(codec, 0, 0, 32767);
+    return DISTOnlyCorrection.decode(*decoder, 0, 0, 32767);
   }
   unsigned decodeDistAfterLenCorrection() {
-    return DISTAfterLenCorrection.decode(codec, 0, 0, 32767);
+    return DISTAfterLenCorrection.decode(*decoder, 0, 0, 32767);
   }
   bool decodeIrregularLen258() {
-    return IrregularLen258Encoding.decode(codec);
+    return IrregularLen258Encoding.decode(*decoder);
   }
 
   void encodeLiteralPredictionWrong(const bool misprediction) {
-    LITMisprediction.encode(codec, misprediction);
+    LITMisprediction.encode(*encoder, misprediction);
   }
   void encodeReferencePredictionWrong(const bool misprediction) {
-    REFMisprediction.encode(codec, misprediction);
+    REFMisprediction.encode(*encoder, misprediction);
   }
   void encodeLenCorrection(const unsigned predval, const unsigned actval) {
-    LENCorrection.encode(codec, actval, predval, 3, 258);
+    LENCorrection.encode(*encoder, actval, predval, 3, 258);
   }
   void encodeDistOnlyCorrection(const unsigned hops) {
-    DISTOnlyCorrection.encode(codec, hops, 0, 0, 32767);
+    DISTOnlyCorrection.encode(*encoder, hops, 0, 0, 32767);
   }
   void encodeDistAfterLenCorrection(const unsigned hops) {
-    DISTAfterLenCorrection.encode(codec, hops, 0, 0, 32767);
+    DISTAfterLenCorrection.encode(*encoder, hops, 0, 0, 32767);
   }
   void encodeIrregularLen258(const bool irregular) {
-    IrregularLen258Encoding.encode(codec, irregular);
+    IrregularLen258Encoding.encode(*encoder, irregular);
   }
 
   bool isEqualTo(const PreflateTokenPredictionModel& m) const;
@@ -375,7 +364,8 @@ struct PreflatePredictionModel {
   ~PreflatePredictionModel();
 
   void read(const PreflateStatisticsCounter& model, const PreflateModelCodec& cc);
-  void setStream(aricoder* codec);
+  void setEncoderStream(ArithmeticEncoder* codec);
+  void setDecoderStream(ArithmeticDecoder* codec);
   void readFromStream(const PreflateModelCodec& cc);
   void writeToStream(const PreflateModelCodec& cc);
 
@@ -388,16 +378,16 @@ protected:
   PreflateTreeCodePredictionModel treecode;
   // Tokens
   PreflateTokenPredictionModel token;
-  iostream* data;
-  aricoder* codec;
 };
 
 struct PreflatePredictionEncoder : public PreflatePredictionModel {
+  PreflatePredictionEncoder();
+
   void start(const PreflatePredictionModel&, const PreflateParameters&, const unsigned modelId);
   std::vector<uint8_t> end();
 
   void encodeValue(const unsigned value, const unsigned maxBits) {
-    PreflateBaseModel::encodeValue(codec, value, maxBits);
+    encoder->encodeBits(value, maxBits);
   }
 
   // Block
@@ -463,15 +453,19 @@ struct PreflatePredictionEncoder : public PreflatePredictionModel {
 private:
   PreflateParameters  params;
   unsigned modelid;
+  MemStream* storage;
+  BitOutputStream* bos;
+  ArithmeticEncoder* encoder;
 };
 
 struct PreflatePredictionDecoder : public PreflatePredictionModel {
+  PreflatePredictionDecoder();
   void start(const PreflatePredictionModel&, const PreflateParameters&, 
              const std::vector<uint8_t>&, size_t off0, size_t size);
   void end();
 
   unsigned decodeValue(const unsigned maxBits) {
-    return PreflateBaseModel::decodeValue(codec, maxBits);
+    return decoder->decodeBits(maxBits);
   }
   // Block
   unsigned decodeBlockType() {
@@ -526,8 +520,10 @@ struct PreflatePredictionDecoder : public PreflatePredictionModel {
   }
 
 private:
-  iostream* data;
   PreflateParameters  params;
+  MemStream* storage;
+  BitInputStream* bis;
+  ArithmeticDecoder* decoder;
 };
 
 struct PreflateMetaEncoder {

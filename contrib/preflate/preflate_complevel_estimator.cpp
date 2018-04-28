@@ -22,12 +22,12 @@ PreflateCompLevelEstimatorState::PreflateCompLevelEstimatorState(
     const int mbits,
     const std::vector<unsigned char>& unpacked_output_,
     const std::vector<PreflateTokenBlock>& blocks_)
-  : predictor(slowHash, slowPreflateParserSettings[5], wbits, mbits)
-  , slowHash(unpacked_output_, mbits)
+  : slowHash(unpacked_output_, mbits)
   , fastL1Hash(unpacked_output_, mbits)
   , fastL2Hash(unpacked_output_, mbits)
   , fastL3Hash(unpacked_output_, mbits)
   , blocks(blocks_)
+  , wsize(1 << wbits)
 {
   memset(&info, 0, sizeof(info));
   info.possibleCompressionLevels = (1 << 10) - (1 << 1);
@@ -68,12 +68,30 @@ void PreflateCompLevelEstimatorState::updateOrSkipHash(const unsigned len) {
   }
   slowHash.updateHash(len);
 }
+
+unsigned short PreflateCompLevelEstimatorState::matchDepth(
+  const unsigned hashHead,
+  const PreflateToken& targetReference,
+  const PreflateHashChainExt& hash) {
+  unsigned curPos = hash.input().pos();
+  unsigned curMaxDist = std::min(curPos, windowSize());
+
+  unsigned startDepth = hash.getNodeDepth(hashHead);
+  PreflateHashIterator chainIt = hash.iterateFromPos(curPos - targetReference.dist, curPos, curMaxDist);
+  if (!chainIt.curPos || targetReference.dist > curMaxDist) {
+    return 0xffffu;
+  }
+  unsigned endDepth = chainIt.depth();
+  return std::min(startDepth - endDepth, 0xffffu);
+}
+
+
 bool PreflateCompLevelEstimatorState::checkMatchSingleFastHash(
     const PreflateToken& token,
     const PreflateHashChainExt& hash, 
     const PreflateParserConfig& config,
     const unsigned hashHead) {
-  unsigned mdepth = predictor.matchDepth(hash.getHead(hashHead), token, hash);
+  unsigned mdepth = matchDepth(hash.getHead(hashHead), token, hash);
   if (mdepth > config.max_chain) {
     return false;
   }
@@ -99,13 +117,13 @@ void PreflateCompLevelEstimatorState::checkMatch(const PreflateToken& token) {
 
   info.referenceCount++;
 
-  unsigned short mdepth = predictor.matchDepth(slowHash.getHead(hashHead), token, slowHash);
+  unsigned short mdepth = matchDepth(slowHash.getHead(hashHead), token, slowHash);
   if (mdepth >= 0x8001) {
     info.unfoundReferences++;
   } else {
     info.maxChainDepth = std::max(info.maxChainDepth, mdepth);
   }
-  if (token.dist == predictor.currentInputPos()) {
+  if (token.dist == slowHash.input().pos()) {
     info.matchToStart = true;
   }
   if (mdepth == 0) {
@@ -152,8 +170,8 @@ void PreflateCompLevelEstimatorState::checkDump(bool early_out) {
 }
 void PreflateCompLevelEstimatorState::recommend() {
   info.recommendedCompressionLevel = 9;
-  info.veryFarMatches = !(info.longestDistAtHop0 <= predictor.windowSize() - PreflateConstants::MIN_LOOKAHEAD
-                          && info.longestDistAtHop1Plus < predictor.windowSize() - PreflateConstants::MIN_LOOKAHEAD);
+  info.veryFarMatches = !(info.longestDistAtHop0 <= windowSize() - PreflateConstants::MIN_LOOKAHEAD
+                          && info.longestDistAtHop1Plus < windowSize() - PreflateConstants::MIN_LOOKAHEAD);
   info.farLen3Matches = info.longestLen3Dist > 4096;
 
   info.zlibCompatible = info.possibleCompressionLevels > 1

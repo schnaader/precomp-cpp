@@ -20,6 +20,7 @@
 #include "preflate_input.h"
 #include "preflate_hash_chain.h"
 #include "preflate_parser_config.h"
+#include "preflate_seq_chain.h"
 #include "preflate_token.h"
 
 struct PreflatePreviousMatchInfo {
@@ -41,11 +42,13 @@ struct PreflateRematchInfo {
 
 struct PreflatePredictorState {
   const PreflateHashChainExt&    hash;
+  const PreflateSeqChain&    seq;
   unsigned short windowBytes;
   unsigned maxTokenCount;
   const PreflateParserConfig& config;
 
   PreflatePredictorState(const PreflateHashChainExt&,
+                         const PreflateSeqChain&,
                          const PreflateParserConfig&,
                          const int wbits, 
                          const int mbits);
@@ -58,6 +61,9 @@ struct PreflatePredictorState {
   }
   unsigned windowSize() const {
     return windowBytes;
+  }
+  unsigned totalInputSize() const {
+    return hash.input().size();
   }
   unsigned availableInputSize() const {
     return hash.input().remaining();
@@ -100,6 +106,23 @@ struct PreflatePredictorState {
       const unsigned bestLen,
       const unsigned maxLen);
 
+  static unsigned suffixCompare(
+    const unsigned char* s1,
+    const unsigned char* s2,
+    const unsigned bestLen,
+    const unsigned maxLen);
+
+  bool betterMatchPossible(
+    const unsigned prevLen,
+    const unsigned startPos);
+
+  PreflateToken matchHop0MaxDist(
+    const unsigned hashHead,
+    const unsigned prevLen,
+    const unsigned offset,
+    const bool veryFarMatches,
+    const bool matchesToStart);
+
   PreflateToken match(
       const unsigned hashHead, 
       const unsigned prevLen, 
@@ -107,13 +130,47 @@ struct PreflatePredictorState {
       const bool veryFarMatches,
       const bool matchesToStart,
       const unsigned maxDepth);
+
+  PreflateToken seqMatch(
+    const unsigned startPos,
+    const unsigned hashHead,
+    const unsigned prevLen,
+    const bool veryFarMatches,
+    const bool matchesToStart,
+    const unsigned maxDepth);
+
+  /*
   unsigned short matchDepth(const unsigned hashHead, const PreflateToken& targetReference,
-                      const PreflateHashChainExt&);
+                      const PreflateHashChainExt&);*/
   PreflateNextMatchInfo nextMatchInfo(const unsigned hashHead, const PreflateToken& targetReference,
                               const PreflateHashChainExt&);
   PreflateRematchInfo rematchInfo(const unsigned hashHead, const PreflateToken& targetReference);
   unsigned firstMatch(const unsigned len);
   unsigned hopMatch(const PreflateToken& token, const unsigned hops);
+
+private:
+  struct MatchHelper {
+    unsigned startPos;
+    unsigned maxLen;
+    unsigned curMaxDistHop0;
+    unsigned curMaxDistHop1Plus;
+    unsigned maxChain;
+    unsigned niceLen;
+
+    bool validHop0Dist(const unsigned d) const {
+      return d <= curMaxDistHop0;
+    }
+    bool validHop1PlusDist(const unsigned d) const {
+      return d <= curMaxDistHop1Plus;
+    }
+  };
+  bool createMatchHelper(
+    MatchHelper& helper,
+    const unsigned prevLen,
+    const unsigned startPos,
+    const bool veryFarMatches,
+    const bool matchesToStart,
+    const unsigned maxDepth);
 };
 
 #endif /* PREFLATE_PREDICTOR_STATE_H */

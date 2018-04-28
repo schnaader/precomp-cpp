@@ -85,13 +85,17 @@ if (MSVC)
   add_definitions(-D_UNICODE -DUNICODE)
 endif (MSVC)
 
+if ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
+  add_definitions(-DBIT64)
+endif ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
+
 
 set(PREFLATE_SRC "")
 add_stem2file(PREFLATE_SRC "${SRCDIR}/contrib/preflate/preflate_%STEM%.cpp" 
               "block_decoder;block_reencoder;block_trees;\
                complevel_estimator;constants;decoder;hash_chain;info;\
                parameter_estimator;parser_config;predictor_state;reencoder;\
-               statistical_codec;statistical_model;token;\
+               seq_chain;statistical_codec;statistical_model;token;\
                token_predictor;tree_predictor")
 add_stem2file(PREFLATE_SRC "${SRCDIR}/contrib/preflate/support/%STEM%.cpp"
               "arithmetic_coder;array_helper;bit_helper;bitstream;const_division;\

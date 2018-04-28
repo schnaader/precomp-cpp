@@ -28,6 +28,7 @@ bool preflate_decode(std::vector<unsigned char>& unpacked_output,
                      std::vector<unsigned char>& preflate_diff,
                      uint64_t& deflate_size,
                      InputStream& deflate_raw,
-                     std::function<void (void)> block_callback);
+                     std::function<void (void)> block_callback,
+                     const size_t min_deflate_size);
 
 #endif /* PREFLATE_DECODER_H */

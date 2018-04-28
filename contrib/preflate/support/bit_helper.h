@@ -18,5 +18,6 @@
 unsigned bitLength(unsigned value);
 unsigned bitReverse(const unsigned value, const unsigned bits);
 unsigned bitLeadingZeroes(const unsigned value);
+unsigned bitTrailingZeroes(const unsigned value);
 
 #endif /* BIT_HELPER_H */

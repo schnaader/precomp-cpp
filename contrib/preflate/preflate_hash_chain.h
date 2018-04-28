@@ -92,6 +92,9 @@ struct PreflateHashChainExt {
   unsigned getNodeDepth(const unsigned node) const {
     return chainDepth[node];
   }
+  unsigned getRelPosDepth(const unsigned refPos, const unsigned head) const {
+    return chainDepth[head] - chainDepth[refPos - totalShift];
+  }
 
   PreflateHashIterator iterateFromHead(const unsigned hash, const unsigned refPos, const unsigned maxDist) const {
     return PreflateHashIterator(prev, chainDepth, refPos - totalShift, maxDist, head[hash & hashMask]);

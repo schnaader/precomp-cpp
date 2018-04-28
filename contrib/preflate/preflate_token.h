@@ -29,12 +29,14 @@ struct PreflateToken {
   enum typeNon {
     NONE
   };
-  unsigned short len;
+  unsigned short len : 9;
+  unsigned short irregular258 : 1;
   unsigned short dist;
 
-  PreflateToken(typeNon n) : len(0), dist(0) {}
-  PreflateToken(typeLit l) : len(1), dist(0) {}
-  PreflateToken(typeRef r, unsigned short l, unsigned short d) : len(l), dist(d) {}
+  PreflateToken(typeNon n) : len(0), irregular258(0), dist(0) {}
+  PreflateToken(typeLit l) : len(1), irregular258(0), dist(0) {}
+  PreflateToken(typeRef r, unsigned short l, unsigned short d, bool irregular258_ = false) 
+    : len(l), irregular258(irregular258_), dist(d) {}
 };
 
 struct PreflateTokenBlock {

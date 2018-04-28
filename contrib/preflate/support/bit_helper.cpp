@@ -56,4 +56,17 @@ unsigned bitLeadingZeroes(const unsigned value_) {
   }
   return result + leading4[value >> 28];
 }
+static unsigned char trailing4[16] = {4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0};
+unsigned bitTrailingZeroes(const unsigned value_) {
+  if (value_ == 0) {
+    return 32;
+  }
+  unsigned value = value_;
+  unsigned result = 0;
+  while ((value & 0xf) == 0) {
+    value >>= 4;
+    result += 4;
+  }
+  return result + trailing4[value & 0xf];
+}
 

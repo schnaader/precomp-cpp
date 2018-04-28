@@ -23,6 +23,7 @@ class MemStream : public SeekableInputOutputStream {
 public:
   MemStream();
   MemStream(const std::vector<uint8_t>& content);
+  MemStream(const std::vector<uint8_t>& content, const size_t off, const size_t sz);
 
   virtual bool eof() const;
   virtual size_t read(unsigned char* buffer, const size_t size);
@@ -31,6 +32,10 @@ public:
 
   virtual uint64_t tell() const;
   virtual uint64_t seek(const uint64_t newPos);
+
+  void replaceData(const std::vector<uint8_t>& content) {
+    _data = content;
+  }
 
   const std::vector<uint8_t>& data() const {
     return _data;

@@ -20,7 +20,21 @@
 #include "bitstream.h"
 #include "const_division.h"
 
-class ArithmeticEncoder {
+class ArithmeticCodecBase {
+public:
+  ArithmeticCodecBase();
+  
+  // array for fast check if normalization is required
+  static const uint8_t _normCheckLUT[8];
+  bool _needsNormalization() const {
+    return (_normCheckLUT[_low >> 29] & (1 << (_high >> 29))) != 0;
+  }
+  // arithmetic coding variables
+  uint32_t _low;
+  uint32_t _high;
+};
+
+class ArithmeticEncoder : public ArithmeticCodecBase {
 public:
   ArithmeticEncoder(BitOutputStream& bos);
   void flush();
@@ -29,36 +43,45 @@ public:
     uint32_t step = ((_high - _low) + 1) / scale;
     _high = _low + step * high - 1;
     _low += step * low;
-    _normalize();
+    _checkNormalize();
   }
   void encodeShiftScale(const uint32_t shift, const uint32_t low, const uint32_t high) {
     // update steps, low count, high count
     uint32_t step = ((_high - _low) + 1) >> shift;
     _high = _low + step * high - 1;
     _low += step * low;
-    _normalize();
+    _checkNormalize();
   }
   void encode(const udivider_t<32>& scale, const uint32_t low, const uint32_t high) {
     // update steps, low count, high count
     uint32_t step = divide((_high - _low) + 1, scale);
     _high = _low + step * high - 1;
     _low += step * low;
+    _checkNormalize();
+  }
+  void encodeBits(const uint32_t value, const uint32_t bits) {
+    uint32_t step = ((_high - _low) + 1) >> bits;
+    _low += step * value;
+    _high = _low + step - 1;
     _normalize();
   }
 
 private:
+  void _checkNormalize() {
+    if (_needsNormalization()) {
+      _normalize();
+    }
+  }
   void _normalize();
   void _writeE3(const unsigned w);
 
   BitOutputStream& _bos;
 
   // arithmetic coding variables
-  uint32_t _low;
-  uint32_t _high;
   uint32_t _e3cnt;
 };
 
-class ArithmeticDecoder {
+class ArithmeticDecoder : public ArithmeticCodecBase {
 public:
   ArithmeticDecoder(BitInputStream& bis);
   unsigned decode(const uint32_t scale, const unsigned bounds[], const unsigned N) {
@@ -87,31 +110,46 @@ public:
     return _decodeBinary(step, bounds);
   }
 
+  unsigned decodeBits(const uint32_t bits) {
+    uint32_t step = ((_high - _low) + 1) >> bits;
+    unsigned result = (_value - _low) / step;
+    _low += step * result;
+    _high = _low + step - 1;
+    _normalize();
+    return result;
+  }
+  
 private:
   unsigned _findIndex(const unsigned bounds[],
                       const unsigned N,
                       const unsigned val) {
-    for (unsigned i = 0; i < N; ++i) {
-      if (val < bounds[i + 1]) {
-        return i;
+    for (unsigned i = N; i > 1; --i) {
+      if (val >= bounds[i - 1]) {
+        return i - 1;
       }
     }
-    return N - 1;
+    return 0;
   }
+
   unsigned _decode(const uint32_t step, const unsigned bounds[], const unsigned N) {
     uint32_t val = (_value - _low) / step;
     unsigned result = _findIndex(bounds, N, val);
     _high = _low + step * bounds[result + 1] - 1;
     _low += step * bounds[result];
-    _normalize();
+    _checkNormalize();
     return result;
   }
   unsigned _decodeBinary(const uint32_t step, const unsigned bounds[]) {
     unsigned result = (_value >= _low + bounds[1] * step);
     _high = _low + step * bounds[result + 1] - 1;
     _low += step * bounds[result];
-    _normalize();
+    _checkNormalize();
     return result;
+  }
+  void _checkNormalize() {
+    if (_needsNormalization()) {
+      _normalize();
+    }
   }
   void _normalize();
 
@@ -119,8 +157,6 @@ private:
 
   // arithmetic coding variables
   uint32_t _value;
-  uint32_t _low;
-  uint32_t _high;
 };
 
 bool modelCheckFixed(unsigned bounds[], unsigned short ids[], unsigned short rids[],

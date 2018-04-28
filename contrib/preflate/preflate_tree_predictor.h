@@ -54,8 +54,8 @@ struct PreflateTreePredictor {
       unsigned char bitLengths[],
       unsigned Dcodes[]);
   unsigned buildTCBitlengths(
-      unsigned char (&bitLengths)[PreflateConstants::BL_CODES],
-      unsigned (&BLfreqs)[PreflateConstants::BL_CODES]);
+      unsigned char (&bitLengths)[PreflateConstants::CODETREE_CODE_COUNT],
+      unsigned (&BLfreqs)[PreflateConstants::CODETREE_CODE_COUNT]);
 
 
   unsigned calcBitLengths(unsigned char* symBitLen,

@@ -67,6 +67,8 @@ void PreflateSubModel<N>::build_impl(const unsigned* arr, const unsigned defval,
     bounds[N] = 1 << 16;
   }
   isDefault = N == 0 || bounds[N] == 0 || (bounds[N - 1] == 0 && ids[N - 1] == defval);
+
+  build_scale_down();
 }
 template <unsigned N>
 void PreflateSubModel<N>::buildDefault(const unsigned defval) {
@@ -75,46 +77,67 @@ void PreflateSubModel<N>::buildDefault(const unsigned defval) {
     return;
   }
   memset(bounds, 0, N * sizeof(unsigned));
+  memset(scaledDownBounds, 0, N * sizeof(unsigned));
   bounds[N] = 0x10000;
   ids[N - 1] = defval;
   rids[defval] = N - 1;
   isDefault = true;
+  build_scale_down();
+}
+template <unsigned N>
+void PreflateSubModel<N>::build_scale_down() {
+  unsigned boundBits = 0;
+  for (unsigned i = 0; i <= N; ++i) {
+    boundBits |= bounds[i];
+  }
+  unsigned zeroJunk = bitTrailingZeroes(boundBits);
+  scaleDownBits = (16 - zeroJunk);
+  for (unsigned i = 0; i <= N; ++i) {
+    scaledDownBounds[i] = bounds[i] >> zeroJunk;
+  }
+
+  isFixed = bounds[N - 1] == 0;
+
+/*  for (unsigned i = 0; i <= N; ++i) {
+    scaledDownBounds[i] = bounds[i];
+  }
+  scaleDownBits = 16;*/
 }
 
-static void encodeProb(aricoder* codec, const unsigned val) {
+
+static void encodeProb(ArithmeticEncoder& codec, const unsigned val) {
   unsigned bits = bitLength(val);
   // encode shift
-  PreflateBaseModel::encodeValue(codec, bits - 1, 4);
+  codec.encodeBits(bits - 1, 4);
   // and precision
   if (bits >= 5) {
-    PreflateBaseModel::encodeValue(codec, (val >> (bits - 5)) & 0xf, 4);
+    codec.encodeBits((val >> (bits - 5)) & 0xf, 4);
   } else {
-    PreflateBaseModel::encodeValue(codec, val & ~(1 << (bits - 1)), bits - 1);
+    codec.encodeBits(val & ~(1 << (bits - 1)), bits - 1);
   }
 }
-static void encodeId(aricoder* codec,
+static void encodeId(ArithmeticEncoder& codec,
               const unsigned id, const unsigned count) {
   unsigned bits = bitLength(count - 1);
-  PreflateBaseModel::encodeValue(codec, id, bits);
+  codec.encodeBits(id, bits);
 }
-static unsigned decodeProb(aricoder* codec) {
+static unsigned decodeProb(ArithmeticDecoder& codec) {
   // encode shift
-  unsigned bits = PreflateBaseModel::decodeValue(codec, 4) + 1;
+  unsigned bits = codec.decodeBits(4) + 1;
   // and precision
   if (bits >= 5) {
-    return (PreflateBaseModel::decodeValue(codec, 4) | 0x10) << (bits - 5);
+    return (codec.decodeBits(4) | 0x10) << (bits - 5);
   } else {
-    return PreflateBaseModel::decodeValue(codec, bits - 1) | (1 << (bits - 1));
+    return codec.decodeBits(bits - 1) | (1 << (bits - 1));
   }
 }
-static unsigned decodeId(aricoder* codec, const unsigned count) {
+static unsigned decodeId(ArithmeticDecoder& codec, const unsigned count) {
   unsigned bits = bitLength(count - 1);
-  return PreflateBaseModel::decodeValue(codec, bits);
+  return codec.decodeBits(bits);
 }
 
-
 template <unsigned N>
-void PreflateSubModel<N>::write(aricoder* codec, const uint8_t) const {
+void PreflateSubModel<N>::write(ArithmeticEncoder& codec, const uint8_t) const {
   unsigned zeros = 0;
   for (unsigned i = 1; i < N; ++i) {
     if (!bounds[i]) {
@@ -123,7 +146,7 @@ void PreflateSubModel<N>::write(aricoder* codec, const uint8_t) const {
       break;
     }
   }
-  PreflateBaseModel::encodeValue(codec, zeros, bitLength(N - 1));
+  codec.encodeBits(zeros, bitLength(N - 1));
   // Transmit values
   for (unsigned i = 1 + zeros; i < N; ++i) {
     encodeProb(codec, bounds[i] - bounds[i - 1]);
@@ -134,8 +157,8 @@ void PreflateSubModel<N>::write(aricoder* codec, const uint8_t) const {
   }
 }
 template <unsigned N>
-void PreflateSubModel<N>::read(aricoder* codec, const uint8_t) {
-  unsigned zeros = PreflateBaseModel::decodeValue(codec, bitLength(N - 1));
+void PreflateSubModel<N>::read(ArithmeticDecoder& codec, const uint8_t) {
+  unsigned zeros = codec.decodeBits(bitLength(N - 1));
   memset(bounds, 0, sizeof(bounds));
   // Transmit values
   for (unsigned i = 1 + zeros; i < N; ++i) {
@@ -147,6 +170,7 @@ void PreflateSubModel<N>::read(aricoder* codec, const uint8_t) {
     ids[i] = decodeId(codec, N);
     rids[ids[i]] = i;
   }
+  build_scale_down();
 }
 
 template <unsigned NEG, unsigned POS>
@@ -174,7 +198,7 @@ void PreflateCorrectionSubModel<NEG, POS>::buildDefault(const unsigned defval) {
   isDefault = sign.isDefault && pos.isDefault && neg.isDefault;
 }
 template <unsigned NEG, unsigned POS>
-void PreflateCorrectionSubModel<NEG, POS>::write(aricoder* codec, const uint8_t prec) const {
+void PreflateCorrectionSubModel<NEG, POS>::write(ArithmeticEncoder& codec, const uint8_t prec) const {
   sign.write(codec, prec);
   if (POS > 0) {
     pos.write(codec, prec);
@@ -184,7 +208,7 @@ void PreflateCorrectionSubModel<NEG, POS>::write(aricoder* codec, const uint8_t 
   }
 }
 template <unsigned NEG, unsigned POS>
-void PreflateCorrectionSubModel<NEG, POS>::read(aricoder* codec, const uint8_t prec) {
+void PreflateCorrectionSubModel<NEG, POS>::read(ArithmeticDecoder& codec, const uint8_t prec) {
   sign.read(codec, prec);
   if (POS > 0) {
     pos.read(codec, prec);
@@ -197,29 +221,32 @@ void PreflateCorrectionSubModel<NEG, POS>::read(aricoder* codec, const uint8_t p
 // -------------------------------------
 
 PreflateBaseModel::PreflateBaseModel() 
-  : codec(nullptr) {}
+  : encoder(nullptr), decoder(nullptr) {}
 
-void PreflateBaseModel::setStream(aricoder* codec_) {
-  codec = codec_;
+void PreflateBaseModel::setEncoderStream(ArithmeticEncoder* codec_) {
+  encoder = codec_;
+}
+void PreflateBaseModel::setDecoderStream(ArithmeticDecoder* codec_) {
+  decoder = codec_;
 }
 
 template <unsigned N>
 void PreflateBaseModel::readSubModel(PreflateSubModel<N>& sm, const bool isFullDef, const PreflateModelCodec& cc,
                   const unsigned defVal, const uint8_t prec) {
-  if (isFullDef || cc.nonDefaultValue.decode(codec) == 0) {
+  if (isFullDef || cc.nonDefaultValue.decode(*decoder) == 0) {
     sm.buildDefault(defVal);
   } else {
-    sm.read(codec, prec);
+    sm.read(*decoder, prec);
   }
 }
 
 template <unsigned N, unsigned M>
 void PreflateBaseModel::readSubModel(PreflateCorrectionSubModel<N, M>& sm, const bool isFullDef, const PreflateModelCodec& cc,
                   const unsigned defVal, const uint8_t prec) {
-  if (isFullDef || cc.nonDefaultValue.decode(codec) == 0) {
+  if (isFullDef || cc.nonDefaultValue.decode(*decoder) == 0) {
     sm.buildDefault(defVal);
   } else {
-    sm.read(codec, prec);
+    sm.read(*decoder, prec);
   }
 }
 
@@ -230,9 +257,9 @@ void PreflateBaseModel::writeSubModel(const PreflateSubModel<N>& sm, const bool 
     return;
   }
   bool ndef = !sm.isDefault;
-  cc.nonDefaultValue.encode(codec, ndef);
+  cc.nonDefaultValue.encode(*encoder, ndef);
   if (ndef) {
-    sm.write(codec, prec);
+    sm.write(*encoder, prec);
   }
 }
 
@@ -243,9 +270,9 @@ void PreflateBaseModel::writeSubModel(const PreflateCorrectionSubModel<N, M>& sm
     return;
   }
   bool ndef = !sm.isDefault;
-  cc.nonDefaultValue.encode(codec, ndef);
+  cc.nonDefaultValue.encode(*encoder, ndef);
   if (ndef) {
-    sm.write(codec, prec);
+    sm.write(*encoder, prec);
   }
 }
 
@@ -363,24 +390,23 @@ void PreflateTokenPredictionModel::writeToStream(const PreflateModelCodec& cc) {
 }
 
 
-PreflatePredictionModel::PreflatePredictionModel() 
-  : codec(nullptr)
-  , data(nullptr) {
-}
-PreflatePredictionModel::~PreflatePredictionModel() {
-  delete codec;
-  delete data;
-}
+PreflatePredictionModel::PreflatePredictionModel() {}
+PreflatePredictionModel::~PreflatePredictionModel() {}
 
 void PreflatePredictionModel::read(const PreflateStatisticsCounter& model, const PreflateModelCodec& cc) {
   block.read(model.block, cc);
   treecode.read(model.treecode, cc);
   token.read(model.token, cc);
 }
-void PreflatePredictionModel::setStream(aricoder* codec) {
-  block.setStream(codec);
-  treecode.setStream(codec);
-  token.setStream(codec);
+void PreflatePredictionModel::setEncoderStream(ArithmeticEncoder* codec) {
+  block.setEncoderStream(codec);
+  treecode.setEncoderStream(codec);
+  token.setEncoderStream(codec);
+}
+void PreflatePredictionModel::setDecoderStream(ArithmeticDecoder* codec) {
+  block.setDecoderStream(codec);
+  treecode.setDecoderStream(codec);
+  token.setDecoderStream(codec);
 }
 void PreflatePredictionModel::readFromStream(const PreflateModelCodec& cc) {
   block.readFromStream(cc);
@@ -445,10 +471,10 @@ void PreflateModelCodec::read(const PreflateStatisticsCounter& m) {
   MBprecisionP1 = 16;
 }
 
-void PreflateModelCodec::readFromStream(aricoder* codec) {
-  blockFullDefault = PreflateBaseModel::decodeValue(codec, 1); 
-  treecodeFullDefault = PreflateBaseModel::decodeValue(codec, 1);
-  tokenFullDefault = PreflateBaseModel::decodeValue(codec, 1);
+void PreflateModelCodec::readFromStream(ArithmeticDecoder& codec) {
+  blockFullDefault = codec.decodeBits(1); 
+  treecodeFullDefault = codec.decodeBits(1);
+  tokenFullDefault = codec.decodeBits(1);
   totalModels = 0;
   if (!blockFullDefault) {
     totalModels += PreflateStatisticsCounter::BlockPrediction::totalModels();
@@ -468,50 +494,67 @@ void PreflateModelCodec::readFromStream(aricoder* codec) {
   MBprecision = 16;
   MBprecisionP1 = 16;
 }
-void PreflateModelCodec::writeToStream(aricoder* codec) {
-  PreflateBaseModel::encodeValue(codec, blockFullDefault, 1);
-  PreflateBaseModel::encodeValue(codec, treecodeFullDefault, 1);
-  PreflateBaseModel::encodeValue(codec, tokenFullDefault, 1);
-  PreflateBaseModel::encodeValue(codec, defaultingModels, bitLength(totalModels));
+void PreflateModelCodec::writeToStream(ArithmeticEncoder& codec) {
+  codec.encodeBits(blockFullDefault, 1);
+  codec.encodeBits(treecodeFullDefault, 1);
+  codec.encodeBits(tokenFullDefault, 1);
+  codec.encodeBits(defaultingModels, bitLength(totalModels));
 }
 
 // ------------------------------------
+
+PreflatePredictionEncoder::PreflatePredictionEncoder() 
+  : storage(nullptr)
+  , bos(nullptr)
+  , encoder(nullptr)
+{}
 
 void PreflatePredictionEncoder::start(const PreflatePredictionModel& model_, const PreflateParameters& params_,
                                       const unsigned modelId_) {
   PreflatePredictionModel::operator =(model_);
   params = params_;
-  data = new iostream(nullptr, TYPE_MEMORY, 0, MODE_WRITE);
-  codec = new aricoder(data, MODE_WRITE);
   modelid = modelId_;
 
-  setStream(codec);
+  storage = new MemStream;
+  bos = new BitOutputStream(*storage);
+  encoder = new ArithmeticEncoder(*bos);
+  setEncoderStream(encoder);
 }
 std::vector<uint8_t> PreflatePredictionEncoder::end() {
-  setStream(nullptr);
+  setEncoderStream(nullptr);
+  encoder->flush();
+  delete encoder;
 
-  delete codec;
-  codec = nullptr;
-  std::vector<unsigned char> result(data->getptr(), data->getptr() + data->getsize());
-  delete data;
-  data = nullptr;
+  bos->flush();
+  delete bos;
+
+  std::vector<unsigned char> result = storage->extractData();
+  delete storage;
   return result;
 }
 
+PreflatePredictionDecoder::PreflatePredictionDecoder()
+  : storage(nullptr)
+  , bis(nullptr)
+  , decoder(nullptr) {}
+
 void PreflatePredictionDecoder::start(const PreflatePredictionModel& model_, const PreflateParameters& params_,
-                                      const std::vector<uint8_t>& storage, size_t off0, size_t size) {
+                                      const std::vector<uint8_t>& storage_, size_t off0, size_t size) {
   PreflatePredictionModel::operator =(model_);
   params = params_;
-  data = new iostream(const_cast<uint8_t*>(storage.data() + off0), TYPE_MEMORY, (int)size, MODE_READ);
-  codec = new aricoder(data, MODE_READ);
-  setStream(codec);
+  storage = new MemStream(storage_, off0, size);
+  bis = new BitInputStream(*storage);
+  decoder = new ArithmeticDecoder(*bis);
+  setDecoderStream(decoder);
 }
 void PreflatePredictionDecoder::end() {
-  setStream(nullptr);
-  delete codec;
-  codec = nullptr;
-  delete data;
-  data = nullptr;
+  setDecoderStream(nullptr);
+  delete decoder;
+  delete bis;
+  delete storage;
+  decoder = nullptr;
+  bis = nullptr;
+  storage = nullptr;
 }
 
 // ------------------------------------
@@ -592,15 +635,18 @@ std::vector<unsigned char> PreflateMetaEncoder::finish() {
           bos.put(mt.params.matchesToStartDetected, 1);
         }
         bos.put(mt.params.log2OfMaxChainDepthM1, 4);
-        iostream tmp_mem(nullptr, TYPE_MEMORY, 0, MODE_WRITE);
+        MemStream tmp_data;
         {
-          aricoder tmp_codec(&tmp_mem, MODE_WRITE);
-          mt.mcodec.writeToStream(&tmp_codec);
-          mt.model.setStream(&tmp_codec);
+          BitOutputStream tmp_bos(tmp_data);
+          ArithmeticEncoder tmp_codec(tmp_bos);
+          mt.mcodec.writeToStream(tmp_codec);
+          mt.model.setEncoderStream(&tmp_codec);
           mt.model.writeToStream(mt.mcodec);
-          mt.model.setStream(nullptr);
+          mt.model.setEncoderStream(nullptr);
+          tmp_codec.flush();
+          tmp_bos.flush();
         }
-        std::vector<uint8_t> tmp_res(tmp_mem.getptr(), tmp_mem.getptr() + tmp_mem.getsize());
+        std::vector<uint8_t> tmp_res = tmp_data.extractData();
         // write length (vli) and model data
         bos.putVLI(tmp_res.size());
         bos.putBytes(tmp_res.data(), tmp_res.size());
@@ -686,19 +732,17 @@ PreflateMetaDecoder::PreflateMetaDecoder(const std::vector<uint8_t>& reconData_,
         mt.params.log2OfMaxChainDepthM1 = bis.get(4);
         // read length (vli) and model data
         size_t res_size = bis.getVLI();
-        std::vector<uint8_t> modeldata(res_size);
-        if (bis.getBytes(modeldata.data(), modeldata.size()) != res_size) {
-          inError = true;
-          return;
-        }
         // interpret model data
-        iostream tmp_mem(modeldata.data(), TYPE_MEMORY, modeldata.size(), MODE_READ);
         {
-          aricoder tmp_codec(&tmp_mem, MODE_READ);
-          mt.mcodec.readFromStream(&tmp_codec);
-          mt.model.setStream(&tmp_codec);
+          MemStream tmp_mem;
+          bis.copyBytesTo(tmp_mem, res_size);
+          tmp_mem.seek(0);
+          BitInputStream tmp_bis(tmp_mem);
+          ArithmeticDecoder tmp_codec(tmp_bis);
+          mt.mcodec.readFromStream(tmp_codec);
+          mt.model.setDecoderStream(&tmp_codec);
           mt.model.readFromStream(mt.mcodec);
-          mt.model.setStream(nullptr);
+          mt.model.setDecoderStream(nullptr);
         }
       }
       mb.modelId = modelList.size();

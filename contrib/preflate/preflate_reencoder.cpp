@@ -57,7 +57,7 @@ bool preflate_reencode(OutputStream& os,
     deflater.writeBlock(block, eof);
     block_callback();
   } while (!eof);
-  bool non_zero_bits = pcodec.decodeValue(1) != 0;
+  bool non_zero_bits = pcodec.decodeNonZeroPadding();
   if (non_zero_bits) {
     unsigned bitsToLoad = pcodec.decodeValue(3);
     unsigned padding = 0;

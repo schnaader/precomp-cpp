@@ -17,12 +17,13 @@
 
 struct PreflateConstants {
   enum {
-    LENGTH_CODES = 29,
-    LITERALS = 256,
-    L_CODES = LITERALS + 1 /* eob */ + LENGTH_CODES,
-    D_CODES = 30,
-    LD_CODES = L_CODES + D_CODES,
-    BL_CODES = 19,
+    LITERAL_COUNT = 256,
+    NONLEN_CODE_COUNT = LITERAL_COUNT + 1, // EOB
+    LEN_CODE_COUNT = 29,
+    LITLEN_CODE_COUNT = NONLEN_CODE_COUNT + LEN_CODE_COUNT,
+    DIST_CODE_COUNT = 30,
+    LITLENDIST_CODE_COUNT = LITLEN_CODE_COUNT + DIST_CODE_COUNT,
+    CODETREE_CODE_COUNT = 19,
 
     MIN_MATCH = 3,
     MAX_MATCH = 258,
@@ -34,12 +35,12 @@ struct PreflateConstants {
 
   static const unsigned char distCodeTable[512];
   static const unsigned char lengthCodeTable[MAX_MATCH - MIN_MATCH + 1];
-  static const unsigned char lengthBaseTable[LENGTH_CODES];
-  static const unsigned short distBaseTable[D_CODES];
+  static const unsigned char lengthBaseTable[LEN_CODE_COUNT];
+  static const unsigned short distBaseTable[DIST_CODE_COUNT];
 
-  static const unsigned char lengthExtraTable[LENGTH_CODES];
-  static const unsigned char distExtraTable[D_CODES];
-  static const unsigned char treeCodeOrderTable[BL_CODES];
+  static const unsigned char lengthExtraTable[LEN_CODE_COUNT];
+  static const unsigned char distExtraTable[DIST_CODE_COUNT];
+  static const unsigned char treeCodeOrderTable[CODETREE_CODE_COUNT];
 
   static inline unsigned DCode(const unsigned dist) {
     return distCodeTable[dist <= 256 ? dist - 1 : 256 + ((dist - 1) >> 7)];

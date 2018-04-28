@@ -18,10 +18,12 @@
 
 PreflatePredictorState::PreflatePredictorState(
     const PreflateHashChainExt& hash_,
+    const PreflateSeqChain& seq_,
     const PreflateParserConfig& config_,
     const int wbits, 
     const int mbits) 
   : hash(hash_)
+  , seq(seq_)
   , windowBytes(1 << wbits)
   , maxTokenCount((1 << (6 + mbits)) - 1)
   , config(config_) {
@@ -90,6 +92,56 @@ unsigned PreflatePredictorState::prefixCompare(
   return scan - s2;
 }
 
+unsigned PreflatePredictorState::suffixCompare(
+    const unsigned char* s1,
+    const unsigned char* s2,
+    const unsigned bestLen,
+    const unsigned maxLen) {
+  if (s1[bestLen] != s2[bestLen]) {
+    return 0;
+  }
+  unsigned len = 0;
+  while (s1[len] == s2[len] && ++len < maxLen) {
+  }
+  return len;
+}
+
+bool PreflatePredictorState::createMatchHelper(
+    MatchHelper& helper,
+    const unsigned prevLen,
+    const unsigned startPos,
+    const bool veryFarMatches,
+    const bool matchesToStart,
+    const unsigned maxDepth) {
+  helper.maxLen = std::min(totalInputSize() - startPos, (unsigned)PreflateConstants::MAX_MATCH);
+  if (helper.maxLen < std::max<uint32_t>(prevLen + 1, PreflateConstants::MIN_MATCH)) {
+    return false;
+  }
+  helper.startPos = startPos;
+  unsigned maxDistToStart = startPos - (matchesToStart ? 0 : 1);
+  if (veryFarMatches) {
+    helper.curMaxDistHop1Plus
+      = helper.curMaxDistHop0
+      = std::min(maxDistToStart, windowSize());
+  } else {
+    unsigned maxDist = windowSize() - PreflateConstants::MIN_LOOKAHEAD;
+    helper.curMaxDistHop0 = std::min(maxDistToStart, maxDist);
+    helper.curMaxDistHop1Plus = std::min(maxDistToStart, maxDist - 1);
+  }
+  if (maxDepth > 0) {
+    helper.maxChain = maxDepth;
+    helper.niceLen = helper.maxLen;
+  } else {
+    helper.maxChain = maxChainLength();/* max hash chain length */
+    helper.niceLen = std::min(niceMatchLength(), helper.maxLen);
+
+    if (prevLen >= goodMatchLength()) {
+      helper.maxChain >>= 2;
+    }
+  }
+  return true;
+}
+
 PreflateToken PreflatePredictorState::match(
     const unsigned hashHead,
     const unsigned prevLen,
@@ -98,66 +150,139 @@ PreflateToken PreflatePredictorState::match(
     const bool matchesToStart,
     const unsigned maxDepth) {
   PreflateToken bestMatch(PreflateToken::NONE);
-  unsigned maxLen = std::min(availableInputSize() - offset, (unsigned)PreflateConstants::MAX_MATCH);
-  if (maxLen < std::max(prevLen + 1, (unsigned)PreflateConstants::MIN_MATCH)) {
+  MatchHelper h;
+  if (!createMatchHelper(h, prevLen, currentInputPos() + offset,
+                         veryFarMatches, matchesToStart, maxDepth)) {
     return bestMatch;
   }
-
-  unsigned maxDistHop0 = windowSize() - (veryFarMatches ? 0 : PreflateConstants::MIN_LOOKAHEAD);
-  unsigned maxDistHop1Plus = windowSize() - (veryFarMatches ? 0 : PreflateConstants::MIN_LOOKAHEAD + 1);
-  unsigned curPos = currentInputPos() + offset;
-  unsigned maxDistToStart = curPos - (matchesToStart ? 0 : 1);
-  unsigned curMaxDistHop0 = std::min(maxDistToStart, maxDistHop0);
-  unsigned curMaxDistHop1Plus = std::min(maxDistToStart, maxDistHop1Plus);
-
-  PreflateHashIterator chainIt = iterateFromNode(hashHead, curPos, curMaxDistHop1Plus);
-  if (chainIt.dist() > curMaxDistHop0) {
+  PreflateHashIterator chainIt = iterateFromNode(hashHead, h.startPos, h.curMaxDistHop1Plus);
+  // Handle ZLIB quirk: the very first entry in the hash chain can have a larger
+  // distance than all following entries
+  if (chainIt.dist() > h.curMaxDistHop0) {
     return bestMatch;
   }
-
   const unsigned char* input = inputCursor() + offset;
-
-  unsigned maxChain = maxChainLength();/* max hash chain length */
-  unsigned niceLen = maxDepth > 0 ? maxLen : std::min(niceMatchLength(), maxLen);
-
-  if (prevLen >= goodMatchLength()) {
-    maxChain >>= 2;
-  }
-  if (maxDepth > 0) {
-    maxChain = maxDepth;
-  }
-
   unsigned bestLen = prevLen;
-
   do {
     const unsigned char* match = input - chainIt.dist();
 
-    unsigned matchLength = prefixCompare(match, input, bestLen, maxLen);
+    unsigned matchLength = prefixCompare(match, input, bestLen, h.maxLen);
     if (matchLength > bestLen) {
       bestLen = matchLength;
       bestMatch = PreflateToken(PreflateToken::REFERENCE, matchLength, chainIt.dist());
-      if (bestLen >= niceLen) {
+      if (bestLen >= h.niceLen) {
         break;
       }
     }
-  } while (chainIt.next() && maxChain-- > 1);
+  } while (chainIt.next() && h.maxChain-- > 1);
   return bestMatch;
 }
-
-unsigned short PreflatePredictorState::matchDepth(
-    const unsigned hashHead,
-    const PreflateToken& targetReference,
-    const PreflateHashChainExt& hash) {
-  unsigned curPos = currentInputPos();
-  unsigned curMaxDist = std::min(curPos, windowSize());
-
-  unsigned startDepth = hash.getNodeDepth(hashHead);
-  PreflateHashIterator chainIt = hash.iterateFromPos(curPos - targetReference.dist, curPos, curMaxDist);
-  if (!chainIt.curPos || targetReference.dist > curMaxDist) {
-    return 0xffffu;
+PreflateToken PreflatePredictorState::seqMatch(
+  const unsigned startPos,
+  const unsigned hashHead,
+  const unsigned prevLen,
+  const bool veryFarMatches,
+  const bool matchesToStart,
+  const unsigned maxDepth) {
+  PreflateToken bestMatch(PreflateToken::NONE);
+  MatchHelper h;
+  if (!createMatchHelper(h, prevLen, startPos,
+                         veryFarMatches, matchesToStart, maxDepth)) {
+    return bestMatch;
   }
-  unsigned endDepth = chainIt.depth();
-  return std::min(startDepth - endDepth, 0xffffu);
+
+  PreflateSeqIterator chainIt = seq.iterateFromPos(startPos);
+  if (!chainIt) {
+    return bestMatch;
+  }
+  unsigned curSeqLen = std::min<uint32_t>(seq.len(startPos), h.maxLen);
+  unsigned curMaxDist = h.curMaxDistHop1Plus;
+  unsigned bestLen = prevLen;
+  if (curSeqLen < PreflateConstants::MIN_MATCH) {
+    // startPos is part of a bigger sequence,
+    // and the ZLIB quirk does not apply, yeah!
+    curSeqLen = std::min(chainIt.len() - chainIt.dist(), h.maxLen);
+    if (curSeqLen > prevLen && 1 <= h.curMaxDistHop0) {
+      bestLen = curSeqLen;
+      bestMatch = PreflateToken(PreflateToken::REFERENCE, curSeqLen, 1);
+    }
+    if (bestLen >= h.niceLen || !chainIt.next()) {
+      return bestMatch;
+    }
+    unsigned minDistOff = chainIt.len() - PreflateConstants::MIN_MATCH;
+    if (chainIt.dist() > h.curMaxDistHop1Plus + chainIt.len() - PreflateConstants::MIN_MATCH) {
+      return bestMatch;
+    }
+  } else {
+    unsigned minDistOff = chainIt.len() - PreflateConstants::MIN_MATCH;
+    if (chainIt.dist() > h.curMaxDistHop1Plus + minDistOff) {
+      if (chainIt.dist() > h.curMaxDistHop0 + minDistOff) {
+        return bestMatch;
+      }
+      // Handle ZLIB quirk: the very first entry in the hash chain can have a larger
+      // distance than all following entries
+      unsigned latestPos = h.startPos - chainIt.dist() + minDistOff;
+      unsigned depth = hash.getRelPosDepth(latestPos, hashHead);
+      if (depth == 0) {
+        curMaxDist = h.curMaxDistHop0;
+      }
+    }
+  }
+  const unsigned char* input = inputCursor() + startPos - currentInputPos();
+  unsigned bestSeqLen = std::min(curSeqLen, bestLen);
+
+  do {
+    if (chainIt.len() < bestSeqLen) {
+      // If we do not even meet the already matched number of sequence bytes,
+      // we can just skip this
+      continue;
+    }
+
+    unsigned oldBestSeqLen = bestSeqLen;
+    bestSeqLen = std::min<uint32_t>(std::min<uint32_t>(curSeqLen, chainIt.len()), h.niceLen);
+    unsigned bestDist = chainIt.dist() - chainIt.len() + bestSeqLen;
+    unsigned error = 0;
+    if (bestDist > curMaxDist) {
+      // best subsequence is already beyond the search range
+      error = bestDist - curMaxDist;
+      if (error > chainIt.len() - PreflateConstants::MIN_MATCH) {
+        break;
+      }
+    }
+    unsigned bestChainDepth = hash.getRelPosDepth(h.startPos - bestDist + error, hashHead);
+    if (bestChainDepth >= h.maxChain) {
+      // best subsequence is already beyond the search range
+      error += bestChainDepth - h.maxChain + 1;
+      if (error > chainIt.len() - PreflateConstants::MIN_MATCH) {
+        break;
+      }
+    }
+    if (error) {
+      if (bestSeqLen > std::max<uint32_t>(oldBestSeqLen, PreflateConstants::MIN_MATCH - 1) + error) {
+        bestMatch = PreflateToken(PreflateToken::REFERENCE, bestSeqLen - error, bestDist - error);
+      }
+      // Since we had to correct the length down, we know that
+      // the comparer cannot find a better match
+      break;
+    }
+    if (bestSeqLen == h.maxLen) {
+      bestMatch = PreflateToken(PreflateToken::REFERENCE, bestSeqLen, bestDist);
+      break;
+    } else {
+      const unsigned char* match = input - bestDist;
+
+      unsigned matchLength = bestSeqLen + suffixCompare(match + bestSeqLen, input + bestSeqLen, std::max(bestLen, bestSeqLen) - bestSeqLen, h.maxLen - bestSeqLen);
+      if (matchLength > bestLen) {
+        bestLen = matchLength;
+        bestMatch = PreflateToken(PreflateToken::REFERENCE, matchLength, bestDist);
+        if (bestLen >= h.niceLen) {
+          break;
+        }
+      }
+    }
+    curMaxDist = h.curMaxDistHop1Plus;
+  } while (chainIt.next());
+  return bestMatch;
 }
 
 PreflateNextMatchInfo PreflatePredictorState::nextMatchInfo(

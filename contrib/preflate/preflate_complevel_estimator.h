@@ -35,13 +35,13 @@ struct PreflateCompLevelInfo {
 };
 
 struct PreflateCompLevelEstimatorState {
-  PreflatePredictorState predictor;
   PreflateHashChainExt slowHash;
   PreflateHashChainExt fastL1Hash;
   PreflateHashChainExt fastL2Hash;
   PreflateHashChainExt fastL3Hash;
   const std::vector<PreflateTokenBlock>& blocks;
   PreflateCompLevelInfo info;
+  uint16_t wsize;
 
   PreflateCompLevelEstimatorState(const int wbits, const int mbits,
                                   const std::vector<unsigned char>& unpacked_output,
@@ -56,6 +56,11 @@ private:
   void updateOrSkipSingleFastHash(PreflateHashChainExt&, const unsigned len, const PreflateParserConfig&);
   bool checkMatchSingleFastHash(const PreflateToken& token, const PreflateHashChainExt&, const PreflateParserConfig&,
                                 const unsigned hashHead);
+  uint16_t matchDepth(const unsigned hashHead, const PreflateToken& targetReference,
+                      const PreflateHashChainExt& hash);
+  unsigned windowSize() const {
+    return wsize;
+  }
 };
 
 PreflateCompLevelInfo estimatePreflateCompLevel(
