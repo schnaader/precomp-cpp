@@ -597,9 +597,6 @@ bool PreflateMetaEncoder::endMetaBlock(PreflatePredictionEncoder& encoder, const
   return true;
 }
 std::vector<unsigned char> PreflateMetaEncoder::finish() {
-  if (blockList.size() != 1) {
-    return std::vector<unsigned char>();
-  }
   MemStream mem;
   BitOutputStream bos(mem);
   bos.put(0, 1); // no extension used
@@ -668,10 +665,10 @@ std::vector<unsigned char> PreflateMetaEncoder::finish() {
   return result;
 }
 
-PreflateMetaDecoder::PreflateMetaDecoder(const std::vector<uint8_t>& reconData_, const std::vector<uint8_t>& uncompressed_)
+PreflateMetaDecoder::PreflateMetaDecoder(const std::vector<uint8_t>& reconData_, const uint64_t uncompressedSize_)
   : inError(false)
   , reconData(reconData_)
-  , uncompressedData(uncompressed_) {
+  , uncompressedSize(uncompressedSize_) {
   if (reconData.size() == 0) {
     inError = true;
     return;
@@ -689,10 +686,6 @@ PreflateMetaDecoder::PreflateMetaDecoder(const std::vector<uint8_t>& reconData_,
     blockCount = 1;
   } else {
     blockCount = 2 + bis.getVLI();
-  }
-  if (blockCount != 1) {
-    inError = true;
-    return;
   }
   enum Mode {
     CREATE_NEW_MODEL /*, REUSE_LAST_MODEL, REUSE_PREVIOUS_MODEL*/
@@ -769,13 +762,13 @@ PreflateMetaDecoder::PreflateMetaDecoder(const std::vector<uint8_t>& reconData_,
     if (i != blockCount - 1) {
       reconStart += blockList[i].reconSize;
       uncStart += blockList[i].uncompressedSize;
-      if (reconStart > reconData.size() || uncStart > uncompressedData.size()) {
+      if (reconStart > reconData.size() || uncStart > uncompressedSize) {
         inError = true;
         return;
       }
     } else {
       blockList[i].reconSize = reconData.size() - blockList[i].reconStartOfs;
-      blockList[i].uncompressedSize = uncompressedData.size() - blockList[i].uncompressedStartOfs;
+      blockList[i].uncompressedSize = uncompressedSize - blockList[i].uncompressedStartOfs;
     }
   }
 }

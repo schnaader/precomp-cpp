@@ -49,7 +49,8 @@ struct PreflateTokenPredictor {
   std::vector<BlockAnalysisResult> analysisResults;
 
   PreflateTokenPredictor(const PreflateParameters& params,
-                        const std::vector<unsigned char>& dump);
+                        const std::vector<unsigned char>& uncompressed,
+                        const size_t offset);
   void analyzeBlock(const unsigned blockno, 
                     const PreflateTokenBlock& block);
   void updateCounters(PreflateStatisticsCounter*,
@@ -62,6 +63,7 @@ struct PreflateTokenPredictor {
 
   PreflateTokenBlock decodeBlock(PreflatePredictionDecoder*);
   bool decodeEOF(PreflatePredictionDecoder*);
+  bool inputEOF();
 
   bool predictEOB();
   PreflateToken predictToken();

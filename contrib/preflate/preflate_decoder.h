@@ -17,18 +17,60 @@
 
 #include <functional>
 #include <vector>
+#include "preflate_statistical_codec.h"
 #include "preflate_token.h"
 #include "support/stream.h"
+#include "support/task_pool.h"
+
+class PreflateDecoderTask : public Task {
+public:
+  class Handler {
+  public:
+    virtual uint32_t setModel(const PreflateStatisticsCounter&, const PreflateParameters&) = 0;
+    virtual bool beginEncoding(const uint32_t metaBlockId, PreflatePredictionEncoder&, const uint32_t modelId) = 0;
+    virtual bool endEncoding(const uint32_t metaBlockId, PreflatePredictionEncoder&, const size_t uncompressedSize) = 0;
+    virtual void markProgress() = 0;
+  };
+
+  PreflateDecoderTask(Handler& handler,
+                      const uint32_t metaBlockId, 
+                      std::vector<PreflateTokenBlock>&& tokenData,
+                      std::vector<uint8_t>&& uncompressedData,
+                      const size_t uncompressedOffset,
+                      const bool lastMetaBlock,
+                      const uint32_t paddingBits);
+
+  virtual bool execute();
+
+private:
+  Handler& handler;
+  uint32_t metaBlockId;
+  std::vector<PreflateTokenBlock> tokenData;
+  std::vector<uint8_t> uncompressedData;
+  size_t uncompressedOffset;
+  bool lastMetaBlock;
+  uint32_t paddingBits;
+};
+
+bool preflate_decode(OutputStream& unpacked_output,
+                     std::vector<unsigned char>& preflate_diff,
+                     uint64_t& deflate_size,
+                     InputStream& deflate_raw,
+                     std::function<void(void)> block_callback,
+                     const size_t min_deflate_size,
+                     const size_t metaBlockSize = INT32_MAX);
 
 bool preflate_decode(std::vector<unsigned char>& unpacked_output,
                      std::vector<unsigned char>& preflate_diff,
-                     const std::vector<unsigned char>& deflate_raw);
+                     const std::vector<unsigned char>& deflate_raw,
+                     const size_t metaBlockSize = INT32_MAX);
 
 bool preflate_decode(std::vector<unsigned char>& unpacked_output,
                      std::vector<unsigned char>& preflate_diff,
                      uint64_t& deflate_size,
                      InputStream& deflate_raw,
                      std::function<void (void)> block_callback,
-                     const size_t min_deflate_size);
+                     const size_t min_deflate_size,
+                     const size_t metaBlockSize = INT32_MAX);
 
 #endif /* PREFLATE_DECODER_H */

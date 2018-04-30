@@ -46,7 +46,9 @@ public:
   const unsigned short *litLenCode, *distCode, *treeCode;
   const unsigned char *litLenBits, *distBits, *treeBits;*/
 
-  PreflateBlockReencoder(BitOutputStream& bos, const std::vector<unsigned char>& uncompressedData);
+  PreflateBlockReencoder(BitOutputStream& bos, 
+                         const std::vector<unsigned char>& uncompressedData,
+                         const size_t uncompressedOffset);
   bool writeBlock(const PreflateTokenBlock&, const bool last);
   void flush();
 

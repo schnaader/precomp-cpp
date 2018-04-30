@@ -104,6 +104,7 @@ PreflateHuffStrategy estimatePreflateHuffStrategy(const PreflateStreamInfo&);
 unsigned char estimatePreflateWindowBits(const unsigned maxDist);
 
 PreflateParameters estimatePreflateParameters(const std::vector<unsigned char>& unpacked_output,
+                                              const size_t off0,
                                               const std::vector<PreflateTokenBlock>& blocks);
 
 #endif /* PREFLATE_PARAMETER_ESTIMATOR_H */

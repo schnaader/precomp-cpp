@@ -16,10 +16,50 @@
 #define PREFLATE_REENCODER_H
 
 #include <vector>
+#include "preflate_statistical_codec.h"
+#include <support/stream.h>
+#include <support/task_pool.h>
+
+class PreflateReencoderTask : public Task {
+public:
+  class Handler {
+  public:
+    virtual bool beginDecoding(const uint32_t metaBlockId, 
+                               PreflatePredictionDecoder&, PreflateParameters&) = 0;
+    virtual bool endDecoding(const uint32_t metaBlockId, PreflatePredictionDecoder&,
+                             std::vector<PreflateTokenBlock>&& tokenData,
+                             std::vector<uint8_t>&& uncompressedData, 
+                             const size_t uncompressedOffset,
+                             const size_t paddingBitCount,
+                             const size_t paddingValue) = 0;
+    virtual void markProgress() = 0;
+  };
+
+  PreflateReencoderTask(Handler& handler,
+                        const uint32_t metaBlockId,
+                        std::vector<uint8_t>&& uncompressedData,
+                        const size_t uncompressedOffset,
+                        const bool lastMetaBlock);
+
+  virtual bool execute();
+
+private:
+  Handler& handler;
+  uint32_t metaBlockId;
+  std::vector<uint8_t> uncompressedData;
+  size_t uncompressedOffset;
+  bool lastMetaBlock;
+};
 
 bool preflate_reencode(std::vector<unsigned char>& deflate_raw,
                        const std::vector<unsigned char>& preflate_diff,
                        const std::vector<unsigned char>& unpacked_input);
+
+bool preflate_reencode(OutputStream& os,
+                       const std::vector<unsigned char>& preflate_diff,
+                       InputStream& unpacked_input,
+                       const uint64_t unpacked_size,
+                       std::function<void(void)> block_callback);
 
 bool preflate_reencode(OutputStream& os,
                        const std::vector<unsigned char>& preflate_diff,

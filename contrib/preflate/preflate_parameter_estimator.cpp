@@ -62,6 +62,7 @@ PreflateHuffStrategy estimatePreflateHuffStrategy(const PreflateStreamInfo& info
 }
 
 PreflateParameters estimatePreflateParameters(const std::vector<unsigned char>& unpacked_output,
+                                              const size_t off0,
                                               const std::vector<PreflateTokenBlock>& blocks) {
   PreflateStreamInfo info = extractPreflateInfo(blocks);
 
@@ -70,7 +71,7 @@ PreflateParameters estimatePreflateParameters(const std::vector<unsigned char>& 
   result.memLevel     = estimatePreflateMemLevel(info.maxTokensPerBlock);
   result.strategy     = estimatePreflateStrategy(info);
   result.huffStrategy = estimatePreflateHuffStrategy(info);
-  PreflateCompLevelInfo cl = estimatePreflateCompLevel(result.windowBits, result.memLevel, unpacked_output, blocks, false);
+  PreflateCompLevelInfo cl = estimatePreflateCompLevel(result.windowBits, result.memLevel, unpacked_output, off0, blocks, false);
   result.compLevel    = cl.recommendedCompressionLevel;
   result.zlibCompatible = cl.zlibCompatible;
   result.farLen3MatchesDetected = cl.farLen3Matches;

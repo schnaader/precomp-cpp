@@ -20,10 +20,11 @@
 #include "preflate_tree_predictor.h"
 
 PreflateTreePredictor::PreflateTreePredictor(
-    const std::vector<unsigned char>& dump)
+    const std::vector<unsigned char>& dump,
+    const size_t off)
   : input(dump)
-  , curPos(0)
   , predictionFailure(false) {
+  input.advance(off);
 }
 
 struct FreqIdxPair {

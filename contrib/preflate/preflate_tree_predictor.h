@@ -31,7 +31,6 @@ enum TreeCodeType {
 
 struct PreflateTreePredictor {
   PreflateInput input;
-  unsigned              curPos;
   bool predictionFailure;
 
   struct BlockAnalysisResult {
@@ -86,7 +85,7 @@ struct PreflateTreePredictor {
                       const unsigned symLCount,
                       const unsigned symDCount);
 
-  PreflateTreePredictor(const std::vector<unsigned char>& dump);
+  PreflateTreePredictor(const std::vector<unsigned char>& dump, const size_t offset);
   void analyzeBlock(const unsigned blockno,
                     const PreflateTokenBlock& block);
   void updateCounters(PreflateStatisticsCounter*,

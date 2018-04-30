@@ -58,7 +58,7 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
   printf("Unpacked data has size %d\n", (int)unpacked_output.size());
 
   // Encode
-  PreflateParameters paramsE = estimatePreflateParameters(unpacked_output, blocks);
+  PreflateParameters paramsE = estimatePreflateParameters(unpacked_output, 0, blocks);
   printf("prediction parameters: w %d, c %d, m %d, zlib %d, farL3M %d, very far M %d, M2S %d, log2CD %d\n",
          paramsE.windowBits, paramsE.compLevel, paramsE.memLevel,
          paramsE.zlibCompatible, paramsE.farLen3MatchesDetected,
@@ -67,8 +67,8 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
 
   PreflateStatisticsCounter counterE;
   memset(&counterE, 0, sizeof(counterE));
-  PreflateTokenPredictor tokenPredictorE(paramsE, unpacked_output);
-  PreflateTreePredictor treePredictorE(unpacked_output);
+  PreflateTokenPredictor tokenPredictorE(paramsE, unpacked_output, 0);
+  PreflateTreePredictor treePredictorE(unpacked_output, 0);
   for (unsigned i = 0, n = blocks.size(); i < n; ++i) {
     tokenPredictorE.analyzeBlock(i, blocks[i]);
     if (tokenPredictorE.predictionFailure) {
@@ -124,7 +124,7 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
   printf("Prediction diff has size %d\n", (int)preflate_diff.size());
 
   // Decode
-  PreflateMetaDecoder codecD(preflate_diff, unpacked_output);
+  PreflateMetaDecoder codecD(preflate_diff, unpacked_output.size());
   PreflatePredictionDecoder pcodecD;
   PreflateParameters paramsD;
   if (codecD.error() || codecD.metaBlockCount() != 1) {
@@ -163,13 +163,13 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
     return false;
   }
 
-  PreflateTokenPredictor tokenPredictorD(paramsD, unpacked_output);
-  PreflateTreePredictor treePredictorD(unpacked_output);
+  PreflateTokenPredictor tokenPredictorD(paramsD, unpacked_output, 0);
+  PreflateTreePredictor treePredictorD(unpacked_output, 0);
 
   MemStream mem;
   BitOutputStream bos(mem);
 
-  PreflateBlockReencoder deflater(bos, unpacked_output);
+  PreflateBlockReencoder deflater(bos, unpacked_output, 0);
   unsigned blockno = 0;
   bool eof = true;
   do {

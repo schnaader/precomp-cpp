@@ -561,7 +561,7 @@ private:
 };
 
 struct PreflateMetaDecoder {
-  PreflateMetaDecoder(const std::vector<uint8_t>& reconData, const std::vector<uint8_t>& uncompressed);
+  PreflateMetaDecoder(const std::vector<uint8_t>& reconData, const uint64_t uncompressedSize);
   ~PreflateMetaDecoder();
 
   bool error() const {
@@ -570,6 +570,13 @@ struct PreflateMetaDecoder {
   size_t metaBlockCount() const {
     return blockList.size();
   }
+  uint64_t metaBlockUncompressedStartOfs(const size_t metaBlockId) const {
+    return blockList[metaBlockId].uncompressedStartOfs;
+  }
+  size_t metaBlockUncompressedSize(const size_t metaBlockId) const {
+    return blockList[metaBlockId].uncompressedSize;
+  }
+
   bool beginMetaBlock(PreflatePredictionDecoder&, PreflateParameters&, const size_t index);
   bool endMetaBlock(PreflatePredictionDecoder&);
   void finish();
@@ -591,8 +598,9 @@ private:
   bool inError;
   bool inBlock;
 
+  size_t currentMetaBlockId;
   const std::vector<uint8_t>& reconData;
-  const std::vector<uint8_t>& uncompressedData;
+  const uint64_t uncompressedSize;
   std::vector<modelType> modelList;
   std::vector<metaBlockInfo> blockList;
 };

@@ -19,7 +19,7 @@
 // version information
 #define V_MAJOR 0
 #define V_MINOR 4
-#define V_MINOR2 131
+#define V_MINOR2 132
 //#define V_STATE "ALPHA"
 #define V_STATE "EXPERIMENTAL (w/ preflate support)"
 #define V_MSG "USE FOR TESTING ONLY"
@@ -53,6 +53,8 @@
 #define ERR_ONLY_SET_LZMA_MEMORY_ONCE 16
 #define ERR_ONLY_SET_LZMA_THREAD_ONCE 17
 #define ERR_ONLY_SET_LZMA_FILTERS_ONCE 18
+
+#define NOMINMAX
 
 #include <stdio.h>
 #include <iostream>
@@ -207,6 +209,9 @@ bool zlib_level_was_used[81];
 bool anything_was_used;
 bool level_switch_used = false;
 bool non_zlib_was_used;
+
+// preflate config
+size_t meta_block_size = 1 << 21; // 2 MB blocks by default
 
 // statistics
 unsigned int recompressed_streams_count = 0;
@@ -537,7 +542,7 @@ int init(int argc, char* argv[]) {
   }
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2018 by Christian Schneider\n");
-  printf("- experimental preflate v0.2.1 support - Copyright 2018 by Dirk Steinke\n\n");
+  printf("- experimental preflate v0.3.1 support - Copyright 2018 by Dirk Steinke\n\n");
 
   // init compression and memory level count
   bool use_zlib_level[81];
@@ -3095,10 +3100,16 @@ public:
         return size;
       }
     }
+    _written += size;
     return own_fwrite(buffer, 1, size, ftempout);
   }
+
+  uint64_t written() const {
+    return _written;
+  }
+
 private:
-  size_t _written;
+  uint64_t _written;
   bool& _in_memory;
 };
 
@@ -3113,18 +3124,17 @@ recompress_deflate_result try_recompression_deflate(FILE* file) {
   memset(&result, 0, sizeof(result));
   
   OwnFileInputStream is(file);
-  
-  std::vector<unsigned char> unpacked_output;
-  uint64_t compressed_stream_size = 0;
-  result.accepted = preflate_decode(unpacked_output, result.recon_data, 
-                                    compressed_stream_size, is, []() { print_work_sign(true); },
-                                    0); // you can set a minimum deflate stream size here
-  result.compressed_stream_size = compressed_stream_size;
-  result.uncompressed_stream_size = unpacked_output.size();
+
   {
     result.uncompressed_in_memory = true;
     UncompressedOutStream uos(result.uncompressed_in_memory);
-    uos.write(unpacked_output.data(), unpacked_output.size());
+    uint64_t compressed_stream_size = 0;
+    result.accepted = preflate_decode(uos, result.recon_data,
+                                      compressed_stream_size, is, []() { print_work_sign(true); },
+                                      0,
+                                      meta_block_size); // you can set a minimum deflate stream size here
+    result.compressed_stream_size = compressed_stream_size;
+    result.uncompressed_stream_size = uos.written();
   }
   return std::move(result);
 }

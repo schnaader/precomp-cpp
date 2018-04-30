@@ -20,7 +20,8 @@
 
 PreflateTokenPredictor::PreflateTokenPredictor(
     const PreflateParameters& params_,
-    const std::vector<unsigned char>& dump)
+    const std::vector<unsigned char>& dump,
+    const size_t offset)
   : state(hash, seq, params_.config(), params_.windowBits, params_.memLevel)
   , hash(dump, params_.memLevel)
   , seq(dump)
@@ -36,6 +37,8 @@ PreflateTokenPredictor::PreflateTokenPredictor(
     hash.updateRunningHash(state.inputCursor()[1]);
     seq.updateSeq(2);
   }
+  hash.updateHash(offset);
+  seq.updateSeq(offset);
 }
 
 bool PreflateTokenPredictor::predictEOB() {
@@ -493,4 +496,7 @@ bool PreflateTokenPredictor::decodeEOF(PreflatePredictionDecoder* codec) {
     return codec->decodeValue(1) == 0;
   }
   return false;
+}
+bool PreflateTokenPredictor::inputEOF() {
+  return state.availableInputSize() == 0;
 }

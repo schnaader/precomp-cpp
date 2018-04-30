@@ -20,10 +20,11 @@
 
 PreflateBlockReencoder::PreflateBlockReencoder(
     BitOutputStream& bos,
-    const std::vector<unsigned char>& uncompressedData)
+    const std::vector<unsigned char>& uncompressedData,
+    const size_t uncompressedOffset)
   : _output(bos)
   , _uncompressedData(uncompressedData)
-  , _uncompressedDataPos(0)
+  , _uncompressedDataPos(uncompressedOffset)
   , _errorCode(OK)
   , _dynamicLitLenEncoder(nullptr, 0, false)
   , _dynamicDistEncoder(nullptr, 0, false) {
