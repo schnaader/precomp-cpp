@@ -157,9 +157,7 @@ unsigned char otf_out[CHUNK];
 
 #include "contrib/liblzma/precomp_xz.h"
 lzma_stream otf_xz_stream_c = LZMA_STREAM_INIT, otf_xz_stream_d = LZMA_STREAM_INIT;
-bool otf_xz_filter_enabled[6];
-bool otf_xz_filter_delta_enabled = false;
-int otf_xz_filter_delta_distance = 0;
+lzma_init_mt_extra_parameters otf_xz_extra_params;
 int otf_xz_filter_used_count = 0;
 
 int compression_otf_method = OTF_XZ_MT;
@@ -528,6 +526,88 @@ int main(int argc, char* argv[])
 }
 
 #endif
+
+bool parsePrefixText(const char* c, const char* ref) {
+  while (*ref && tolower(*c) == *ref) {
+    ++c;
+    ++ref;
+  }
+  return *ref == 0;
+}
+bool parseSwitch(bool& val, const char* c, const char* ref) {
+  if (!parsePrefixText(c, ref)) {
+    return false;
+  }
+  int l = strlen(ref);
+  if (c[l] == '+' && !c[l + 1]) {
+    val = true;
+    return true;
+  } else if (c[l] == '-' && !c[l + 1]) {
+    val = true;
+    return true;
+  }
+  printf("ERROR: Only + or - for this switch (%s) allowed\n", c);
+  exit(1);
+  return false;
+}
+
+int parseInt(const char*& c, const char* context, int too_big_error_code = 0) {
+  if (*c < '0' || *c > '9') {
+    printf("ERROR: Number needed to set %s\n", context);
+    exit(1);
+  }
+  int val = *c++ - '0';
+  while (*c >= '0' && *c <= '9') {
+    if (val >= INT_MAX / 10 - 1) {
+      if (too_big_error_code != 0) {
+        error(too_big_error_code);
+      }
+      printf("ERROR: Number too big for %s\n", context);
+      exit(1);
+    }
+    val = val * 10 + *c++ - '0';
+  }
+  return val;
+}
+int parseIntUntilEnd(const char* c, const char* context, int too_big_error_code = 0) {
+  for (int i = 0; c[i]; ++i) {
+    if (c[i] < '0' || c[i] > '9') {
+      printf("ERROR: Only numbers allowed for %s\n", context);
+      exit(1);
+    }
+  }
+  const char* x = c;
+  return parseInt(x, context, too_big_error_code);
+}
+int64_t parseInt64(const char*& c, const char* context, int too_big_error_code = 0) {
+  if (*c < '0' || *c > '9') {
+    printf("ERROR: Number needed to set %s\n", context);
+    exit(1);
+  }
+  int64_t val = *c++ - '0';
+  while (*c >= '0' && *c <= '9') {
+    if (val >= INT64_MAX / 10 - 1) {
+      if (too_big_error_code != 0) {
+        error(too_big_error_code);
+      }
+      printf("ERROR: Number too big for %s\n", context);
+      exit(1);
+    }
+    val = val * 10 + *c++ - '0';
+  }
+  return val;
+}
+int64_t parseInt64UntilEnd(const char* c, const char* context, int too_big_error_code = 0) {
+  for (int i = 0; c[i]; ++i) {
+    if (c[i] < '0' || c[i] > '9') {
+      printf("ERROR: Only numbers allowed for %s\n", context);
+      exit(1);
+    }
+  }
+  const char* x = c;
+  return parseInt64(x, context, too_big_error_code);
+}
+
 #ifndef PRECOMPDLL
 #ifndef COMFORT
 int init(int argc, char* argv[]) {
@@ -560,9 +640,7 @@ int init(int argc, char* argv[]) {
   mp3_parsing_cache_second_frame = -1;
   
   // init LZMA filters
-  for (int i = 0; i < 6; i++) {
-    otf_xz_filter_enabled[i] = false;
-  }
+  memset(&otf_xz_extra_params, 0, sizeof(otf_xz_extra_params));
 
   bool valid_syntax = false;
   bool input_file_given = false;
@@ -594,44 +672,13 @@ int init(int argc, char* argv[]) {
           }
         case 'I':
           {
-            if (toupper(argv[i][2]) == 'N') { // intense mode
-              if ((toupper(argv[i][3]) == 'T') && (toupper(argv[i][4]) == 'E')
-               && (toupper(argv[i][5]) == 'N') && (toupper(argv[i][6]) == 'S') && (toupper(argv[i][7]) == 'E')) {
-                intense_mode = true;
-                if (strlen(argv[i]) > 8) {
-                  int intense_mode_limit = 0;
-                  int multiplicator = 1;
-                  for (j = strlen(argv[i]) - 9; j >= 0; j--) {
-                    if ((argv[i][j+8] < '0') || (argv[i][j+8] > '9')) {
-                      printf("ERROR: Only numbers allowed for intense mode level limit\n");
-                      exit(1);
-                    }
-                    intense_mode_limit += ((long long)(argv[i][j+8])-'0') * multiplicator;
-                    if ((multiplicator * 10) < multiplicator) {
-                      error(ERR_INTENSE_MODE_LIMIT_TOO_BIG);
-                    }
-                    multiplicator *= 10;
-                  }
-                  intense_mode_depth_limit = intense_mode_limit;
-                }
-              } else {
-                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-                exit(1);
+            if (parsePrefixText(argv[i] + 1, "intense")) { // intense mode
+              intense_mode = true;
+              if (strlen(argv[i]) > 8) {
+                intense_mode_depth_limit = parseIntUntilEnd(argv[i] + 8, "intense mode level limit", ERR_INTENSE_MODE_LIMIT_TOO_BIG);
               }
             } else {
-              long long ignore_pos = 0;
-              long long multiplicator = 1;
-              for (j = (strlen(argv[i])-3); j >= 0; j--) {
-                if ((argv[i][j+2] < '0') || (argv[i][j+2] > '9')) {
-                  printf("ERROR: Only numbers allowed for ignore position\n");
-                  exit(1);
-                }
-                ignore_pos += ((long long)(argv[i][j+2])-'0') * multiplicator;
-                if ((multiplicator * 10) < multiplicator) {
-                  error(ERR_IGNORE_POS_TOO_BIG);
-                }
-                multiplicator *= 10;
-              }
+              long long ignore_pos = parseInt64UntilEnd(argv[i] + 2, "ignore position", ERR_IGNORE_POS_TOO_BIG);
               ignore_list = (long long*)realloc(ignore_list, (ignore_list_len + 1) * sizeof(long long));
               ignore_list[ignore_list_len] = ignore_pos;
               ignore_list_len++;
@@ -643,21 +690,7 @@ int init(int argc, char* argv[]) {
             if (recursion_depth_set) {
               error(ERR_ONLY_SET_RECURSION_DEPTH_ONCE);
             }
-
-            unsigned int max_recursion_d = 0;
-            unsigned int multiplicator = 1;
-            for (j = (strlen(argv[i])-3); j >= 0; j--) {
-              if ((argv[i][j+2] < '0') || (argv[i][j+2] > '9')) {
-                printf("ERROR: Only numbers allowed for maximal recursion depth\n");
-                exit(1);
-              }
-              max_recursion_d += ((unsigned int)(argv[i][j+2])-'0') * multiplicator;
-              if ((multiplicator * 10) < multiplicator) {
-                error(ERR_RECURSION_DEPTH_TOO_BIG);
-              }
-              multiplicator *= 10;
-            }
-            max_recursion_depth = max_recursion_d;
+            max_recursion_depth = parseIntUntilEnd(argv[i] + 2, "maximal recursion depth", ERR_RECURSION_DEPTH_TOO_BIG);
             recursion_depth_set = true;
             break;
           }
@@ -666,46 +699,16 @@ int init(int argc, char* argv[]) {
             if (min_ident_size_set) {
               error(ERR_ONLY_SET_MIN_SIZE_ONCE);
             }
-            if (strlen(argv[i]) == 2) {
-              printf("ERROR: Number needed to set minimal identical byte size\n");
-              exit(1);
-            }
-            unsigned int ident_size = 0;
-            unsigned int multiplicator = 1;
-            for (j = (strlen(argv[i]) - 3); j >= 0; j--) {
-              if ((argv[i][j+2] < '0') || (argv[i][j+2] > '9')) {
-                printf("ERROR: Only numbers allowed for minimal identical byte size\n");
-                exit(1);
-              }
-              ident_size += ((unsigned int)(argv[i][j+2])-'0') * multiplicator;
-              if ((multiplicator * 10) < multiplicator) {
-                error(ERR_IDENTICAL_BYTE_SIZE_TOO_BIG);
-              }
-              multiplicator *= 10;
-            }
-            min_ident_size = ident_size;
+            min_ident_size = parseIntUntilEnd(argv[i] + 2, "minimal identical byte size", ERR_IDENTICAL_BYTE_SIZE_TOO_BIG);
             min_ident_size_set = true;
             break;
           }
         case 'B':
           {
-            if ((toupper(argv[i][2]) == 'R') && (toupper(argv[i][3]) == 'U') && (toupper(argv[i][4]) == 'T') && (toupper(argv[i][5]) == 'E')) {
+            if (parsePrefixText(argv[i] + 1, "brute")) { // brute mode
               brute_mode = true;
               if (strlen(argv[i]) > 6) {
-                int brute_mode_limit = 0;
-                int multiplicator = 1;
-                for (j = strlen(argv[i]) - 7; j >= 0; j--) {
-                  if ((argv[i][j+6] < '0') || (argv[i][j+6] > '9')) {
-                    printf("ERROR: Only numbers allowed for brute mode level limit\n");
-                    exit(1);
-                  }
-                  brute_mode_limit += ((long long)(argv[i][j+6])-'0') * multiplicator;
-                  if ((multiplicator * 10) < multiplicator) {
-                    error(ERR_INTENSE_MODE_LIMIT_TOO_BIG);
-                  }
-                  multiplicator *= 10;
-                }
-                brute_mode_depth_limit = brute_mode_limit;
+                brute_mode_depth_limit = parseIntUntilEnd(argv[i] + 6, "brute mode level limit", ERR_BRUTE_MODE_LIMIT_TOO_BIG);
               }
             } else {
               printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
@@ -715,44 +718,56 @@ int init(int argc, char* argv[]) {
           }
         case 'L':
           {
-            if ((toupper(argv[i][2]) == 'O') && (toupper(argv[i][3]) == 'N') && (toupper(argv[i][4]) == 'G')
-             && (toupper(argv[i][5]) == 'H') && (toupper(argv[i][6]) == 'E') && (toupper(argv[i][7]) == 'L')
-             && (toupper(argv[i][8]) == 'P')) {
+            if (parsePrefixText(argv[i] + 1, "longhelp")) {
               long_help = true;
             } else if (toupper(argv[i][2]) == 'M') { // LZMA max. memory
               if (lzma_max_memory_set) {
                 error(ERR_ONLY_SET_LZMA_MEMORY_ONCE);
               }
-              int multiplicator = 1;
-              for (j = (strlen(argv[i]) - 4); j >= 0; j--) {
-                if ((argv[i][j+3] < '0') || (argv[i][j+3] > '9')) {
-                  printf("ERROR: Only numbers allowed for LZMA maximal memory\n");
-                  exit(1);
-                }
-                compression_otf_max_memory += ((unsigned int)(argv[i][j+3])-'0') * multiplicator;
-                if ((multiplicator * 10) < multiplicator) {
-                  exit(1);
-                }
-                multiplicator *= 10;
-              }
+              compression_otf_max_memory = parseIntUntilEnd(argv[i] + 3, "LZMA maximal memory");
               lzma_max_memory_set = true;
             } else if (toupper(argv[i][2]) == 'T') { // LZMA thread count
               if (lzma_thread_count_set) {
                 error(ERR_ONLY_SET_LZMA_THREAD_ONCE);
               }
-              int multiplicator = 1;
-              for (j = (strlen(argv[i]) - 4); j >= 0; j--) {
-                if ((argv[i][j + 3] < '0') || (argv[i][j + 3] > '9')) {
-                  printf("ERROR: Only numbers allowed for LZMA thread count\n");
-                  exit(1);
-                }
-                compression_otf_thread_count += ((unsigned int)(argv[i][j + 3]) - '0') * multiplicator;
-                if ((multiplicator * 10) < multiplicator) {
-                  exit(1);
-                }
-                multiplicator *= 10;
-              }
+              compression_otf_thread_count = parseIntUntilEnd(argv[i] + 3, "LZMA thread count");
               lzma_thread_count_set = true;
+            } else if (toupper(argv[i][2]) == 'L') {
+              if (toupper(argv[i][3]) == 'C') {
+                otf_xz_extra_params.lc = 1 + parseIntUntilEnd(argv[i] + 4, "LZMA literal context bits");
+                int lclp = (otf_xz_extra_params.lc != 0 ? otf_xz_extra_params.lc - 1 : LZMA_LC_DEFAULT)
+                  + (otf_xz_extra_params.lp != 0 ? otf_xz_extra_params.lp - 1 : LZMA_LP_DEFAULT);
+                if (lclp < LZMA_LCLP_MIN || lclp > LZMA_LCLP_MAX) {
+                  printf("sum of LZMA lc (default %d) and lp (default %d) must be inside %d..%d\n",
+                         LZMA_LC_DEFAULT, LZMA_LP_DEFAULT, LZMA_LCLP_MIN, LZMA_LCLP_MAX);
+                  exit(1);
+                }
+              } else if (toupper(argv[i][3]) == 'P') {
+                  otf_xz_extra_params.lp = 1 + parseIntUntilEnd(argv[i] + 4, "LZMA literal position bits");
+                  int lclp = (otf_xz_extra_params.lc != 0 ? otf_xz_extra_params.lc - 1 : LZMA_LC_DEFAULT)
+                    + (otf_xz_extra_params.lp != 0 ? otf_xz_extra_params.lp - 1 : LZMA_LP_DEFAULT);
+                  if (lclp < LZMA_LCLP_MIN || lclp > LZMA_LCLP_MAX) {
+                    printf("sum of LZMA lc (default %d) and lp (default %d) must be inside %d..%d\n",
+                           LZMA_LC_DEFAULT, LZMA_LP_DEFAULT, LZMA_LCLP_MIN, LZMA_LCLP_MAX);
+                    exit(1);
+                  }
+              } else {
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+              }
+            } else if (toupper(argv[i][2]) == 'P') {
+              if (toupper(argv[i][3]) == 'B') {
+                otf_xz_extra_params.pb = 1 + parseIntUntilEnd(argv[i] + 4, "LZMA position bits");
+                int pb = otf_xz_extra_params.pb != 0 ? otf_xz_extra_params.pb - 1 : LZMA_PB_DEFAULT;
+                if (pb < LZMA_PB_MIN || pb > LZMA_PB_MAX) {
+                  printf("LZMA pb (default %d) must be inside %d..%d\n",
+                         LZMA_PB_DEFAULT, LZMA_PB_MIN, LZMA_PB_MAX);
+                  exit(1);
+                }
+              } else {
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+              }
             } else if (toupper(argv[i][2]) == 'F') { // LZMA filters
               if (lzma_filters_set) {
                 error(ERR_ONLY_SET_LZMA_FILTERS_ONCE);
@@ -777,39 +792,42 @@ int init(int argc, char* argv[]) {
               while (argv[i][argindex] != 0) {
                 switch (toupper(argv[i][argindex])) {
                   case 'X':
-                    otf_xz_filter_enabled[0] = true;
+                    otf_xz_extra_params.enable_filter_x86 = true;
                     break;
                   case 'P':
-                    otf_xz_filter_enabled[1] = true;
+                    otf_xz_extra_params.enable_filter_powerpc = true;
                     break;
                   case 'I':
-                    otf_xz_filter_enabled[2] = true;
+                    otf_xz_extra_params.enable_filter_ia64 = true;
                     break;
                   case 'A':
-                    otf_xz_filter_enabled[3] = true;
+                    otf_xz_extra_params.enable_filter_arm = true;
                     break;
                   case 'T':
-                    otf_xz_filter_enabled[4] = true;
+                    otf_xz_extra_params.enable_filter_armthumb = true;
                     break;
                   case 'S':
-                    otf_xz_filter_enabled[5] = true;
+                    otf_xz_extra_params.enable_filter_sparc = true;
                     break;
                   case 'D':
                     {
                       argindex++;
                       char nextchar = argv[i][argindex];
                       if ((nextchar < '0') || (nextchar > '9')) {
-                        printf("ERROR: LZMA delta filter must be followed by a distance (1..256)\n");
+                        printf("ERROR: LZMA delta filter must be followed by a distance (%d..%d)\n",
+                               LZMA_DELTA_DIST_MIN, LZMA_DELTA_DIST_MAX);
                         exit(1);
                       }
-                      otf_xz_filter_delta_enabled = true;
+                      otf_xz_extra_params.enable_filter_delta = true;
                       while ((argv[i][argindex] > '0') && (argv[i][argindex] < '9')) {
-                        otf_xz_filter_delta_distance *= 10;
-                        otf_xz_filter_delta_distance += (argv[i][argindex] - '0');
+                        otf_xz_extra_params.filter_delta_distance *= 10;
+                        otf_xz_extra_params.filter_delta_distance += (argv[i][argindex] - '0');
                         argindex++;
                       }
-                      if ((otf_xz_filter_delta_distance < 1) || (otf_xz_filter_delta_distance > 256)) {
-                        printf("ERROR: LZMA delta filter distance must be in range 1..256\n");
+                      if (otf_xz_extra_params.filter_delta_distance < LZMA_DELTA_DIST_MIN 
+                           || otf_xz_extra_params.filter_delta_distance > LZMA_DELTA_DIST_MAX) {
+                        printf("ERROR: LZMA delta filter distance must be in range %d..%d\n",
+                               LZMA_DELTA_DIST_MIN, LZMA_DELTA_DIST_MAX);
                         exit(1);
                       }
                       argindex--;
@@ -821,8 +839,9 @@ int init(int argc, char* argv[]) {
                     break;
                 }
                 otf_xz_filter_used_count++;
-                if (otf_xz_filter_used_count > 3) {
-                  printf("ERROR: Only up to 3 LZMA filters can be used at the same time\n");
+                if (otf_xz_filter_used_count > LZMA_FILTERS_MAX - 1) {
+                  printf("ERROR: Only up to %d LZMA filters can be used at the same time\n",
+                         LZMA_FILTERS_MAX - 1);
                   exit(1);
                 }
                 argindex++;
@@ -837,43 +856,19 @@ int init(int argc, char* argv[]) {
           }
         case 'P':
           {
-            if ((toupper(argv[i][2]) == 'D') && (toupper(argv[i][3]) == 'F') && (toupper(argv[i][4]) == 'B') && (toupper(argv[i][5]) == 'M') && (toupper(argv[i][6]) == 'P')) {
-              switch (argv[i][7]) {
-                case '+':
-                  pdf_bmp_mode = true;
-                  break;
-                case '-':
-                  pdf_bmp_mode = false;
-                  break;
-                default:
-                  printf("ERROR: Only + or - for this switch allowed\n");
+            if (!parseSwitch(pdf_bmp_mode, argv[i] + 1, "pdfbmp")
+                && !parseSwitch(prog_only, argv[i] + 1, "progonly")) {
+              if (parsePrefixText(argv[i] + 1, "pfmeta")) {
+                int mbsize = parseIntUntilEnd(argv[i] + 7, "preflate meta block size");
+                if (mbsize >= INT_MAX / 1024) {
+                  printf("preflate meta block size set too big\n");
                   exit(1);
-                  break;
-              }
-              if (argv[i][8] != 0) {
+                }
+                meta_block_size = mbsize * 1024;
+              } else {
                 printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
                 exit(1);
               }
-            } else if ((toupper(argv[i][2]) == 'R') && (toupper(argv[i][3]) == 'O') && (toupper(argv[i][4]) == 'G') && (toupper(argv[i][5]) == 'O') && (toupper(argv[i][6]) == 'N') && (toupper(argv[i][7]) == 'L') && (toupper(argv[i][8]) == 'Y')) {
-              switch (argv[i][9]) {
-                case '+':
-                  prog_only = true;
-                  break;
-                case '-':
-                  prog_only = false;
-                  break;
-                default:
-                  printf("ERROR: Only + or - for this switch allowed\n");
-                  exit(1);
-                  break;
-              }
-              if (argv[i][8] != 0) {
-                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-                exit(1);
-              }
-            } else {
-              printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-              exit(1);
             }
             break;
           }
@@ -1083,33 +1078,10 @@ int init(int argc, char* argv[]) {
 
         case 'M':
           {
-            if (toupper(argv[i][2]) == 'J') {
-              if ((toupper(argv[i][3]) == 'P') && (toupper(argv[i][4]) == 'E') && (toupper(argv[i][5]) == 'G')) {
-                switch (argv[i][6]) {
-                  case '+':
-                    use_mjpeg = true;
-                    break;
-                  case '-':
-                    use_mjpeg = false;
-                    break;
-                  default:
-                    printf("ERROR: Only + or - for this switch allowed\n");
-                    exit(1);
-                    break;
-                }
-                if (argv[i][7] != 0) { // Extra Parameters?
-                  printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-                  exit(1);
-                }
-              } else {
-                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-                exit(1);
-              }
-            } else {
+            if (!parseSwitch(use_mjpeg, argv[i] + 1, "mjpeg")) {
               printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
               exit(1);
             }
-
             break;
           }
 
@@ -1200,17 +1172,27 @@ int init(int argc, char* argv[]) {
     printf("  lm[amount]   Set maximal LZMA memory in MiB <%i>\n", lzma_max_memory_default());
     printf("  lt[count]    Set LZMA thread count <auto-detect: %i>\n", auto_detected_thread_count());
     if (long_help) {
-      printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3 of them can be combined) <none>\n");
+      printf("  lf[+-][xpiatsd] Set LZMA filters (up to %d of them can be combined) <none>\n",
+                                LZMA_FILTERS_MAX - 1);
       printf("                  lf+[xpiatsd] = enable these filters, lf- = disable all\n");
       printf("                  X = x86, P = PowerPC, I = IA-64, A = ARM, T = ARM-Thumb\n");
-      printf("                  S = SPARC, D = delta (must be followed by distance 1..256)\n");
+      printf("                  S = SPARC, D = delta (must be followed by distance %d..%d)\n",
+                                LZMA_DELTA_DIST_MIN, LZMA_DELTA_DIST_MAX);
+      printf("  llc[bits]    Set LZMA literal context bits <%d>\n", LZMA_LC_DEFAULT);
+      printf("  llp[bits]    Set LZMA literal position bits <%d>\n", LZMA_LP_DEFAULT);
+      printf("               The sum of lc and lp must be inside %d..%d\n", LZMA_LCLP_MIN, LZMA_LCLP_MAX);
+      printf("  lpb[bits]    Set LZMA position bits, must be inside %d..%d <%d>\n", 
+                            LZMA_PB_MIN, LZMA_PB_MAX, LZMA_PB_DEFAULT);
     } else {
       printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3, see long help for details) <none>\n");
     }
     printf("  n[lbn]       Convert a PCF file to this compression (same as above) <off>\n");
     printf("  v            Verbose (debug) mode <off>\n");
     printf("  d[depth]     Set maximal recursion depth <10>\n");
-    printf("  zl[1..9][1..9] zLib levels to try for compression (comma separated) <all>\n");
+    //printf("  zl[1..9][1..9] zLib levels to try for compression (comma separated) <all>\n");
+    if (long_help) {
+      printf("  pfmeta[amount] Split deflate streams into meta blocks of this size in KiB <2048>\n");
+    }
     printf("  intense      Detect raw zLib headers, too. Slower and more sensitive <off>\n");
     if (long_help) {
       printf("  brute        Brute force zLib detection. VERY Slow and most sensitive <off>\n");
@@ -1343,9 +1325,7 @@ int init_comfort(int argc, char* argv[]) {
   mp3_parsing_cache_second_frame = -1;
 
   // init LZMA filters
-  for (int i = 0; i < 6; i++) {
-    otf_xz_filter_enabled[i] = false;
-  }
+  memset(&otf_xz_extra_params, 0, sizeof(otf_xz_extra_params));
 
   // parse parameters (should be input file only)
   if (argc == 1) {
@@ -8091,7 +8071,7 @@ void init_compress_otf() {
         threads = auto_detected_thread_count();
       }
 
-      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage, block_size, otf_xz_filter_enabled, otf_xz_filter_delta_enabled, otf_xz_filter_delta_distance, otf_xz_filter_used_count)) {
+      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage, block_size, otf_xz_extra_params)) {
         printf("ERROR: xz Multi-Threaded init failed\n");
         exit(1);
       }
