@@ -106,7 +106,7 @@ PreflateToken PreflateTokenPredictor::predictToken() {
 
       if (((hashNext ^ hash) & this->hash.hashMask) == 0) {
         unsigned maxSize = std::min(state.availableInputSize() - 1, (unsigned)PreflateConstants::MAX_MATCH);
-        unsigned rle = 1;
+        unsigned rle = 0;
         const unsigned char *c = state.inputCursor();
         unsigned char b = c[0];
         while (rle < maxSize && c[1 + rle] == b) {
@@ -189,11 +189,14 @@ void PreflateTokenPredictor::analyzeBlock(
 
   for (unsigned i = 0, n = block.tokens.size(); i < n; ++i) {
     PreflateToken targetToken = block.tokens[i];
+
     if (predictEOB()) {
       analysis.blockSizePredicted = false;
     }
     PreflateToken predictedToken = predictToken();
-//    printf("T(%d,%d) -> P(%d,%d)\n", targetToken.len, targetToken.dist, predictedToken.len, predictedToken.dist);
+#ifdef _DEBUG
+    printf("B%dT%d: TGT(%d,%d) -> PRD(%d,%d)\n", blockno, i, targetToken.len, targetToken.dist, predictedToken.len, predictedToken.dist);
+#endif
 
     if (targetToken.len == 1) {
       if (predictedToken.len > 1) {

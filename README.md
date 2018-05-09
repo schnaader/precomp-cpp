@@ -9,14 +9,6 @@ Fork note
 ---------
 This is an experimental fork of precomp, that uses the preflate library for
 deflate stream recompression.
-The bitstream format output by the preflate library is not stable yet,
-so do not use this experimental tool for archiving.
-
-Also, the build system isn't up to date yet. I'll provide a CMake script 
-in the near future. Also, importing the preflate sources in a GUI, e.g. MSVC,
-is pretty straight forward.
-
-For the time being, there are executables for testing.
 
 
 What is Precomp?

@@ -26,6 +26,7 @@
 #include "support/outputcachestream.h"
 
 #include <algorithm>
+#include <chrono>
 
 bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
   printf("Checking raw deflate file of size %d\n", (int)deflate_raw.size());
@@ -35,6 +36,8 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
   BitInputStream decInBits(decIn);
   OutputCacheStream decOutCache(decUnc);
   std::vector<PreflateTokenBlock> blocks;
+
+  auto ts_start = std::chrono::steady_clock::now();
   PreflateBlockDecoder bdec(decInBits, decOutCache);
   if (bdec.status() != PreflateBlockDecoder::OK) {
     return false;
@@ -55,7 +58,9 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
   uint8_t remaining_bits = decInBits.get(remaining_bit_count);
   decOutCache.flush();
   std::vector<unsigned char> unpacked_output = decUnc.extractData();
+  auto ts_end = std::chrono::steady_clock::now();
   printf("Unpacked data has size %d\n", (int)unpacked_output.size());
+  printf("Unpacking took %g seconds\n", std::chrono::duration<double>(ts_end - ts_start).count());
 
   // Encode
   PreflateParameters paramsE = estimatePreflateParameters(unpacked_output, 0, blocks);
@@ -65,6 +70,8 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
          paramsE.veryFarMatchesDetected, paramsE.matchesToStartDetected,
          paramsE.log2OfMaxChainDepthM1);
 
+
+  ts_start = std::chrono::steady_clock::now();
   PreflateStatisticsCounter counterE;
   memset(&counterE, 0, sizeof(counterE));
   PreflateTokenPredictor tokenPredictorE(paramsE, unpacked_output, 0);
@@ -84,9 +91,12 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
     treePredictorE.updateCounters(&counterE, i);
   }
   counterE.block.incNonZeroPadding(remaining_bits != 0);
+  ts_end = std::chrono::steady_clock::now();
+  printf("Prediction took %g seconds\n", std::chrono::duration<double>(ts_end - ts_start).count());
 
   counterE.print();
 
+  ts_start = std::chrono::steady_clock::now();
   PreflateMetaEncoder codecE;
   if (codecE.error()) {
     return false;
@@ -121,18 +131,53 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
     return false;
   }
   std::vector<unsigned char> preflate_diff = codecE.finish();
+  ts_end = std::chrono::steady_clock::now();
   printf("Prediction diff has size %d\n", (int)preflate_diff.size());
+  printf("Encoding diff took %g seconds\n", std::chrono::duration<double>(ts_end - ts_start).count());
 
   // Decode
+  ts_start = std::chrono::steady_clock::now();
   PreflateMetaDecoder codecD(preflate_diff, unpacked_output.size());
   PreflatePredictionDecoder pcodecD;
   PreflateParameters paramsD;
+
   if (codecD.error() || codecD.metaBlockCount() != 1) {
     return false;
   }
   if (!codecD.beginMetaBlock(pcodecD, paramsD, 0)) {
     return false;
   }
+
+  PreflateTokenPredictor tokenPredictorD(paramsD, unpacked_output, 0);
+  PreflateTreePredictor treePredictorD(unpacked_output, 0);
+
+  MemStream mem;
+  BitOutputStream bos(mem);
+
+  std::vector<PreflateTokenBlock> dblocks;
+  unsigned blockno = 0;
+  bool eof = true;
+  do {
+    PreflateTokenBlock block = tokenPredictorD.decodeBlock(&pcodecD);
+    if (tokenPredictorD.predictionFailure) {
+      printf("block %d: token uncompress failed\n", blockno);
+      return false;
+    }
+    if (!treePredictorD.decodeBlock(block, &pcodecD)) {
+      printf("block %d: tree uncompress failed\n", blockno);
+      return false;
+    }
+    if (treePredictorD.predictionFailure) {
+      printf("block %d: tree uncompress failed\n", blockno);
+      return false;
+    }
+    eof = tokenPredictorD.decodeEOF(&pcodecD);
+    dblocks.push_back(block);
+    ++blockno;
+  } while (!eof);
+  ts_end = std::chrono::steady_clock::now();
+  printf("Decoding diff and reprediction took %g seconds\n", std::chrono::duration<double>(ts_end - ts_start).count());
+
   if (paramsD.windowBits != paramsE.windowBits) {
     printf("parameter decoding failed: windowBits mismatch\n");
     return false;
@@ -150,10 +195,10 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
     return false;
   }
   if (!paramsD.zlibCompatible && (0
-//      || paramsD.farLen3MatchesDetected != paramsE.farLen3MatchesDetected
-      || paramsD.veryFarMatchesDetected != paramsE.veryFarMatchesDetected
-      || paramsD.matchesToStartDetected != paramsE.matchesToStartDetected
-      || paramsD.log2OfMaxChainDepthM1 != paramsE.log2OfMaxChainDepthM1)) {
+                                  //      || paramsD.farLen3MatchesDetected != paramsE.farLen3MatchesDetected
+                                  || paramsD.veryFarMatchesDetected != paramsE.veryFarMatchesDetected
+                                  || paramsD.matchesToStartDetected != paramsE.matchesToStartDetected
+                                  || paramsD.log2OfMaxChainDepthM1 != paramsE.log2OfMaxChainDepthM1)) {
     printf("parameter decoding failed: non-zlib flag mismatch\n");
     return false;
   }
@@ -163,77 +208,53 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
     return false;
   }
 
-  PreflateTokenPredictor tokenPredictorD(paramsD, unpacked_output, 0);
-  PreflateTreePredictor treePredictorD(unpacked_output, 0);
-
-  MemStream mem;
-  BitOutputStream bos(mem);
-
-  PreflateBlockReencoder deflater(bos, unpacked_output, 0);
-  unsigned blockno = 0;
-  bool eof = true;
-  do {
-    if (blockno >= blocks.size()) {
-      printf("block number too big: org %d, new %d\n", (int)blocks.size(), blockno);
+  for (size_t blockno = 0, n = std::min(blocks.size(), dblocks.size()); blockno < n; ++blockno) {
+    if (dblocks[blockno].type != blocks[blockno].type) {
+      printf("block %d: type differs: org %d, new %d\n", blockno, blocks[blockno].type, dblocks[blockno].type);
       return false;
     }
-    PreflateTokenBlock block = tokenPredictorD.decodeBlock(&pcodecD);
-    if (tokenPredictorD.predictionFailure) {
-      printf("block %d: token uncompress failed\n", blockno);
-      return false;
-    }
-    if (block.type != blocks[blockno].type) {
-      printf("block %d: type differs: org %d, new %d\n", blockno, blocks[blockno].type, block.type);
-      return false;
-    }
-    for (unsigned i = 0, n = std::min(block.tokens.size(), blocks[blockno].tokens.size()); i < n; ++i) {
+    for (unsigned i = 0, n = std::min(dblocks[blockno].tokens.size(), blocks[blockno].tokens.size()); i < n; ++i) {
       PreflateToken orgToken = blocks[blockno].tokens[i];
-      PreflateToken newToken = block.tokens[i];
+      PreflateToken newToken = dblocks[blockno].tokens[i];
       if (newToken.len != orgToken.len || newToken.dist != orgToken.dist) {
         printf("block %d: generated token %d differs: org(%d,%d), new(%d,%d)\n",
                blockno, i, orgToken.len, orgToken.dist, newToken.len, newToken.dist);
         return false;
       }
     }
-    if (block.tokens.size() != blocks[blockno].tokens.size()) {
+    if (dblocks[blockno].tokens.size() != blocks[blockno].tokens.size()) {
       printf("block %d: differing token count: org %d, new %d\n",
-             blockno, (int)blocks[blockno].tokens.size(), (int)block.tokens.size());
+             blockno, (int)blocks[blockno].tokens.size(), (int)dblocks[blockno].tokens.size());
       return false;
     }
-
-    if (!treePredictorD.decodeBlock(block, &pcodecD)) {
-      printf("block %d: tree uncompress failed\n", blockno);
-      return false;
-    }
-    if (treePredictorD.predictionFailure) {
-      printf("block %d: tree uncompress failed\n", blockno);
-      return false;
-    }
-    if (block.type == PreflateTokenBlock::DYNAMIC_HUFF) {
-      if (block.nlen != blocks[blockno].nlen) {
+    if (dblocks[blockno].type == PreflateTokenBlock::DYNAMIC_HUFF) {
+      if (dblocks[blockno].nlen != blocks[blockno].nlen) {
         printf("block %d: literal/len count differs: org %d, new %d\n",
-               blockno, blocks[blockno].nlen, block.nlen);
+               blockno, blocks[blockno].nlen, dblocks[blockno].nlen);
         return false;
       }
-      if (block.ndist != blocks[blockno].ndist) {
+      if (dblocks[blockno].ndist != blocks[blockno].ndist) {
         printf("block %d: dist count differs: org %d, new %d\n",
-               blockno, blocks[blockno].ndist, block.ndist);
+               blockno, blocks[blockno].ndist, dblocks[blockno].ndist);
         return false;
       }
-      if (block.ncode != blocks[blockno].ncode) {
+      if (dblocks[blockno].ncode != blocks[blockno].ncode) {
         printf("block %d: tree code count differs: org %d, new %d\n",
-               blockno, blocks[blockno].ncode, block.ncode);
+               blockno, blocks[blockno].ncode, dblocks[blockno].ncode);
         return false;
       }
-      if (block.treecodes != blocks[blockno].treecodes) {
+      if (dblocks[blockno].treecodes != blocks[blockno].treecodes) {
         printf("block %d: generated tree codes differs\n", blockno);
         return false;
       }
     }
-    eof = tokenPredictorD.decodeEOF(&pcodecD);
-    deflater.writeBlock(block, eof);
-    ++blockno;
-  } while (!eof);
+  }
+
+  ts_start = std::chrono::steady_clock::now();
+  PreflateBlockReencoder deflater(bos, unpacked_output, 0);
+  for (size_t i = 0; i < dblocks.size(); ++i) {
+    deflater.writeBlock(dblocks[i], i + 1 == dblocks.size());
+  }
   bool non_zero_bits = pcodecD.decodeNonZeroPadding();
   if (non_zero_bits) {
     unsigned bitsToLoad = pcodecD.decodeValue(3);
@@ -247,8 +268,10 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
     return false;
   }
   deflater.flush();
-
   std::vector<unsigned char> deflate_raw_out = mem.extractData();
+  ts_end = std::chrono::steady_clock::now();
+  printf("Reencoding deflate stream took %g seconds\n", std::chrono::duration<double>(ts_end - ts_start).count());
+
   for (unsigned i = 0, n = std::min(deflate_raw.size(), deflate_raw_out.size()); i < n; ++i) {
     if (deflate_raw[i] != deflate_raw_out[i]) {
       printf("created deflate stream differs at offset %d\n", i);

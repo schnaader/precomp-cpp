@@ -60,8 +60,28 @@ int test(const char* const * const fns, const unsigned fncnt) {
       printf("loading of %s failed\n", fns[i]);
       ok = false;
     } else {
-      printf("checking %s\n", fns[i]);
-      bool check_ok = preflate_checker(content);
+      std::vector<unsigned char> unpacked;
+      std::vector<unsigned char> recon;
+      bool check_ok = preflate_decode(unpacked, recon, content, 1 << 18);
+      if (check_ok) {
+        std::vector<unsigned char> rebuilt_content;
+        check_ok = preflate_reencode(rebuilt_content, recon, unpacked);
+        if (check_ok) {
+          check_ok = content == rebuilt_content;
+          if (check_ok) {
+            printf("splitting & recombining %s successful (%d -> %d + %d)\n",
+                   fns[i], (int)content.size(), (int)unpacked.size(), (int)recon.size());
+          } else {
+            printf("splitting & recombining %s failed: output not bitexact (%d -> %d + %d)\n",
+                   fns[i], (int)content.size(), (int)unpacked.size(), (int)recon.size());
+          }
+        } else {
+          printf("recombining %s failed (%d -> %d + %d)\n",
+                 fns[i], (int)content.size(), (int)unpacked.size(), (int)recon.size());
+        }
+      } else {
+        printf("splitting %s failed\n", fns[i]);
+      }
       ok = ok && check_ok;
     }
   }
@@ -129,41 +149,19 @@ int combine(const char* const * const fns, const unsigned fncnt, const std::stri
 #include "preflate_seq_chain.h"
 int main(int argc, const char * const * const argv) {
   puts("preflate v0.3.2");
-  if (!support_self_tests()) {
-    return -1;
-  }
-
-/*  static const char* const def_fns[] = {
-    "../testdata/zlib1.raw", "../testdata/zlib2.raw", "../testdata/zlib3.raw", 
-    "../testdata/zlib4.raw", "../testdata/zlib5.raw", "../testdata/zlib6.raw", 
-    "../testdata/zlib7.raw", "../testdata/zlib9.raw",
-    "../testdata/7zfast.raw", "../testdata/7zultra.raw", "../testdata/kz.raw",
-    "../testdata/dump.raw", "../testdata/dump_kz.raw",
-    "../testdata/new_pet.raw", "../testdata/bluevi6.raw",
-    "../testdata/test1a.png.raw", "../testdata/test1b.png.raw", "../testdata/test2b.png.raw",
-    };
-    */
-static const char* const def_fns[] = {
-  "../testdata/broken/00000065_inf.raw",
-};
-  const char* const * fns = def_fns;
-  unsigned fncnt = sizeof(def_fns) / sizeof(def_fns[0]);
-
-  if (argc >= 2) {
+  if (argc >= 3) {
     if (!strcmp(argv[1], "-t")) {
-      if (argc >= 3) {
-        fns = argv + 2;
-        fncnt = argc - 2;
-      }
+      const char* const * fns = argv + 2;
+      size_t fncnt = argc - 2;
       return test(fns, fncnt);
     }
-    if (argc >= 3 && !strcmp(argv[1], "-s")) {
+    if (!strcmp(argv[1], "-s")) {
       return split(argv + 2, argc - 2);
     }
-    if (argc >= 3 && !strcmp(argv[1], "-r")) {
+    if (!strcmp(argv[1], "-r")) {
       return combine(argv + 2, argc - 2, "");
     }
-    if (argc >= 3 && !strcmp(argv[1], "-x")) {
+    if (!strcmp(argv[1], "-x")) {
       return combine(argv + 2, argc - 2, ".x");
     }
   }

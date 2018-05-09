@@ -19,7 +19,7 @@
 // version information
 #define V_MAJOR 0
 #define V_MINOR 4
-#define V_MINOR2 132
+#define V_MINOR2 133
 //#define V_STATE "ALPHA"
 #define V_STATE "EXPERIMENTAL (w/ preflate support)"
 #define V_MSG "USE FOR TESTING ONLY"
@@ -209,7 +209,8 @@ bool level_switch_used = false;
 bool non_zlib_was_used;
 
 // preflate config
-size_t meta_block_size = 1 << 21; // 2 MB blocks by default
+size_t preflate_meta_block_size = 1 << 21; // 2 MB blocks by default
+bool preflate_verify = false;
 
 // statistics
 unsigned int recompressed_streams_count = 0;
@@ -543,7 +544,7 @@ bool parseSwitch(bool& val, const char* c, const char* ref) {
     val = true;
     return true;
   } else if (c[l] == '-' && !c[l + 1]) {
-    val = true;
+    val = false;
     return true;
   }
   printf("ERROR: Only + or - for this switch (%s) allowed\n", c);
@@ -622,7 +623,7 @@ int init(int argc, char* argv[]) {
   }
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2018 by Christian Schneider\n");
-  printf("- experimental preflate v0.3.1 support - Copyright 2018 by Dirk Steinke\n\n");
+  printf("- experimental preflate v0.3.2 support - Copyright 2018 by Dirk Steinke\n\n");
 
   // init compression and memory level count
   bool use_zlib_level[81];
@@ -857,14 +858,15 @@ int init(int argc, char* argv[]) {
         case 'P':
           {
             if (!parseSwitch(pdf_bmp_mode, argv[i] + 1, "pdfbmp")
-                && !parseSwitch(prog_only, argv[i] + 1, "progonly")) {
+                && !parseSwitch(prog_only, argv[i] + 1, "progonly")
+                && !parseSwitch(preflate_verify, argv[i] + 1, "pfverify")) {
               if (parsePrefixText(argv[i] + 1, "pfmeta")) {
                 int mbsize = parseIntUntilEnd(argv[i] + 7, "preflate meta block size");
                 if (mbsize >= INT_MAX / 1024) {
                   printf("preflate meta block size set too big\n");
                   exit(1);
                 }
-                meta_block_size = mbsize * 1024;
+                preflate_meta_block_size = mbsize * 1024;
               } else {
                 printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
                 exit(1);
@@ -1192,6 +1194,7 @@ int init(int argc, char* argv[]) {
     //printf("  zl[1..9][1..9] zLib levels to try for compression (comma separated) <all>\n");
     if (long_help) {
       printf("  pfmeta[amount] Split deflate streams into meta blocks of this size in KiB <2048>\n");
+      printf("  pfverify       Force preflate to verify its generated reconstruction data\n");
     }
     printf("  intense      Detect raw zLib headers, too. Slower and more sensitive <off>\n");
     if (long_help) {
@@ -3112,9 +3115,45 @@ recompress_deflate_result try_recompression_deflate(FILE* file) {
     result.accepted = preflate_decode(uos, result.recon_data,
                                       compressed_stream_size, is, []() { print_work_sign(true); },
                                       0,
-                                      meta_block_size); // you can set a minimum deflate stream size here
+                                      preflate_meta_block_size); // you can set a minimum deflate stream size here
     result.compressed_stream_size = compressed_stream_size;
     result.uncompressed_stream_size = uos.written();
+
+    if (preflate_verify && result.accepted) {
+      if (file == fin) {
+        seek_64(file, input_file_pos);
+      } else {
+        seek_64(file, 0);
+      }
+      OwnFileInputStream is2(file);
+      std::vector<uint8_t> orgdata(result.compressed_stream_size);
+      is2.read(orgdata.data(), orgdata.size());
+
+      MemStream reencoded_deflate;
+      MemStream uncompressed_mem(result.uncompressed_in_memory ? std::vector<uint8_t>(decomp_io_buf, decomp_io_buf + result.uncompressed_stream_size) : std::vector<uint8_t>());
+      OwnFileInputStream uncompressed_file(result.uncompressed_in_memory ? NULL : ftempout);
+      if (!preflate_reencode(reencoded_deflate, result.recon_data, 
+                             result.uncompressed_in_memory ? (InputStream&)uncompressed_mem : (InputStream&)uncompressed_file, 
+                             result.uncompressed_stream_size,
+                             [] {})
+          || orgdata != reencoded_deflate.data()) {
+        result.accepted = false;
+        static size_t counter = 0;
+        char namebuf[50];
+        while (true) {
+          snprintf(namebuf, 49, "preflate_error_%04d.raw", counter++);
+          FILE* f = fopen(namebuf, "rb");
+          if (f) {
+            fclose(f);
+            continue;
+          }
+          f = fopen(namebuf, "wb");
+          fwrite(orgdata.data(), 1, orgdata.size(), f);
+          fclose(f);
+          break;
+        }
+      }
+    }
   }
   return std::move(result);
 }
