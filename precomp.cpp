@@ -5904,12 +5904,12 @@ void try_decompression_png_multi(FILE* fpng, int windowbits) {
       int i = 1;
       int idat_pos = idat_lengths[0] - 2;
       unsigned int idat_pairs_written_count = 0;
-      if (idat_pos <= rdres.compressed_stream_size) {
+      if (idat_pos < rdres.compressed_stream_size) {
         do {
           idat_pairs_written_count++;
 
           idat_pos += idat_lengths[i];
-          if (idat_pos > rdres.compressed_stream_size) break;
+          if (idat_pos >= rdres.compressed_stream_size) break;
 
           i++;
         } while (i < idat_count);
@@ -5924,7 +5924,7 @@ void try_decompression_png_multi(FILE* fpng, int windowbits) {
       i = 1;
       idat_pos = idat_lengths[0] - 2;
       idat_pairs_written_count = 0;
-      if (idat_pos <= rdres.compressed_stream_size) {
+      if (idat_pos < rdres.compressed_stream_size) {
         do {
           fout_fput32(idat_crcs[i]);
           fout_fput_vlint(idat_lengths[i]);
@@ -5932,7 +5932,7 @@ void try_decompression_png_multi(FILE* fpng, int windowbits) {
           idat_pairs_written_count++;
 
           idat_pos += idat_lengths[i];
-          if (idat_pos > rdres.compressed_stream_size) break;
+          if (idat_pos >= rdres.compressed_stream_size) break;
 
           i++;
         } while (i < idat_count);
