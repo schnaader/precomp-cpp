@@ -623,7 +623,7 @@ int init(int argc, char* argv[]) {
   }
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2018 by Christian Schneider\n");
-  printf("- experimental preflate v0.3.2 support - Copyright 2018 by Dirk Steinke\n\n");
+  printf("- experimental preflate v0.3.4 support - Copyright 2018 by Dirk Steinke\n\n");
 
   // init compression and memory level count
   bool use_zlib_level[81];

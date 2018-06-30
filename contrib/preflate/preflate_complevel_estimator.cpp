@@ -101,53 +101,54 @@ bool PreflateCompLevelEstimatorState::checkMatchSingleFastHash(
   return true;
 }
 void PreflateCompLevelEstimatorState::checkMatch(const PreflateToken& token) {
-  if (slowHash.input().pos() < token.dist + off0) {
-    return;
-  }
   unsigned hashHead = slowHash.curHash();
-  if (info.possibleCompressionLevels & (1 << 1)) {
-    if (!checkMatchSingleFastHash(token, fastL1Hash, fastPreflateParserSettings[0], hashHead)) {
-      info.possibleCompressionLevels &= ~(1 << 1);
-    }
-  }
-  if (info.possibleCompressionLevels & (1 << 2)) {
-    if (!checkMatchSingleFastHash(token, fastL2Hash, fastPreflateParserSettings[1], hashHead)) {
-      info.possibleCompressionLevels &= ~(1 << 2);
-    }
-  }
-  if (info.possibleCompressionLevels & (1 << 3)) {
-    if (!checkMatchSingleFastHash(token, fastL3Hash, fastPreflateParserSettings[2], hashHead)) {
-      info.possibleCompressionLevels &= ~(1 << 3);
-    }
-  }
-
-  info.referenceCount++;
-
-  unsigned short mdepth = matchDepth(slowHash.getHead(hashHead), token, slowHash);
-  if (mdepth >= 0x8001) {
-    info.unfoundReferences++;
-  } else {
-    info.maxChainDepth = std::max(info.maxChainDepth, mdepth);
-  }
-  if (token.dist == slowHash.input().pos()) {
-    info.matchToStart = true;
-  }
-  if (mdepth == 0) {
-    info.longestDistAtHop0 = std::max(info.longestDistAtHop0, token.dist);
-  } else {
-    info.longestDistAtHop1Plus = std::max(info.longestDistAtHop1Plus, token.dist);
-  }
-  if (token.len == 3) {
-    info.longestLen3Dist = std::max(info.longestLen3Dist, token.dist);
-  }
-  if (info.possibleCompressionLevels & ((1 << 10) - (1 << 4))) {
-    for (unsigned i = 0; i < 6; ++i) {
-      if (!(info.possibleCompressionLevels & (1 << (4 + i)))) {
-        continue;
+  if (slowHash.input().pos() >= token.dist + off0) {
+    if (info.possibleCompressionLevels & (1 << 1)) {
+      if (!checkMatchSingleFastHash(token, fastL1Hash, fastPreflateParserSettings[0], hashHead)) {
+        info.possibleCompressionLevels &= ~(1 << 1);
       }
-      const PreflateParserConfig& config = slowPreflateParserSettings[i];
-      if (mdepth > config.max_chain) {
-        info.possibleCompressionLevels &= ~(1 << (4 + i));
+    }
+    if (info.possibleCompressionLevels & (1 << 2)) {
+      if (!checkMatchSingleFastHash(token, fastL2Hash, fastPreflateParserSettings[1], hashHead)) {
+        info.possibleCompressionLevels &= ~(1 << 2);
+      }
+    }
+    if (info.possibleCompressionLevels & (1 << 3)) {
+      if (!checkMatchSingleFastHash(token, fastL3Hash, fastPreflateParserSettings[2], hashHead)) {
+        info.possibleCompressionLevels &= ~(1 << 3);
+      }
+    }
+  }
+
+  if (slowHash.input().pos() >= token.dist) {
+    info.referenceCount++;
+
+    unsigned short mdepth = matchDepth(slowHash.getHead(hashHead), token, slowHash);
+    if (mdepth >= 0x8001) {
+      info.unfoundReferences++;
+    } else {
+      info.maxChainDepth = std::max(info.maxChainDepth, mdepth);
+    }
+    if (token.dist == slowHash.input().pos()) {
+      info.matchToStart = true;
+    }
+    if (mdepth == 0) {
+      info.longestDistAtHop0 = std::max(info.longestDistAtHop0, token.dist);
+    } else {
+      info.longestDistAtHop1Plus = std::max(info.longestDistAtHop1Plus, token.dist);
+    }
+    if (token.len == 3) {
+      info.longestLen3Dist = std::max(info.longestLen3Dist, token.dist);
+    }
+    if (info.possibleCompressionLevels & ((1 << 10) - (1 << 4))) {
+      for (unsigned i = 0; i < 6; ++i) {
+        if (!(info.possibleCompressionLevels & (1 << (4 + i)))) {
+          continue;
+        }
+        const PreflateParserConfig& config = slowPreflateParserSettings[i];
+        if (mdepth > config.max_chain) {
+          info.possibleCompressionLevels &= ~(1 << (4 + i));
+        }
       }
     }
   }

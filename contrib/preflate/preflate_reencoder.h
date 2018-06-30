@@ -20,7 +20,7 @@
 #include <support/stream.h>
 #include <support/task_pool.h>
 
-class PreflateReencoderTask : public Task {
+class PreflateReencoderTask {
 public:
   class Handler {
   public:
@@ -41,7 +41,12 @@ public:
                         const size_t uncompressedOffset,
                         const bool lastMetaBlock);
 
-  virtual bool execute();
+  virtual bool decodeAndRepredict();
+  virtual bool reencode();
+
+  uint32_t id() {
+    return metaBlockId;
+  }
 
 private:
   Handler& handler;
@@ -49,6 +54,10 @@ private:
   std::vector<uint8_t> uncompressedData;
   size_t uncompressedOffset;
   bool lastMetaBlock;
+  std::vector<PreflateTokenBlock> tokenData;
+  PreflatePredictionDecoder pcodec;
+  size_t paddingBitCount;
+  size_t paddingBits;
 };
 
 bool preflate_reencode(std::vector<unsigned char>& deflate_raw,

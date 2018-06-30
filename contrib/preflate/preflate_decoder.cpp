@@ -47,12 +47,14 @@ public:
     return encoder.endMetaBlock(codec, uncompressedSize);
   }
   virtual void markProgress() {
+    std::unique_lock<std::mutex> lock(this->_mutex);
     progressCallback();
   }
 
 private:
   PreflateMetaEncoder encoder;
   std::function<void(void)> progressCallback;
+  std::mutex _mutex;
 };
 
 PreflateDecoderTask::PreflateDecoderTask(PreflateDecoderTask::Handler& handler_,
@@ -71,36 +73,39 @@ PreflateDecoderTask::PreflateDecoderTask(PreflateDecoderTask::Handler& handler_,
   , paddingBits(paddingBits_) {
 }
 
-bool PreflateDecoderTask::execute() {
-  PreflateParameters params = estimatePreflateParameters(uncompressedData, uncompressedOffset, tokenData);
-  PreflateStatisticsCounter counter;
+bool PreflateDecoderTask::analyze() {
+  params = estimatePreflateParameters(uncompressedData, uncompressedOffset, tokenData);
   memset(&counter, 0, sizeof(counter));
-  PreflateTokenPredictor tokenPredictor(params, uncompressedData, uncompressedOffset);
-  PreflateTreePredictor treePredictor(uncompressedData, uncompressedOffset);
+  tokenPredictor.reset(new PreflateTokenPredictor(params, uncompressedData, uncompressedOffset));
+  treePredictor.reset(new PreflateTreePredictor(uncompressedData, uncompressedOffset));
   for (unsigned i = 0, n = tokenData.size(); i < n; ++i) {
-    tokenPredictor.analyzeBlock(i, tokenData[i]);
-    treePredictor.analyzeBlock(i, tokenData[i]);
-    if (tokenPredictor.predictionFailure || treePredictor.predictionFailure) {
+    tokenPredictor->analyzeBlock(i, tokenData[i]);
+    treePredictor->analyzeBlock(i, tokenData[i]);
+    if (tokenPredictor->predictionFailure || treePredictor->predictionFailure) {
       return false;
     }
-    tokenPredictor.updateCounters(&counter, i);
-    treePredictor.updateCounters(&counter, i);
+    tokenPredictor->updateCounters(&counter, i);
+    treePredictor->updateCounters(&counter, i);
     handler.markProgress();
   }
   counter.block.incNonZeroPadding(paddingBits != 0);
+  return true;
+}
+
+bool PreflateDecoderTask::encode() {
   PreflatePredictionEncoder pcodec;
   unsigned modelId = handler.setModel(counter, params);
   if (!handler.beginEncoding(metaBlockId, pcodec, modelId)) {
     return false;
   }
   for (unsigned i = 0, n = tokenData.size(); i < n; ++i) {
-    tokenPredictor.encodeBlock(&pcodec, i);
-    treePredictor.encodeBlock(&pcodec, i);
-    if (tokenPredictor.predictionFailure || treePredictor.predictionFailure) {
+    tokenPredictor->encodeBlock(&pcodec, i);
+    treePredictor->encodeBlock(&pcodec, i);
+    if (tokenPredictor->predictionFailure || treePredictor->predictionFailure) {
       return false;
     }
     if (lastMetaBlock) {
-      tokenPredictor.encodeEOF(&pcodec, i, i + 1 == tokenData.size());
+      tokenPredictor->encodeEOF(&pcodec, i, i + 1 == tokenData.size());
     }
   }
   if (lastMetaBlock) {
@@ -143,6 +148,11 @@ bool preflate_decode(OutputStream& unpacked_output,
   size_t MBThreshold = (MBSize * 3) >> 1;
   PreflateDecoderHandler encoder(block_callback);
   size_t MBcount = 0;
+
+  std::queue<std::future<std::shared_ptr<PreflateDecoderTask>>> futureQueue;
+  size_t queueLimit = std::min(2 * globalTaskPool.extraThreadCount(), (1 << 26) / MBThreshold);
+  bool fail = false;
+
   do {
     PreflateTokenBlock newBlock;
 
@@ -206,28 +216,58 @@ bool preflate_decode(OutputStream& unpacked_output,
         deflate_bits += decInBits.bitPos() - prevBitPos;
         prevBitPos = decInBits.bitPos();
       }
-
-      PreflateDecoderTask task(encoder, MBcount,
-                               std::move(blocksForMeta),
-                               std::move(uncompressedDataForMeta),
-                               uncompressedOffset,
-                               last, paddingBits);
-      if (!task.execute()) {
-        return false;
+      if (futureQueue.empty() && (queueLimit == 0 || last)) {
+        PreflateDecoderTask task(encoder, MBcount,
+                                 std::move(blocksForMeta),
+                                 std::move(uncompressedDataForMeta),
+                                 uncompressedOffset,
+                                 last, paddingBits);
+        if (!task.analyze() || !task.encode()) {
+          return false;
+        }
+      } else {
+        if (futureQueue.size() >= queueLimit) {
+          std::future<std::shared_ptr<PreflateDecoderTask>> first = std::move(futureQueue.front());
+          futureQueue.pop();
+          std::shared_ptr<PreflateDecoderTask> data = first.get();
+          if (!data || !data->encode()) {
+            fail = true;
+          }
+        }
+        std::shared_ptr<PreflateDecoderTask> ptask;
+        ptask.reset(new PreflateDecoderTask(encoder, MBcount,
+                                            std::move(blocksForMeta),
+                                            std::move(uncompressedDataForMeta),
+                                            uncompressedOffset,
+                                            last, paddingBits));
+        futureQueue.push(globalTaskPool.addTask([ptask,&fail]() {
+          if (!fail && ptask->analyze()) {
+            return ptask;
+          } else {
+            return std::shared_ptr<PreflateDecoderTask>();
+          }
+        }));
       }
-      MBcount++;
-
       if (!last) {
         decOutCache.flushUpTo(uncompressedMetaStart - (1 << 15));
       }
+      MBcount++;
     }
-  } while (!last);
+  } while (!fail && !last);
+  while (!futureQueue.empty()) {
+    std::future<std::shared_ptr<PreflateDecoderTask>> first = std::move(futureQueue.front());
+    futureQueue.pop();
+    std::shared_ptr<PreflateDecoderTask> data = first.get();
+    if (fail || !data || !data->encode()) {
+      fail = true;
+    }
+  }
   decOutCache.flush();
   deflate_size = (deflate_bits + 7) >> 3;
   if (deflate_size < min_deflate_size) {
     return false;
   }
-  return encoder.finish(preflate_diff);
+  return !fail && encoder.finish(preflate_diff);
 }
 
 bool preflate_decode(std::vector<unsigned char>& unpacked_output,

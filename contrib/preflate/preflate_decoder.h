@@ -16,13 +16,17 @@
 #define PREFLATE_DECODER_H
 
 #include <functional>
+#include <queue>
 #include <vector>
 #include "preflate_statistical_codec.h"
 #include "preflate_token.h"
 #include "support/stream.h"
 #include "support/task_pool.h"
 
-class PreflateDecoderTask : public Task {
+class PreflateTokenPredictor;
+class PreflateTreePredictor;
+
+class PreflateDecoderTask {
 public:
   class Handler {
   public:
@@ -40,7 +44,11 @@ public:
                       const bool lastMetaBlock,
                       const uint32_t paddingBits);
 
-  virtual bool execute();
+  bool analyze();
+  bool encode();
+  uint32_t id() {
+    return metaBlockId;
+  }
 
 private:
   Handler& handler;
@@ -50,6 +58,11 @@ private:
   size_t uncompressedOffset;
   bool lastMetaBlock;
   uint32_t paddingBits;
+
+  PreflateParameters params;
+  PreflateStatisticsCounter counter;
+  std::unique_ptr<PreflateTokenPredictor> tokenPredictor;
+  std::unique_ptr<PreflateTreePredictor> treePredictor;
 };
 
 bool preflate_decode(OutputStream& unpacked_output,

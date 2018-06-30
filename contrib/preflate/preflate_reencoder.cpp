@@ -71,6 +71,7 @@ public:
   }
 
   virtual void markProgress() {
+    std::unique_lock<std::mutex> lock(this->_mutex);
     progressCallback();
   }
 
@@ -78,6 +79,7 @@ private:
   PreflateMetaDecoder decoder;
   std::function<void(void)> progressCallback;
   BitOutputStream& bos;
+  std::mutex _mutex;
 };
 
 PreflateReencoderTask::PreflateReencoderTask(PreflateReencoderHandler::Handler& handler_,
@@ -91,8 +93,7 @@ PreflateReencoderTask::PreflateReencoderTask(PreflateReencoderHandler::Handler& 
   , uncompressedOffset(uncompressedOffset_)
   , lastMetaBlock(lastMetaBlock_) {}
 
-bool PreflateReencoderTask::execute() {
-  PreflatePredictionDecoder pcodec;
+bool PreflateReencoderTask::decodeAndRepredict() {
   PreflateParameters params;
   if (!handler.beginDecoding(metaBlockId, pcodec, params)) {
     return false;
@@ -100,7 +101,6 @@ bool PreflateReencoderTask::execute() {
   PreflateTokenPredictor tokenPredictor(params, uncompressedData, uncompressedOffset);
   PreflateTreePredictor treePredictor(uncompressedData, uncompressedOffset);
 
-  std::vector<PreflateTokenBlock> tokenData;
   bool eof = true;
   do {
     PreflateTokenBlock block = tokenPredictor.decodeBlock(&pcodec);
@@ -118,8 +118,8 @@ bool PreflateReencoderTask::execute() {
     }
     handler.markProgress();
   } while (!eof);
-  size_t paddingBitCount = 0;
-  size_t paddingBits = 0;
+  paddingBitCount = 0;
+  paddingBits = 0;
   if (lastMetaBlock) {
     bool non_zero_bits = pcodec.decodeNonZeroPadding();
     if (non_zero_bits) {
@@ -129,6 +129,9 @@ bool PreflateReencoderTask::execute() {
       }
     }
   }
+  return true;
+}
+bool PreflateReencoderTask::reencode() {
   return handler.endDecoding(metaBlockId, pcodec, std::move(tokenData),
                              std::move(uncompressedData), uncompressedOffset,
                              paddingBitCount, paddingBits);
@@ -145,6 +148,13 @@ bool preflate_reencode(OutputStream& os,
     return false;
   }
   std::vector<uint8_t> uncompressedData;
+  std::queue<std::future<std::shared_ptr<PreflateReencoderTask>>> futureQueue;
+  size_t maxMetaBlockSize = 1;
+  for (size_t j = 0, n = decoder.metaBlockCount(); j < n; ++j) {
+    maxMetaBlockSize = std::max(maxMetaBlockSize, decoder.metaBlockUncompressedSize(j));
+  }
+  size_t queueLimit = std::min(2 * globalTaskPool.extraThreadCount(), (1 << 26) / maxMetaBlockSize);
+  bool fail = false;
   for (size_t j = 0, n = decoder.metaBlockCount(); j < n; ++j) {
     size_t curUncSize = uncompressedData.size();
     size_t newSize = decoder.metaBlockUncompressedSize(j);
@@ -153,18 +163,47 @@ bool preflate_reencode(OutputStream& os,
       return false;
     }
 
-    PreflateReencoderTask task(decoder, j, std::vector<uint8_t>(uncompressedData), curUncSize, j + 1 == n);
+    if (futureQueue.empty() && (queueLimit == 0 || j + 1 == n)) {
+      PreflateReencoderTask task(decoder, j, std::vector<uint8_t>(uncompressedData), curUncSize, j + 1 == n);
+      if (!task.decodeAndRepredict() || !task.reencode()) {
+        return false;
+      }
+    } else {
+      if (futureQueue.size() >= queueLimit) {
+        std::future<std::shared_ptr<PreflateReencoderTask>> first = std::move(futureQueue.front());
+        futureQueue.pop();
+        std::shared_ptr<PreflateReencoderTask> data = first.get();
+        if (fail || !data || !data->reencode()) {
+          fail = true;
+        }
+      }
+      std::shared_ptr<PreflateReencoderTask> ptask;
+      ptask.reset(new PreflateReencoderTask(decoder, j, std::vector<uint8_t>(uncompressedData),
+                                            curUncSize, j + 1 == n));
+      futureQueue.push(globalTaskPool.addTask([ptask, &fail]() {
+        if (!fail && ptask->decodeAndRepredict()) {
+          return ptask;
+        } else {
+          return std::shared_ptr<PreflateReencoderTask>();
+        }
+      }));
+    }
+
     if (j + 1 < n) {
       uncompressedData.erase(uncompressedData.begin(),
                              uncompressedData.begin() + std::max<size_t>(uncompressedData.size(), 1 << 15) - (1 << 15));
     }
-
-    if (!task.execute()) {
-      return false;
+  }
+  while (!futureQueue.empty()) {
+    std::future<std::shared_ptr<PreflateReencoderTask>> first = std::move(futureQueue.front());
+    futureQueue.pop();
+    std::shared_ptr<PreflateReencoderTask> data = first.get();
+    if (fail || !data || !data->reencode()) {
+      fail = true;
     }
   }
   bos.flush();
-  return !decoder.error();
+  return !fail && !decoder.error();
 }
 
 bool preflate_reencode(OutputStream& os,

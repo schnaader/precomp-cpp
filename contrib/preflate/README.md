@@ -1,4 +1,4 @@
-preflate v0.3.1
+preflate v0.3.4
 ===============
 Library to split deflate streams into uncompressed data and reconstruction information,
 or reconstruct the original deflate stream from those two. 
@@ -86,7 +86,11 @@ in SIZE.
 It's quite slow. Since 0.2.1, there is some optimization for long runs of the same byte (e.g.
 \0 or spaces), and some files profit from that tremendously (which were ten times
 slower than now), but for most files the gain is only a few percent.
-Both "precomp" and "reflate" BEAT "preflate" in SPEED. (Expected to be around
+Since 0.3.3, preflate utilizes a task pool which gives a nice
+speedup when handling large deflate streams on multi-core machines.
+Single thread performance is still poor though.
+Both "precomp" and "reflate" BEAT "preflate" in SPEED for small deflate
+streams or when restricted to a single core. (Expected to be around
 50-500%).
 
 However, "preflate" eats anything and can be successfully applied to files in which
@@ -98,8 +102,11 @@ How do I build it?
 ------------------
 There is a make file, but it has only been tested so far with MinGW gmake.
 The produced executable is larger than 1MiB, while the MSVC compiler generated
-executables were around 100KiB. The reason for that is unclear at the moment.
+executables were around 100KiB. The reason for that is unclear at the moment. 
 There is also a CMake script which hopefully works for non Windows platforms.
+
+Note: Support for std::thread (used in preflate since 0.3.3) is tricky
+in MinGW, and you might need particular MinGW builds for that to work.
 
 
 Credits
@@ -145,6 +152,15 @@ Changes
         "meta block splitting". For one 350KiB file compressed at zlib level 1,
          reconstruction size goes from 35KiB to 1.5KiB. Without meta-blocks it
          would be 3 bytes...
+- 0.3.2 - bug fix: preflate would occasionally believe that it could
+          treat "abaaaa" as a sequence of a's, totally ignoring the b.
+          Thanks to Gonzalo Munoz for finding this.
+- 0.3.3 - add task pool to handle meta blocks in parallel. 
+         (multi-threading is why I added meta blocks in the first place.)
+         for small deflate streams consisting of only one meta block, the task pool is ignored.
+- 0.3.4 - bug fix for 0.3.1: preflate would occasionally fail because the
+          zlib parameter estimator would wrongly restrict its search range
+          for large deflate streams split into meta blocks
 
 
 License

@@ -128,7 +128,7 @@ int combine(const char* const * const fns, const unsigned fncnt, const std::stri
 
 #include "preflate_seq_chain.h"
 int main(int argc, const char * const * const argv) {
-  puts("preflate v0.3.2");
+  puts("preflate v0.3.4");
   if (!support_self_tests()) {
     return -1;
   }

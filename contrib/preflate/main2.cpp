@@ -13,6 +13,7 @@
    limitations under the License. */
 
 #include <algorithm>
+#include <chrono>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
@@ -62,10 +63,18 @@ int test(const char* const * const fns, const unsigned fncnt) {
     } else {
       std::vector<unsigned char> unpacked;
       std::vector<unsigned char> recon;
+      printf("Decoding ...\n");
+      auto ts_start = std::chrono::steady_clock::now();
       bool check_ok = preflate_decode(unpacked, recon, content, 1 << 18);
+      auto ts_end = std::chrono::steady_clock::now();
+      printf("Decoding took %g seconds\n", std::chrono::duration<double>(ts_end - ts_start).count());
       if (check_ok) {
         std::vector<unsigned char> rebuilt_content;
+        printf("Reencoding ...\n");
+        ts_start = std::chrono::steady_clock::now();
         check_ok = preflate_reencode(rebuilt_content, recon, unpacked);
+        ts_end = std::chrono::steady_clock::now();
+        printf("Reencoding took %g seconds\n", std::chrono::duration<double>(ts_end - ts_start).count());
         if (check_ok) {
           check_ok = content == rebuilt_content;
           if (check_ok) {
@@ -148,7 +157,7 @@ int combine(const char* const * const fns, const unsigned fncnt, const std::stri
 
 #include "preflate_seq_chain.h"
 int main(int argc, const char * const * const argv) {
-  puts("preflate v0.3.2");
+  puts("preflate v0.3.4");
   if (argc >= 3) {
     if (!strcmp(argv[1], "-t")) {
       const char* const * fns = argv + 2;

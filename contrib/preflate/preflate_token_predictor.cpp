@@ -190,12 +190,16 @@ void PreflateTokenPredictor::analyzeBlock(
   for (unsigned i = 0, n = block.tokens.size(); i < n; ++i) {
     PreflateToken targetToken = block.tokens[i];
 
+    //if (blockno == 0 && i == 0x6dd) {
+    //  puts("hi");
+    //}
+
     if (predictEOB()) {
       analysis.blockSizePredicted = false;
     }
     PreflateToken predictedToken = predictToken();
 #ifdef _DEBUG
-    printf("B%dT%d: TGT(%d,%d) -> PRD(%d,%d)\n", blockno, i, targetToken.len, targetToken.dist, predictedToken.len, predictedToken.dist);
+//    printf("B%dT%d: TGT(%d,%d) -> PRD(%d,%d)\n", blockno, i, targetToken.len, targetToken.dist, predictedToken.len, predictedToken.dist);
 #endif
 
     if (targetToken.len == 1) {
