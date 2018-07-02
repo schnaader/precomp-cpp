@@ -275,8 +275,8 @@ long long saved_input_file_pos, saved_cb;
 int min_ident_size = 4;
 int min_ident_size_intense_brute_mode = 64;
 
-set<long long>* intense_ignore_offsets = NULL;
-set<long long>* brute_ignore_offsets = NULL;
+set<long long>* intense_ignore_offsets = new set<long long>();
+set<long long>* brute_ignore_offsets = new set<long long>();
 
 unsigned char zlib_header[2];
 unsigned int* idat_lengths = NULL;
@@ -2345,6 +2345,7 @@ void denit_compress() {
     free(ignore_list);
   }
   if (decomp_io_buf != NULL) delete[] decomp_io_buf;
+  decomp_io_buf = NULL;
 
   denit();
 }
@@ -2417,11 +2418,6 @@ void denit_convert() {
 void denit() {
   safe_fclose(&fin);
   safe_fclose(&fout);
-
-  if (output_file_name != NULL) delete[] output_file_name;
-  delete[] penalty_bytes;
-  delete[] local_penalty_bytes;
-  delete[] best_penalty_bytes;
 }
 
 // Brute mode detects a bit less than intense mode to avoid false positives
@@ -3170,13 +3166,9 @@ private:
 };
 
 bool try_reconstructing_deflate(FILE* fin, FILE* fout, const recompress_deflate_result& rdres) {
-  std::vector<unsigned char> unpacked_output;
-  unpacked_output.resize(rdres.uncompressed_stream_size);
-  if ((int64_t)own_fread(unpacked_output.data(), 1, rdres.uncompressed_stream_size, fin) != rdres.uncompressed_stream_size) {
-    return false;
-  }
   OwnFileOutputStream os(fout);
-  bool result = preflate_reencode(os, rdres.recon_data, unpacked_output, []() { print_work_sign(true); });
+  OwnFileInputStream is(fin);
+  bool result = preflate_reencode(os, rdres.recon_data, is, rdres.uncompressed_stream_size, []() { print_work_sign(true); });
   return result;
 }
 bool try_reconstructing_deflate_skip(FILE* fin, FILE* fout, const recompress_deflate_result& rdres, const size_t read_part, const size_t skip_part) {
@@ -3618,8 +3610,6 @@ bool compress_file(float min_percent, float max_percent) {
   comp_decomp_state = P_COMPRESS;
 
   init_temp_files();
-  intense_ignore_offsets = new set<long long>();
-  brute_ignore_offsets = new set<long long>();
   decomp_io_buf = new unsigned char[MAX_IO_BUFFER_SIZE];
 
   global_min_percent = min_percent;
@@ -6004,6 +5994,44 @@ int DGifGetLineByte(GifFileType *GifFile, GifPixelType *Line, int LineLen, GifCo
     return result;
 }
 
+unsigned char** alloc_gif_screenbuf(GifFileType* myGifFile) {
+  if (myGifFile->SHeight <= 0 || myGifFile->SWidth <= 0) {
+    return nullptr;
+  }
+  unsigned char** ScreenBuff = new unsigned char*[myGifFile->SHeight];
+  for (int i = 0; i < myGifFile->SHeight; i++) {
+    ScreenBuff[i] = new unsigned char[myGifFile->SWidth];
+  }
+
+  for (int i = 0; i < myGifFile->SWidth; i++)  /* Set its color to BackGround. */
+    ScreenBuff[0][i] = myGifFile->SBackGroundColor;
+  for (int i = 1; i < myGifFile->SHeight; i++) {
+    memcpy(ScreenBuff[i], ScreenBuff[0], myGifFile->SWidth);
+  }
+  return ScreenBuff;
+}
+void free_gif_screenbuf(unsigned char** ScreenBuff, GifFileType* myGifFile) {
+  if (ScreenBuff != NULL) {
+    for (int i = 0; i < myGifFile->SHeight; i++) {
+      delete[] ScreenBuff[i];
+    }
+    delete[] ScreenBuff;
+  }
+}
+
+bool r_gif_result(unsigned char** ScreenBuff, GifFileType* myGifFile, GifFileType* newGifFile, bool result) {
+  free_gif_screenbuf(ScreenBuff, myGifFile);
+  DGifCloseFile(myGifFile);
+  EGifCloseFile(newGifFile);
+  return result;
+}
+bool r_gif_error(unsigned char** ScreenBuff, GifFileType* myGifFile, GifFileType* newGifFile) {
+  return r_gif_result(ScreenBuff, myGifFile, newGifFile, false);
+}
+bool r_gif_ok(unsigned char** ScreenBuff, GifFileType* myGifFile, GifFileType* newGifFile) {
+  return r_gif_result(ScreenBuff, myGifFile, newGifFile, true);
+}
+
 bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifCodeStruct* g, GifDiffStruct* gd) {
   int i, j;
   long long last_pos = -1;
@@ -6030,46 +6058,27 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
 
   newGifFile->BlockSize = block_size;
 
-  unsigned char** ScreenBuff;
-
   if (newGifFile == NULL) {
     return false;
   }
-
-  ScreenBuff = new unsigned char*[myGifFile->SHeight];
-  for (i = 0; i < myGifFile->SHeight; i++) {
-    ScreenBuff[i] = new unsigned char[myGifFile->SWidth];
-  }
-
-  for (i = 0; i < myGifFile->SWidth; i++)  /* Set its color to BackGround. */
-    ScreenBuff[0][i] = myGifFile->SBackGroundColor;
-  for (i = 1; i < myGifFile->SHeight; i++) {
-    memcpy(ScreenBuff[i], ScreenBuff[0], myGifFile->SWidth);
+  unsigned char** ScreenBuff = alloc_gif_screenbuf(myGifFile);
+  if (!ScreenBuff) {
+    DGifCloseFile(myGifFile);
+    EGifCloseFile(newGifFile);
+    return false;
   }
 
   EGifPutScreenDesc(newGifFile, myGifFile->SWidth, myGifFile->SHeight, myGifFile->SColorResolution, myGifFile->SBackGroundColor, myGifFile->SPixelAspectRatio, myGifFile->SColorMap);
 
   do {
     if (DGifGetRecordType(myGifFile, &RecordType) == GIF_ERROR) {
-      for (i = 0; i < myGifFile->SHeight; i++) {
-        delete[] ScreenBuff[i];
-      }
-      delete[] ScreenBuff;
-      DGifCloseFile(myGifFile);
-      EGifCloseFile(newGifFile);
-      return false;
+      return r_gif_error(ScreenBuff, myGifFile, newGifFile);
     }
 
     switch (RecordType) {
       case IMAGE_DESC_RECORD_TYPE:
         if (DGifGetImageDesc(myGifFile) == GIF_ERROR) {
-          for (i = 0; i < myGifFile->SHeight; i++) {
-            delete[] ScreenBuff[i];
-          }
-          delete[] ScreenBuff;
-          DGifCloseFile(myGifFile);
-          EGifCloseFile(newGifFile);
-          return false;
+          return r_gif_error(ScreenBuff, myGifFile, newGifFile);
         }
 
         src_pos = tell_64(srcfile);
@@ -6103,13 +6112,7 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
 
         // this does send a clear code, so we pass g and gd
         if (EGifPutImageDesc(newGifFile, g, gd, Row, Col, Width, Height, myGifFile->Image.Interlace, myGifFile->Image.ColorMap) == GIF_ERROR) {
-          for (i = 0; i < myGifFile->SHeight; i++) {
-            delete[] ScreenBuff[i];
-          }
-          delete[] ScreenBuff;
-          DGifCloseFile(myGifFile);
-          EGifCloseFile(newGifFile);
-          return false;
+          return r_gif_error(ScreenBuff, myGifFile, newGifFile);
         }
 
         newgif_may_write = true;
@@ -6135,23 +6138,11 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
         /* Skip any extension blocks in file: */
 
         if (DGifGetExtension(myGifFile, &ExtCode, &Extension) == GIF_ERROR) {
-          for (i = 0; i < myGifFile->SHeight; i++) {
-            delete[] ScreenBuff[i];
-          }
-          delete[] ScreenBuff;
-          DGifCloseFile(myGifFile);
-          EGifCloseFile(newGifFile);
-          return false;
+          return r_gif_error(ScreenBuff, myGifFile, newGifFile);
         }
         while (Extension != NULL) {
           if (DGifGetExtensionNext(myGifFile, &Extension) == GIF_ERROR) {
-            for (i = 0; i < myGifFile->SHeight; i++) {
-              delete[] ScreenBuff[i];
-            }
-            delete[] ScreenBuff;
-            DGifCloseFile(myGifFile);
-            EGifCloseFile(newGifFile);
-            return false;
+            return r_gif_error(ScreenBuff, myGifFile, newGifFile);
           }
         }
         break;
@@ -6168,16 +6159,19 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
     fast_copy(srcfile, dstfile, src_pos - last_pos);
     seek_64(srcfile, src_pos);
   }
+  return r_gif_ok(ScreenBuff, myGifFile, newGifFile);
+}
 
-  for (i = 0; i < myGifFile->SHeight; i++) {
-    delete[] ScreenBuff[i];
-  }
-  delete[] ScreenBuff;
-
+bool d_gif_result(unsigned char** ScreenBuff, GifFileType* myGifFile, bool result) {
+  free_gif_screenbuf(ScreenBuff, myGifFile);
   DGifCloseFile(myGifFile);
-  EGifCloseFile(newGifFile);
-
-  return true;
+  return result;
+}
+bool d_gif_error(unsigned char** ScreenBuff, GifFileType* myGifFile) {
+  return d_gif_result(ScreenBuff, myGifFile, false);
+}
+bool d_gif_ok(unsigned char** ScreenBuff, GifFileType* myGifFile) {
+  return d_gif_result(ScreenBuff, myGifFile, true);
 }
 
 bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_length, long long& decomp_length, unsigned char& block_size, GifCodeStruct* g) {
@@ -6208,27 +6202,15 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
     switch (RecordType) {
       case IMAGE_DESC_RECORD_TYPE:
         if (ScreenBuff == NULL) {
-          ScreenBuff = new unsigned char*[myGifFile->SHeight];
-          for (i = 0; i < myGifFile->SHeight; i++) {
-            ScreenBuff[i] = new unsigned char[myGifFile->SWidth];
-          }
-
-          for (i = 0; i < myGifFile->SWidth; i++)  /* Set its color to BackGround. */
-            ScreenBuff[0][i] = myGifFile->SBackGroundColor;
-          for (i = 1; i < myGifFile->SHeight; i++) {
-            memcpy(ScreenBuff[i], ScreenBuff[0], myGifFile->SWidth);
+          ScreenBuff = alloc_gif_screenbuf(myGifFile);
+          if (!ScreenBuff) {
+            DGifCloseFile(myGifFile);
+            return false;
           }
         }
 
         if (DGifGetImageDesc(myGifFile) == GIF_ERROR) {
-          if (ScreenBuff != NULL) {
-            for (i = 0; i < myGifFile->SHeight; i++) {
-              delete[] ScreenBuff[i];
-            }
-            delete[] ScreenBuff;
-          }
-          DGifCloseFile(myGifFile);
-          return false;
+          return d_gif_error(ScreenBuff, myGifFile);
         }
 
         srcfile_pos = tell_64(srcfile);
@@ -6265,14 +6247,7 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
 
         if (((Col + Width) > myGifFile->SWidth) ||
             ((Row + Height) > myGifFile->SHeight)) {
-             if (ScreenBuff != NULL) {
-               for (i = 0; i < myGifFile->SHeight; i++) {
-                 delete[] ScreenBuff[i];
-               }
-               delete[] ScreenBuff;
-             }
-             DGifCloseFile(myGifFile);
-             return false;
+          return d_gif_error(ScreenBuff, myGifFile);
         }
 
         if (myGifFile->Image.Interlace) {
@@ -6280,16 +6255,9 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
           for (i = 0; i < 4; i++) {
             for (j = Row + InterlacedOffset[i]; j < (Row + Height); j += InterlacedJumps[i]) {
               if (DGifGetLineByte(myGifFile, &ScreenBuff[j][Col], Width, g) == GIF_ERROR) {
-                if (ScreenBuff != NULL) {
-                  for (i = 0; i < myGifFile->SHeight; i++) {
-                    delete[] ScreenBuff[i];
-                  }
-                  delete[] ScreenBuff;
-                }
-                DGifCloseFile(myGifFile);
                 // TODO: If this fails, write as much rows to dstfile
                 //       as possible to support second decompression.
-                return false;
+                return d_gif_error(ScreenBuff, myGifFile);
               }
             }
           }
@@ -6300,14 +6268,7 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
         } else {
           for (i = Row; i < (Row + Height); i++) {
             if (DGifGetLineByte(myGifFile, &ScreenBuff[i][Col], Width, g) == GIF_ERROR) {
-              if (ScreenBuff != NULL) {
-                for (i = 0; i < myGifFile->SHeight; i++) {
-                  delete[] ScreenBuff[i];
-                }
-                delete[] ScreenBuff;
-              }
-              DGifCloseFile(myGifFile);
-              return false;
+              return d_gif_error(ScreenBuff, myGifFile);
             }
             // write to dstfile
             own_fwrite(&ScreenBuff[i][Col], 1, Width, dstfile);
@@ -6321,25 +6282,11 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
         /* Skip any extension blocks in file: */
 
         if (DGifGetExtension(myGifFile, &ExtCode, &Extension) == GIF_ERROR) {
-          if (ScreenBuff != NULL) {
-            for (i = 0; i < myGifFile->SHeight; i++) {
-              delete[] ScreenBuff[i];
-            }
-            delete[] ScreenBuff;
-          }
-          DGifCloseFile(myGifFile);
-          return false;
+          return d_gif_error(ScreenBuff, myGifFile);
         }
         while (Extension != NULL) {
           if (DGifGetExtensionNext(myGifFile, &Extension) == GIF_ERROR) {
-            if (ScreenBuff != NULL) {
-              for (i = 0; i < myGifFile->SHeight; i++) {
-                delete[] ScreenBuff[i];
-              }
-              delete[] ScreenBuff;
-            }
-            DGifCloseFile(myGifFile);
-            return false;
+            return d_gif_error(ScreenBuff, myGifFile);
           }
         }
         break;
@@ -6360,16 +6307,7 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
   gif_length = srcfile_pos - src_pos;
   decomp_length = tell_64(dstfile);
 
-  if (ScreenBuff != NULL) {
-    for (i = 0; i < myGifFile->SHeight; i++) {
-      delete[] ScreenBuff[i];
-    }
-    delete[] ScreenBuff;
-  }
-
-  DGifCloseFile(myGifFile);
-
-  return true;
+  return d_gif_ok(ScreenBuff, myGifFile);
 }
 
 void try_decompression_gif(unsigned char version[5]) {
@@ -6906,6 +6844,7 @@ bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsign
         region1_size = (char)side_reader->read(3);
         if (region0_size + region1_size > 20) {
           // region size out of bounds
+          delete side_reader;
           return false;
         }
       } else {
@@ -6915,7 +6854,7 @@ bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsign
     }
   }
 
-  delete(side_reader);
+  delete side_reader;
 
   return true;
 }
@@ -7494,7 +7433,9 @@ long long fileSize64(char* filename) {
     unsigned long s1 = 0, s2 = 0;
 
     #ifdef _MSC_VER
-    HANDLE h = CreateFile(convertCharArrayToLPCWSTR(filename), 0, (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    wchar_t* wfilename = convertCharArrayToLPCWSTR(filename);
+    HANDLE h = CreateFile(wfilename, 0, (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    delete[] wfilename;
     #else
     HANDLE h = CreateFile(filename, 0, (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     #endif
@@ -7779,6 +7720,14 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
   }
   tmp_r.success = compress_file(recursion_min_percent, recursion_max_percent);
 
+  delete intense_ignore_offsets;
+  delete brute_ignore_offsets;
+  delete[] input_file_name;
+  delete[] output_file_name;
+  delete[] penalty_bytes;
+  delete[] local_penalty_bytes;
+  delete[] best_penalty_bytes;
+
   if (anything_was_used)
     rescue_anything_was_used = true;
 
@@ -7805,6 +7754,8 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
 
   if (!tmp_r.success) {
     remove(tmp_r.file_name);
+    delete[] tmp_r.file_name;
+    tmp_r.file_name = NULL;
   } else {
     if ((recursion_depth + 1) > max_recursion_depth_used)
       max_recursion_depth_used = (recursion_depth + 1);
@@ -7864,6 +7815,12 @@ recursion_result recursion_decompress(long long recursion_data_length) {
     printf("Recursion start - new recursion depth %i\n", recursion_depth);
   }
   decompress_file();
+
+  delete[] input_file_name;
+  delete[] output_file_name;
+  delete[] penalty_bytes;
+  delete[] local_penalty_bytes;
+  delete[] best_penalty_bytes;
 
   recursion_depth--;
   recursion_pop();
