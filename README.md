@@ -5,6 +5,12 @@ Precomp
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/precomp.svg)](https://repology.org/metapackage/precomp)
 
+Fork note
+---------
+This is an experimental fork of precomp, that uses the preflate library for
+deflate stream recompression.
+
+
 What is Precomp?
 ----------------
 Precomp is a command line precompressor. You can use it to achieve better compression on some file-/streamtypes (works on files and streams that are compressed with zLib or the Deflate compression method, bZip2, GIF, JPG and MP3). Precomp tries to decompress the streams, and if they can be decompressed and "re-"compressed so that they are bit-to-bit-identical with the original stream, the decompressed stream can be used instead of the compressed one.

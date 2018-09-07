@@ -19,9 +19,9 @@
 // version information
 #define V_MAJOR 0
 #define V_MINOR 4
-#define V_MINOR2 7
+#define V_MINOR2 133
 //#define V_STATE "ALPHA"
-#define V_STATE "DEVELOPMENT"
+#define V_STATE "EXPERIMENTAL (w/ preflate support)"
 #define V_MSG "USE FOR TESTING ONLY"
 //#define V_MSG "USE AT YOUR OWN RISK!"
 #ifdef UNIX
@@ -53,6 +53,8 @@
 #define ERR_ONLY_SET_LZMA_MEMORY_ONCE 16
 #define ERR_ONLY_SET_LZMA_THREAD_ONCE 17
 #define ERR_ONLY_SET_LZMA_FILTERS_ONCE 18
+
+#define NOMINMAX
 
 #include <stdio.h>
 #include <iostream>
@@ -95,6 +97,7 @@ using namespace std;
 #include "contrib/packjpg/precomp_jpg.h"
 #include "contrib/packmp3/precomp_mp3.h"
 #include "contrib/zlib/zlib.h"
+#include "contrib/preflate/preflate.h"
 
 #define CHUNK 262144 // 256 KB buffersize
 #define DIV3CHUNK 262143 // DIV3CHUNK is a bit smaller/larger than CHUNK, so that DIV3CHUNK mod 3 = 0
@@ -154,9 +157,7 @@ unsigned char otf_out[CHUNK];
 
 #include "contrib/liblzma/precomp_xz.h"
 lzma_stream otf_xz_stream_c = LZMA_STREAM_INIT, otf_xz_stream_d = LZMA_STREAM_INIT;
-bool otf_xz_filter_enabled[6];
-bool otf_xz_filter_delta_enabled = false;
-int otf_xz_filter_delta_distance = 0;
+lzma_init_mt_extra_parameters otf_xz_extra_params;
 int otf_xz_filter_used_count = 0;
 
 int compression_otf_method = OTF_XZ_MT;
@@ -206,6 +207,10 @@ bool zlib_level_was_used[81];
 bool anything_was_used;
 bool level_switch_used = false;
 bool non_zlib_was_used;
+
+// preflate config
+size_t preflate_meta_block_size = 1 << 21; // 2 MB blocks by default
+bool preflate_verify = false;
 
 // statistics
 unsigned int recompressed_streams_count = 0;
@@ -270,8 +275,8 @@ long long saved_input_file_pos, saved_cb;
 int min_ident_size = 4;
 int min_ident_size_intense_brute_mode = 64;
 
-set<long long>* intense_ignore_offsets = NULL;
-set<long long>* brute_ignore_offsets = NULL;
+set<long long>* intense_ignore_offsets = new set<long long>();
+set<long long>* brute_ignore_offsets = new set<long long>();
 
 unsigned char zlib_header[2];
 unsigned int* idat_lengths = NULL;
@@ -305,6 +310,22 @@ bool use_mp3 = true;
 bool use_swf = true;
 bool use_base64 = true;
 bool use_bzip2 = true;
+
+enum {
+  D_PDF      = 0,
+  D_ZIP      = 1,
+  D_GZIP     = 2,
+  D_PNG      = 3,
+  D_MULTIPNG = 4,
+  D_GIF      = 5,
+  D_JPG      = 6,
+  D_SWF      = 7,
+  D_BASE64   = 8,
+  D_BZIP2    = 9,
+  D_MP3      = 10,
+  D_RAW      = 255,
+  D_BRUTE    = 254,
+};
 
 // Precomp DLL things
 #ifdef PRECOMPDLL
@@ -506,6 +527,88 @@ int main(int argc, char* argv[])
 }
 
 #endif
+
+bool parsePrefixText(const char* c, const char* ref) {
+  while (*ref && tolower(*c) == *ref) {
+    ++c;
+    ++ref;
+  }
+  return *ref == 0;
+}
+bool parseSwitch(bool& val, const char* c, const char* ref) {
+  if (!parsePrefixText(c, ref)) {
+    return false;
+  }
+  int l = strlen(ref);
+  if (c[l] == '+' && !c[l + 1]) {
+    val = true;
+    return true;
+  } else if (c[l] == '-' && !c[l + 1]) {
+    val = false;
+    return true;
+  }
+  printf("ERROR: Only + or - for this switch (%s) allowed\n", c);
+  exit(1);
+  return false;
+}
+
+int parseInt(const char*& c, const char* context, int too_big_error_code = 0) {
+  if (*c < '0' || *c > '9') {
+    printf("ERROR: Number needed to set %s\n", context);
+    exit(1);
+  }
+  int val = *c++ - '0';
+  while (*c >= '0' && *c <= '9') {
+    if (val >= INT_MAX / 10 - 1) {
+      if (too_big_error_code != 0) {
+        error(too_big_error_code);
+      }
+      printf("ERROR: Number too big for %s\n", context);
+      exit(1);
+    }
+    val = val * 10 + *c++ - '0';
+  }
+  return val;
+}
+int parseIntUntilEnd(const char* c, const char* context, int too_big_error_code = 0) {
+  for (int i = 0; c[i]; ++i) {
+    if (c[i] < '0' || c[i] > '9') {
+      printf("ERROR: Only numbers allowed for %s\n", context);
+      exit(1);
+    }
+  }
+  const char* x = c;
+  return parseInt(x, context, too_big_error_code);
+}
+int64_t parseInt64(const char*& c, const char* context, int too_big_error_code = 0) {
+  if (*c < '0' || *c > '9') {
+    printf("ERROR: Number needed to set %s\n", context);
+    exit(1);
+  }
+  int64_t val = *c++ - '0';
+  while (*c >= '0' && *c <= '9') {
+    if (val >= INT64_MAX / 10 - 1) {
+      if (too_big_error_code != 0) {
+        error(too_big_error_code);
+      }
+      printf("ERROR: Number too big for %s\n", context);
+      exit(1);
+    }
+    val = val * 10 + *c++ - '0';
+  }
+  return val;
+}
+int64_t parseInt64UntilEnd(const char* c, const char* context, int too_big_error_code = 0) {
+  for (int i = 0; c[i]; ++i) {
+    if (c[i] < '0' || c[i] > '9') {
+      printf("ERROR: Only numbers allowed for %s\n", context);
+      exit(1);
+    }
+  }
+  const char* x = c;
+  return parseInt64(x, context, too_big_error_code);
+}
+
 #ifndef PRECOMPDLL
 #ifndef COMFORT
 int init(int argc, char* argv[]) {
@@ -519,7 +622,8 @@ int init(int argc, char* argv[]) {
     printf("Precomp v%i.%i.%i %s %s - %s version",V_MAJOR,V_MINOR,V_MINOR2,V_OS,V_BIT,V_STATE);
   }
   printf(" - %s\n",V_MSG);
-  printf("Free for non-commercial use - Copyright 2006-2018 by Christian Schneider\n\n");
+  printf("Free for non-commercial use - Copyright 2006-2018 by Christian Schneider\n");
+  printf("- experimental preflate v0.3.4 support - Copyright 2018 by Dirk Steinke\n\n");
 
   // init compression and memory level count
   bool use_zlib_level[81];
@@ -537,9 +641,7 @@ int init(int argc, char* argv[]) {
   mp3_parsing_cache_second_frame = -1;
   
   // init LZMA filters
-  for (int i = 0; i < 6; i++) {
-    otf_xz_filter_enabled[i] = false;
-  }
+  memset(&otf_xz_extra_params, 0, sizeof(otf_xz_extra_params));
 
   bool valid_syntax = false;
   bool input_file_given = false;
@@ -571,44 +673,13 @@ int init(int argc, char* argv[]) {
           }
         case 'I':
           {
-            if (toupper(argv[i][2]) == 'N') { // intense mode
-              if ((toupper(argv[i][3]) == 'T') && (toupper(argv[i][4]) == 'E')
-               && (toupper(argv[i][5]) == 'N') && (toupper(argv[i][6]) == 'S') && (toupper(argv[i][7]) == 'E')) {
-                intense_mode = true;
-                if (strlen(argv[i]) > 8) {
-                  int intense_mode_limit = 0;
-                  int multiplicator = 1;
-                  for (j = strlen(argv[i]) - 9; j >= 0; j--) {
-                    if ((argv[i][j+8] < '0') || (argv[i][j+8] > '9')) {
-                      printf("ERROR: Only numbers allowed for intense mode level limit\n");
-                      exit(1);
-                    }
-                    intense_mode_limit += ((long long)(argv[i][j+8])-'0') * multiplicator;
-                    if ((multiplicator * 10) < multiplicator) {
-                      error(ERR_INTENSE_MODE_LIMIT_TOO_BIG);
-                    }
-                    multiplicator *= 10;
-                  }
-                  intense_mode_depth_limit = intense_mode_limit;
-                }
-              } else {
-                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-                exit(1);
+            if (parsePrefixText(argv[i] + 1, "intense")) { // intense mode
+              intense_mode = true;
+              if (strlen(argv[i]) > 8) {
+                intense_mode_depth_limit = parseIntUntilEnd(argv[i] + 8, "intense mode level limit", ERR_INTENSE_MODE_LIMIT_TOO_BIG);
               }
             } else {
-              long long ignore_pos = 0;
-              long long multiplicator = 1;
-              for (j = (strlen(argv[i])-3); j >= 0; j--) {
-                if ((argv[i][j+2] < '0') || (argv[i][j+2] > '9')) {
-                  printf("ERROR: Only numbers allowed for ignore position\n");
-                  exit(1);
-                }
-                ignore_pos += ((long long)(argv[i][j+2])-'0') * multiplicator;
-                if ((multiplicator * 10) < multiplicator) {
-                  error(ERR_IGNORE_POS_TOO_BIG);
-                }
-                multiplicator *= 10;
-              }
+              long long ignore_pos = parseInt64UntilEnd(argv[i] + 2, "ignore position", ERR_IGNORE_POS_TOO_BIG);
               ignore_list = (long long*)realloc(ignore_list, (ignore_list_len + 1) * sizeof(long long));
               ignore_list[ignore_list_len] = ignore_pos;
               ignore_list_len++;
@@ -620,21 +691,7 @@ int init(int argc, char* argv[]) {
             if (recursion_depth_set) {
               error(ERR_ONLY_SET_RECURSION_DEPTH_ONCE);
             }
-
-            unsigned int max_recursion_d = 0;
-            unsigned int multiplicator = 1;
-            for (j = (strlen(argv[i])-3); j >= 0; j--) {
-              if ((argv[i][j+2] < '0') || (argv[i][j+2] > '9')) {
-                printf("ERROR: Only numbers allowed for maximal recursion depth\n");
-                exit(1);
-              }
-              max_recursion_d += ((unsigned int)(argv[i][j+2])-'0') * multiplicator;
-              if ((multiplicator * 10) < multiplicator) {
-                error(ERR_RECURSION_DEPTH_TOO_BIG);
-              }
-              multiplicator *= 10;
-            }
-            max_recursion_depth = max_recursion_d;
+            max_recursion_depth = parseIntUntilEnd(argv[i] + 2, "maximal recursion depth", ERR_RECURSION_DEPTH_TOO_BIG);
             recursion_depth_set = true;
             break;
           }
@@ -643,46 +700,16 @@ int init(int argc, char* argv[]) {
             if (min_ident_size_set) {
               error(ERR_ONLY_SET_MIN_SIZE_ONCE);
             }
-            if (strlen(argv[i]) == 2) {
-              printf("ERROR: Number needed to set minimal identical byte size\n");
-              exit(1);
-            }
-            unsigned int ident_size = 0;
-            unsigned int multiplicator = 1;
-            for (j = (strlen(argv[i]) - 3); j >= 0; j--) {
-              if ((argv[i][j+2] < '0') || (argv[i][j+2] > '9')) {
-                printf("ERROR: Only numbers allowed for minimal identical byte size\n");
-                exit(1);
-              }
-              ident_size += ((unsigned int)(argv[i][j+2])-'0') * multiplicator;
-              if ((multiplicator * 10) < multiplicator) {
-                error(ERR_IDENTICAL_BYTE_SIZE_TOO_BIG);
-              }
-              multiplicator *= 10;
-            }
-            min_ident_size = ident_size;
+            min_ident_size = parseIntUntilEnd(argv[i] + 2, "minimal identical byte size", ERR_IDENTICAL_BYTE_SIZE_TOO_BIG);
             min_ident_size_set = true;
             break;
           }
         case 'B':
           {
-            if ((toupper(argv[i][2]) == 'R') && (toupper(argv[i][3]) == 'U') && (toupper(argv[i][4]) == 'T') && (toupper(argv[i][5]) == 'E')) {
+            if (parsePrefixText(argv[i] + 1, "brute")) { // brute mode
               brute_mode = true;
               if (strlen(argv[i]) > 6) {
-                int brute_mode_limit = 0;
-                int multiplicator = 1;
-                for (j = strlen(argv[i]) - 7; j >= 0; j--) {
-                  if ((argv[i][j+6] < '0') || (argv[i][j+6] > '9')) {
-                    printf("ERROR: Only numbers allowed for brute mode level limit\n");
-                    exit(1);
-                  }
-                  brute_mode_limit += ((long long)(argv[i][j+6])-'0') * multiplicator;
-                  if ((multiplicator * 10) < multiplicator) {
-                    error(ERR_INTENSE_MODE_LIMIT_TOO_BIG);
-                  }
-                  multiplicator *= 10;
-                }
-                brute_mode_depth_limit = brute_mode_limit;
+                brute_mode_depth_limit = parseIntUntilEnd(argv[i] + 6, "brute mode level limit", ERR_BRUTE_MODE_LIMIT_TOO_BIG);
               }
             } else {
               printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
@@ -692,44 +719,56 @@ int init(int argc, char* argv[]) {
           }
         case 'L':
           {
-            if ((toupper(argv[i][2]) == 'O') && (toupper(argv[i][3]) == 'N') && (toupper(argv[i][4]) == 'G')
-             && (toupper(argv[i][5]) == 'H') && (toupper(argv[i][6]) == 'E') && (toupper(argv[i][7]) == 'L')
-             && (toupper(argv[i][8]) == 'P')) {
+            if (parsePrefixText(argv[i] + 1, "longhelp")) {
               long_help = true;
             } else if (toupper(argv[i][2]) == 'M') { // LZMA max. memory
               if (lzma_max_memory_set) {
                 error(ERR_ONLY_SET_LZMA_MEMORY_ONCE);
               }
-              int multiplicator = 1;
-              for (j = (strlen(argv[i]) - 4); j >= 0; j--) {
-                if ((argv[i][j+3] < '0') || (argv[i][j+3] > '9')) {
-                  printf("ERROR: Only numbers allowed for LZMA maximal memory\n");
-                  exit(1);
-                }
-                compression_otf_max_memory += ((unsigned int)(argv[i][j+3])-'0') * multiplicator;
-                if ((multiplicator * 10) < multiplicator) {
-                  exit(1);
-                }
-                multiplicator *= 10;
-              }
+              compression_otf_max_memory = parseIntUntilEnd(argv[i] + 3, "LZMA maximal memory");
               lzma_max_memory_set = true;
             } else if (toupper(argv[i][2]) == 'T') { // LZMA thread count
               if (lzma_thread_count_set) {
                 error(ERR_ONLY_SET_LZMA_THREAD_ONCE);
               }
-              int multiplicator = 1;
-              for (j = (strlen(argv[i]) - 4); j >= 0; j--) {
-                if ((argv[i][j + 3] < '0') || (argv[i][j + 3] > '9')) {
-                  printf("ERROR: Only numbers allowed for LZMA thread count\n");
-                  exit(1);
-                }
-                compression_otf_thread_count += ((unsigned int)(argv[i][j + 3]) - '0') * multiplicator;
-                if ((multiplicator * 10) < multiplicator) {
-                  exit(1);
-                }
-                multiplicator *= 10;
-              }
+              compression_otf_thread_count = parseIntUntilEnd(argv[i] + 3, "LZMA thread count");
               lzma_thread_count_set = true;
+            } else if (toupper(argv[i][2]) == 'L') {
+              if (toupper(argv[i][3]) == 'C') {
+                otf_xz_extra_params.lc = 1 + parseIntUntilEnd(argv[i] + 4, "LZMA literal context bits");
+                int lclp = (otf_xz_extra_params.lc != 0 ? otf_xz_extra_params.lc - 1 : LZMA_LC_DEFAULT)
+                  + (otf_xz_extra_params.lp != 0 ? otf_xz_extra_params.lp - 1 : LZMA_LP_DEFAULT);
+                if (lclp < LZMA_LCLP_MIN || lclp > LZMA_LCLP_MAX) {
+                  printf("sum of LZMA lc (default %d) and lp (default %d) must be inside %d..%d\n",
+                         LZMA_LC_DEFAULT, LZMA_LP_DEFAULT, LZMA_LCLP_MIN, LZMA_LCLP_MAX);
+                  exit(1);
+                }
+              } else if (toupper(argv[i][3]) == 'P') {
+                  otf_xz_extra_params.lp = 1 + parseIntUntilEnd(argv[i] + 4, "LZMA literal position bits");
+                  int lclp = (otf_xz_extra_params.lc != 0 ? otf_xz_extra_params.lc - 1 : LZMA_LC_DEFAULT)
+                    + (otf_xz_extra_params.lp != 0 ? otf_xz_extra_params.lp - 1 : LZMA_LP_DEFAULT);
+                  if (lclp < LZMA_LCLP_MIN || lclp > LZMA_LCLP_MAX) {
+                    printf("sum of LZMA lc (default %d) and lp (default %d) must be inside %d..%d\n",
+                           LZMA_LC_DEFAULT, LZMA_LP_DEFAULT, LZMA_LCLP_MIN, LZMA_LCLP_MAX);
+                    exit(1);
+                  }
+              } else {
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+              }
+            } else if (toupper(argv[i][2]) == 'P') {
+              if (toupper(argv[i][3]) == 'B') {
+                otf_xz_extra_params.pb = 1 + parseIntUntilEnd(argv[i] + 4, "LZMA position bits");
+                int pb = otf_xz_extra_params.pb != 0 ? otf_xz_extra_params.pb - 1 : LZMA_PB_DEFAULT;
+                if (pb < LZMA_PB_MIN || pb > LZMA_PB_MAX) {
+                  printf("LZMA pb (default %d) must be inside %d..%d\n",
+                         LZMA_PB_DEFAULT, LZMA_PB_MIN, LZMA_PB_MAX);
+                  exit(1);
+                }
+              } else {
+                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+                exit(1);
+              }
             } else if (toupper(argv[i][2]) == 'F') { // LZMA filters
               if (lzma_filters_set) {
                 error(ERR_ONLY_SET_LZMA_FILTERS_ONCE);
@@ -754,39 +793,42 @@ int init(int argc, char* argv[]) {
               while (argv[i][argindex] != 0) {
                 switch (toupper(argv[i][argindex])) {
                   case 'X':
-                    otf_xz_filter_enabled[0] = true;
+                    otf_xz_extra_params.enable_filter_x86 = true;
                     break;
                   case 'P':
-                    otf_xz_filter_enabled[1] = true;
+                    otf_xz_extra_params.enable_filter_powerpc = true;
                     break;
                   case 'I':
-                    otf_xz_filter_enabled[2] = true;
+                    otf_xz_extra_params.enable_filter_ia64 = true;
                     break;
                   case 'A':
-                    otf_xz_filter_enabled[3] = true;
+                    otf_xz_extra_params.enable_filter_arm = true;
                     break;
                   case 'T':
-                    otf_xz_filter_enabled[4] = true;
+                    otf_xz_extra_params.enable_filter_armthumb = true;
                     break;
                   case 'S':
-                    otf_xz_filter_enabled[5] = true;
+                    otf_xz_extra_params.enable_filter_sparc = true;
                     break;
                   case 'D':
                     {
                       argindex++;
                       char nextchar = argv[i][argindex];
                       if ((nextchar < '0') || (nextchar > '9')) {
-                        printf("ERROR: LZMA delta filter must be followed by a distance (1..256)\n");
+                        printf("ERROR: LZMA delta filter must be followed by a distance (%d..%d)\n",
+                               LZMA_DELTA_DIST_MIN, LZMA_DELTA_DIST_MAX);
                         exit(1);
                       }
-                      otf_xz_filter_delta_enabled = true;
+                      otf_xz_extra_params.enable_filter_delta = true;
                       while ((argv[i][argindex] > '0') && (argv[i][argindex] < '9')) {
-                        otf_xz_filter_delta_distance *= 10;
-                        otf_xz_filter_delta_distance += (argv[i][argindex] - '0');
+                        otf_xz_extra_params.filter_delta_distance *= 10;
+                        otf_xz_extra_params.filter_delta_distance += (argv[i][argindex] - '0');
                         argindex++;
                       }
-                      if ((otf_xz_filter_delta_distance < 1) || (otf_xz_filter_delta_distance > 256)) {
-                        printf("ERROR: LZMA delta filter distance must be in range 1..256\n");
+                      if (otf_xz_extra_params.filter_delta_distance < LZMA_DELTA_DIST_MIN 
+                           || otf_xz_extra_params.filter_delta_distance > LZMA_DELTA_DIST_MAX) {
+                        printf("ERROR: LZMA delta filter distance must be in range %d..%d\n",
+                               LZMA_DELTA_DIST_MIN, LZMA_DELTA_DIST_MAX);
                         exit(1);
                       }
                       argindex--;
@@ -798,8 +840,9 @@ int init(int argc, char* argv[]) {
                     break;
                 }
                 otf_xz_filter_used_count++;
-                if (otf_xz_filter_used_count > 3) {
-                  printf("ERROR: Only up to 3 LZMA filters can be used at the same time\n");
+                if (otf_xz_filter_used_count > LZMA_FILTERS_MAX - 1) {
+                  printf("ERROR: Only up to %d LZMA filters can be used at the same time\n",
+                         LZMA_FILTERS_MAX - 1);
                   exit(1);
                 }
                 argindex++;
@@ -814,43 +857,20 @@ int init(int argc, char* argv[]) {
           }
         case 'P':
           {
-            if ((toupper(argv[i][2]) == 'D') && (toupper(argv[i][3]) == 'F') && (toupper(argv[i][4]) == 'B') && (toupper(argv[i][5]) == 'M') && (toupper(argv[i][6]) == 'P')) {
-              switch (argv[i][7]) {
-                case '+':
-                  pdf_bmp_mode = true;
-                  break;
-                case '-':
-                  pdf_bmp_mode = false;
-                  break;
-                default:
-                  printf("ERROR: Only + or - for this switch allowed\n");
+            if (!parseSwitch(pdf_bmp_mode, argv[i] + 1, "pdfbmp")
+                && !parseSwitch(prog_only, argv[i] + 1, "progonly")
+                && !parseSwitch(preflate_verify, argv[i] + 1, "pfverify")) {
+              if (parsePrefixText(argv[i] + 1, "pfmeta")) {
+                int mbsize = parseIntUntilEnd(argv[i] + 7, "preflate meta block size");
+                if (mbsize >= INT_MAX / 1024) {
+                  printf("preflate meta block size set too big\n");
                   exit(1);
-                  break;
-              }
-              if (argv[i][8] != 0) {
+                }
+                preflate_meta_block_size = mbsize * 1024;
+              } else {
                 printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
                 exit(1);
               }
-            } else if ((toupper(argv[i][2]) == 'R') && (toupper(argv[i][3]) == 'O') && (toupper(argv[i][4]) == 'G') && (toupper(argv[i][5]) == 'O') && (toupper(argv[i][6]) == 'N') && (toupper(argv[i][7]) == 'L') && (toupper(argv[i][8]) == 'Y')) {
-              switch (argv[i][9]) {
-                case '+':
-                  prog_only = true;
-                  break;
-                case '-':
-                  prog_only = false;
-                  break;
-                default:
-                  printf("ERROR: Only + or - for this switch allowed\n");
-                  exit(1);
-                  break;
-              }
-              if (argv[i][8] != 0) {
-                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-                exit(1);
-              }
-            } else {
-              printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-              exit(1);
             }
             break;
           }
@@ -1060,33 +1080,10 @@ int init(int argc, char* argv[]) {
 
         case 'M':
           {
-            if (toupper(argv[i][2]) == 'J') {
-              if ((toupper(argv[i][3]) == 'P') && (toupper(argv[i][4]) == 'E') && (toupper(argv[i][5]) == 'G')) {
-                switch (argv[i][6]) {
-                  case '+':
-                    use_mjpeg = true;
-                    break;
-                  case '-':
-                    use_mjpeg = false;
-                    break;
-                  default:
-                    printf("ERROR: Only + or - for this switch allowed\n");
-                    exit(1);
-                    break;
-                }
-                if (argv[i][7] != 0) { // Extra Parameters?
-                  printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-                  exit(1);
-                }
-              } else {
-                printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-                exit(1);
-              }
-            } else {
+            if (!parseSwitch(use_mjpeg, argv[i] + 1, "mjpeg")) {
               printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
               exit(1);
             }
-
             break;
           }
 
@@ -1177,17 +1174,28 @@ int init(int argc, char* argv[]) {
     printf("  lm[amount]   Set maximal LZMA memory in MiB <%i>\n", lzma_max_memory_default());
     printf("  lt[count]    Set LZMA thread count <auto-detect: %i>\n", auto_detected_thread_count());
     if (long_help) {
-      printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3 of them can be combined) <none>\n");
+      printf("  lf[+-][xpiatsd] Set LZMA filters (up to %d of them can be combined) <none>\n",
+                                LZMA_FILTERS_MAX - 1);
       printf("                  lf+[xpiatsd] = enable these filters, lf- = disable all\n");
       printf("                  X = x86, P = PowerPC, I = IA-64, A = ARM, T = ARM-Thumb\n");
-      printf("                  S = SPARC, D = delta (must be followed by distance 1..256)\n");
+      printf("                  S = SPARC, D = delta (must be followed by distance %d..%d)\n",
+                                LZMA_DELTA_DIST_MIN, LZMA_DELTA_DIST_MAX);
+      printf("  llc[bits]    Set LZMA literal context bits <%d>\n", LZMA_LC_DEFAULT);
+      printf("  llp[bits]    Set LZMA literal position bits <%d>\n", LZMA_LP_DEFAULT);
+      printf("               The sum of lc and lp must be inside %d..%d\n", LZMA_LCLP_MIN, LZMA_LCLP_MAX);
+      printf("  lpb[bits]    Set LZMA position bits, must be inside %d..%d <%d>\n", 
+                            LZMA_PB_MIN, LZMA_PB_MAX, LZMA_PB_DEFAULT);
     } else {
       printf("  lf[+-][xpiatsd] Set LZMA filters (up to 3, see long help for details) <none>\n");
     }
     printf("  n[lbn]       Convert a PCF file to this compression (same as above) <off>\n");
     printf("  v            Verbose (debug) mode <off>\n");
     printf("  d[depth]     Set maximal recursion depth <10>\n");
-    printf("  zl[1..9][1..9] zLib levels to try for compression (comma separated) <all>\n");
+    //printf("  zl[1..9][1..9] zLib levels to try for compression (comma separated) <all>\n");
+    if (long_help) {
+      printf("  pfmeta[amount] Split deflate streams into meta blocks of this size in KiB <2048>\n");
+      printf("  pfverify       Force preflate to verify its generated reconstruction data\n");
+    }
     printf("  intense      Detect raw zLib headers, too. Slower and more sensitive <off>\n");
     if (long_help) {
       printf("  brute        Brute force zLib detection. VERY Slow and most sensitive <off>\n");
@@ -1320,9 +1328,7 @@ int init_comfort(int argc, char* argv[]) {
   mp3_parsing_cache_second_frame = -1;
 
   // init LZMA filters
-  for (int i = 0; i < 6; i++) {
-    otf_xz_filter_enabled[i] = false;
-  }
+  memset(&otf_xz_extra_params, 0, sizeof(otf_xz_extra_params));
 
   // parse parameters (should be input file only)
   if (argc == 1) {
@@ -2339,6 +2345,7 @@ void denit_compress() {
     free(ignore_list);
   }
   if (decomp_io_buf != NULL) delete[] decomp_io_buf;
+  decomp_io_buf = NULL;
 
   denit();
 }
@@ -2411,56 +2418,6 @@ void denit_convert() {
 void denit() {
   safe_fclose(&fin);
   safe_fclose(&fout);
-
-  if (output_file_name != NULL) delete[] output_file_name;
-  delete[] penalty_bytes;
-  delete[] local_penalty_bytes;
-  delete[] best_penalty_bytes;
-}
-
-int def(FILE *source, FILE *dest, int level, int windowbits, int memlevel) {
-  int ret, flush;
-  unsigned have;
-  z_stream strm;
-
-  /* allocate deflate state */
-  strm.zalloc = Z_NULL;
-  strm.zfree = Z_NULL;
-  strm.opaque = Z_NULL;
-  ret = deflateInit2(&strm, level, Z_DEFLATED, windowbits, memlevel, Z_DEFAULT_STRATEGY);
-  if (ret != Z_OK)
-    return ret;
-
-  /* compress until end of file */
-  do {
-    print_work_sign(true);
-
-    strm.avail_in = own_fread(in, 1, CHUNK, source);
-    if (ferror(source)) {
-      (void)deflateEnd(&strm);
-      return Z_ERRNO;
-    }
-    flush = feof(source) ? Z_FINISH : Z_NO_FLUSH;
-    strm.next_in = in;
-
-    do {
-      strm.avail_out = CHUNK;
-      strm.next_out = out;
-
-      ret = deflate(&strm, flush);
-
-      have = CHUNK - strm.avail_out;
-
-      if (own_fwrite(out, 1, have, dest) != have || ferror(dest)) {
-        (void)deflateEnd(&strm);
-        return Z_ERRNO;
-      }
-    } while (strm.avail_out == 0);
-
-  } while (flush != Z_FINISH);
-
-  (void)deflateEnd(&strm);
-  return Z_OK;
 }
 
 // Brute mode detects a bit less than intense mode to avoid false positives
@@ -2491,88 +2448,6 @@ void copy_penalty_bytes(long long& rek_penalty_bytes_len, bool& use_penalty_byte
 }
 
 #define DEF_COMPARE_CHUNK 512
-long long def_compare(FILE *compfile, int level, int windowbits, int memlevel, long long& decompressed_bytes_used, long long decompressed_bytes_total, bool in_memory) {
-  int ret, flush;
-  unsigned have;
-  z_stream strm;
-  long long identical_bytes_compare = 0;
-
-  long long comp_pos = 0;
-  decompressed_bytes_used = 0;
-
-  /* allocate deflate state */
-  strm.zalloc = Z_NULL;
-  strm.zfree = Z_NULL;
-  strm.opaque = Z_NULL;
-  ret = deflateInit2(&strm, level, Z_DEFLATED, windowbits, memlevel, Z_DEFAULT_STRATEGY);
-  if (ret != Z_OK)
-    return -1;
-
-  long long total_same_byte_count = 0;
-  long long total_same_byte_count_penalty = 0;
-  long long rek_same_byte_count = 0;
-  long long rek_same_byte_count_penalty = -1;
-  long long rek_penalty_bytes_len = 0;
-  long long local_penalty_bytes_len = 0;
-  bool use_penalty_bytes = false;
-
-  unsigned char* buf_ptr = decomp_io_buf;
-  long long buf_pos = 0;
-  /* compress until end of file */
-  do {
-    print_work_sign(true);
-
-    if (in_memory) {
-      strm.avail_in = min((int)(decompressed_bytes_total - buf_pos), DEF_COMPARE_CHUNK);
-      strm.next_in = buf_ptr + buf_pos;
-      buf_pos += strm.avail_in;
-      flush = (buf_pos >= decompressed_bytes_total) ? Z_FINISH : Z_NO_FLUSH;
-    } else {
-      strm.avail_in = own_fread(in, 1, DEF_COMPARE_CHUNK, ftempout);
-      if (ferror(ftempout)) {
-        (void)deflateEnd(&strm);
-        return -1;
-      }
-      flush = feof(ftempout) ? Z_FINISH : Z_NO_FLUSH;
-      strm.next_in = in;
-    }
-    decompressed_bytes_used += strm.avail_in;
-
-    do {
-      strm.avail_out = DEF_COMPARE_CHUNK;
-      strm.next_out = out;
-
-      ret = deflate(&strm, flush);
-
-      have = DEF_COMPARE_CHUNK - strm.avail_out;
-
-      if (have > 0) {
-        if (compfile == fin) {
-          identical_bytes_compare = compare_file_mem_penalty(compfile, out, input_file_pos + comp_pos, have, total_same_byte_count, total_same_byte_count_penalty, rek_same_byte_count, rek_same_byte_count_penalty, rek_penalty_bytes_len, local_penalty_bytes_len, use_penalty_bytes);
-        } else {
-          identical_bytes_compare = compare_file_mem_penalty(compfile, out, comp_pos, have, total_same_byte_count, total_same_byte_count_penalty, rek_same_byte_count, rek_same_byte_count_penalty, rek_penalty_bytes_len, local_penalty_bytes_len, use_penalty_bytes);
-        }
-      }
-
-      if (have > 0) {
-        if ((unsigned int)identical_bytes_compare < (have >> 1)) {
-          (void)deflateEnd(&strm);
-          copy_penalty_bytes(rek_penalty_bytes_len, use_penalty_bytes);
-          return rek_same_byte_count;
-        }
-      }
-
-      comp_pos += have;
-
-    } while (strm.avail_out == 0);
-
-  } while (flush != Z_FINISH);
-
-  (void)deflateEnd(&strm);
-  copy_penalty_bytes(rek_penalty_bytes_len, use_penalty_bytes);
-  return rek_same_byte_count;
-}
-
 long long def_compare_bzip2(FILE *source, FILE *compfile, int level, long long& decompressed_bytes_used) {
   int ret, flush;
   unsigned have;
@@ -2644,65 +2519,6 @@ long long def_compare_bzip2(FILE *source, FILE *compfile, int level, long long& 
   (void)BZ2_bzCompressEnd(&strm);
   copy_penalty_bytes(rek_penalty_bytes_len, use_penalty_bytes);
   return rek_same_byte_count;
-}
-
-int def_part(FILE *source, FILE *dest, int level, int windowbits, int memlevel, long long stream_size_in, long long stream_size_out) {
-  int ret, flush;
-  unsigned have;
-  z_stream strm;
-
-  /* allocate deflate state */
-  strm.zalloc = Z_NULL;
-  strm.zfree = Z_NULL;
-  strm.opaque = Z_NULL;
-  ret = deflateInit2(&strm, level, Z_DEFLATED, windowbits, memlevel, Z_DEFAULT_STRATEGY);
-  if (ret != Z_OK)
-    return ret;
-
-  long long pos_in = 0;
-  long long pos_out = 0;
-
-  /* compress until end of file */
-  do {
-    if ((stream_size_in - pos_in) > CHUNK) {
-      print_work_sign(true);
-
-      strm.avail_in = own_fread(in, 1, CHUNK, source);
-      pos_in += CHUNK;
-      flush = Z_NO_FLUSH;
-    } else {
-      strm.avail_in = own_fread(in, 1, stream_size_in - pos_in, source);
-      flush = Z_FINISH;
-    }
-    if (ferror(source)) {
-      (void)deflateEnd(&strm);
-      return Z_ERRNO;
-    }
-    strm.next_in = in;
-
-    do {
-      strm.avail_out = CHUNK;
-      strm.next_out = out;
-
-      ret = deflate(&strm, flush);
-
-      have = CHUNK - strm.avail_out;
-
-      if ((pos_out + (signed)have) > stream_size_out) {
-        have = stream_size_out - pos_out;
-      }
-      pos_out += have;
-
-      if (own_fwrite(out, 1, have, dest) != have || ferror(dest)) {
-        (void)deflateEnd(&strm);
-        return Z_ERRNO;
-      }
-    } while (strm.avail_out == 0);
-
-  } while (flush != Z_FINISH);
-
-  (void)deflateEnd(&strm);
-  return Z_OK;
 }
 
 int def_part_bzip2(FILE *source, FILE *dest, int level, long long stream_size_in, long long stream_size_out) {
@@ -2794,162 +2610,6 @@ size_t fread_skip(unsigned char *ptr, size_t size, size_t count, FILE* stream) {
   } while (bytes_read < count);
 
   return bytes_read;
-}
-
-int def_part_skip(FILE *source, FILE *dest, int level, int windowbits, int memlevel, long long stream_size_in, long long stream_size_out, int bmp_width) {
-
-  int ret, flush;
-  unsigned have;
-  z_stream strm;
-
-  /* allocate deflate state */
-  strm.zalloc = Z_NULL;
-  strm.zfree = Z_NULL;
-  strm.opaque = Z_NULL;
-  ret = deflateInit2(&strm, level, Z_DEFLATED, windowbits, memlevel, Z_DEFAULT_STRATEGY);
-  if (ret != Z_OK)
-    return ret;
-
-  long long pos_in = 0;
-  long long pos_out = 0;
-  frs_offset = 0;
-  frs_skip_len = (4 - (bmp_width % 4));
-  frs_line_len = bmp_width;
-
-  /* compress until end of file */
-  do {
-    if ((stream_size_in - pos_in) >= CHUNK) {
-      strm.avail_in = fread_skip(in, 1, CHUNK, source);
-      pos_in += strm.avail_in;
-      flush = Z_NO_FLUSH;
-    } else {
-      strm.avail_in = fread_skip(in, 1, stream_size_in - pos_in, source);
-      pos_in += strm.avail_in;
-      if (pos_in >= stream_size_in) {
-        flush = Z_FINISH;
-      } else {
-        flush = Z_NO_FLUSH;
-      }
-    }
-    if (ferror(source)) {
-      (void)deflateEnd(&strm);
-      return Z_ERRNO;
-    }
-    strm.next_in = in;
-
-    do {
-      strm.avail_out = CHUNK;
-      strm.next_out = out;
-
-      ret = deflate(&strm, flush);
-
-      have = CHUNK - strm.avail_out;
-
-      if ((pos_out + (signed)have) > stream_size_out) {
-        have = stream_size_out - pos_out;
-      }
-      pos_out += have;
-
-      if (own_fwrite(out, 1, have, dest) != have || ferror(dest)) {
-        (void)deflateEnd(&strm);
-        return Z_ERRNO;
-      }
-    } while (strm.avail_out == 0);
-
-  } while (flush != Z_FINISH);
-
-  (void)deflateEnd(&strm);
-  return Z_OK;
-}
-
-int inf(FILE *source, int windowbits, long long& compressed_stream_size, long long& decompressed_stream_size, bool& in_memory) {
-  int ret;
-  unsigned have;
-  z_stream strm;
-
-  /* allocate inflate state */
-  strm.zalloc = Z_NULL;
-  strm.zfree = Z_NULL;
-  strm.opaque = Z_NULL;
-  strm.avail_in = 0;
-  strm.next_in = Z_NULL;
-  ret = inflateInit2(&strm, windowbits);
-  if (ret != Z_OK)
-    return ret;
-
-  compressed_stream_size = 0;
-  decompressed_stream_size = 0;
-  int avail_in_before;
-
-  /* decompress until deflate stream ends or end of file */
-  do {
-    print_work_sign(true);
-
-    strm.avail_in = own_fread(in, 1, CHUNK, source);
-    avail_in_before = strm.avail_in;
-
-    if (ferror(source)) {
-      (void)inflateEnd(&strm);
-      if (!in_memory) safe_fclose(&ftempout);
-      return Z_ERRNO;
-    }
-    if (strm.avail_in == 0)
-      break;
-    strm.next_in = in;
-
-    /* run inflate() on input until output buffer not full */
-    unsigned char* buf_ptr;
-    do {
-      strm.avail_out = CHUNK;
-      if (in_memory) {
-        buf_ptr = decomp_io_buf + decompressed_stream_size;
-        strm.next_out = buf_ptr;
-      }
-      else {
-        strm.next_out = out;
-      }
-
-      ret = inflate(&strm, Z_NO_FLUSH);
-      switch (ret) {
-        case Z_NEED_DICT:
-          ret = Z_DATA_ERROR;
-        case Z_DATA_ERROR:
-        case Z_MEM_ERROR:
-          (void)inflateEnd(&strm);
-          if (!in_memory) safe_fclose(&ftempout);
-          return ret;
-      }
-
-      compressed_stream_size += (avail_in_before - strm.avail_in);
-      avail_in_before = strm.avail_in;
-
-      have = CHUNK - strm.avail_out;
-
-      if (!in_memory) {
-        if (own_fwrite(out, 1, have, ftempout) != have || ferror(ftempout)) {
-          (void)inflateEnd(&strm);
-          safe_fclose(&ftempout);
-          return Z_ERRNO;
-        }
-    }
-    else {
-      if ((decompressed_stream_size + have + CHUNK) >= MAX_IO_BUFFER_SIZE) {
-        in_memory = false;
-        write_ftempout_if_not_present(decompressed_stream_size + have, true, true);
-      }
-    }
-    decompressed_stream_size += have;
-
-    } while (strm.avail_out == 0);
-
-    /* done when inflate() says it's done */
-  } while (ret != Z_STREAM_END);
-
-  /* clean up and return */
-  (void)inflateEnd(&strm);
-  if (!in_memory) safe_fclose(&ftempout);
-  return ret == Z_STREAM_END ? Z_OK : Z_DATA_ERROR;
-
 }
 
 int histogram[256];
@@ -3169,28 +2829,6 @@ int def_bzip2(FILE *source, FILE *dest, int level) {
   return BZ_OK;
 }
 
-long long file_recompress(FILE* origfile, int compression_level, int windowbits, int memlevel, long long& decompressed_bytes_used, long long decompressed_bytes_total, bool in_memory) {
-  long long retval;
-
-  if (!in_memory) {
-    ftempout = fopen(tempfile1,"rb");
-    if (ftempout == NULL) {
-      error(ERR_TEMP_FILE_DISAPPEARED);
-    }
-    fseek(ftempout, 0, SEEK_SET);
-  }
-
-  retval = def_compare(origfile, compression_level, windowbits, memlevel, decompressed_bytes_used, decompressed_bytes_total, in_memory);
-
-  if (!in_memory) {
-    safe_fclose(&ftempout);
-  }
-
-  if (retval < 0) return -1;
-
-  return retval;
-}
-
 long long file_recompress_bzip2(FILE* origfile, int level, long long& decompressed_bytes_used, long long& decompressed_bytes_total) {
   long long retval;
 
@@ -3324,7 +2962,7 @@ void end_uncompressed_data() {
 
   if (!uncompressed_data_in_work) return;
 
-  fout_fput64(uncompressed_length);
+  fout_fput_vlint(uncompressed_length);
 
   // fast copy of uncompressed data
   seek_64(fin, uncompressed_pos);
@@ -3356,386 +2994,529 @@ void init_decompression_variables() {
   final_compression_found = false;
 }
 
+struct recompress_deflate_result {
+  long long compressed_stream_size;
+  long long uncompressed_stream_size;
+  std::vector<unsigned char> recon_data;
+  bool accepted;
+  bool uncompressed_in_memory;
+  bool zlib_perfect;
+  char zlib_comp_level;
+  char zlib_mem_level;
+  char zlib_window_bits;
+};
+
+void debug_deflate_detected(const recompress_deflate_result& rdres, const char* type) {
+  if (DEBUG_MODE) {
+    print_debug_percent();
+    cout << "Possible zLib-Stream " << type << " found at position " << saved_input_file_pos << endl;
+    cout << "Compressed size: " << rdres.compressed_stream_size << endl;
+    cout << "Can be decompressed to " << rdres.uncompressed_stream_size << " bytes" << endl;
+
+    if (rdres.accepted) {
+      if (rdres.zlib_perfect) {
+        cout << "Detect ZLIB parameters: comp level " << rdres.zlib_comp_level << ", mem level " << rdres.zlib_mem_level << ", " << rdres.zlib_window_bits << "window bits" << endl;
+      } else {
+        cout << "Non-ZLIB reconstruction data size: " << rdres.recon_data.size() << " bytes" << endl;
+      }
+    }
+  }
+}
+void debug_deflate_reconstruct(const recompress_deflate_result& rdres, const char* type,
+                               const unsigned hdr_length, const uint64_t rec_length) {
+  if (DEBUG_MODE) {
+    cout << "Decompressed data - " << type << endl;
+    cout << "Header length: " << hdr_length << endl;
+    if (rdres.zlib_perfect) {
+      cout << "ZLIB Parameters: compression level " << rdres.zlib_comp_level 
+                            << " memory level " << rdres.zlib_mem_level
+                            << " window bits " << rdres.zlib_window_bits << endl;
+    } else {
+      cout << "Reconstruction data size: " << rdres.recon_data.size() << endl;
+    }
+    if (rec_length > 0) {
+      cout << "Recursion data length: " << rec_length << endl;
+    } else {
+      cout << "Recompressed length: " << rdres.compressed_stream_size << " - decompressed length: " << rdres.uncompressed_stream_size << endl;
+    }
+  }
+}
+
+class OwnFileInputStream : public InputStream {
+public:
+  OwnFileInputStream(FILE* f) : _f(f), _eof(false) {}
+
+  virtual bool eof() const {
+    return _eof;
+  }
+  virtual size_t read(unsigned char* buffer, const size_t size) {
+    size_t res = own_fread(buffer, 1, size, _f);
+    _eof |= res < size;
+    return res;
+  }
+private:
+  FILE* _f;
+  bool _eof;
+};
+class UncompressedOutStream : public OutputStream {
+public:
+  UncompressedOutStream(bool& in_memory) : _written(0), _in_memory(in_memory) {}
+  ~UncompressedOutStream() {
+    if (!_in_memory) {
+      safe_fclose(&ftempout);
+    }
+  }
+
+  virtual size_t write(const unsigned char* buffer, const size_t size) {
+    print_work_sign(true);
+    if (_in_memory) {
+      if (_written + size >= MAX_IO_BUFFER_SIZE) {
+        _in_memory = false;
+        write_ftempout_if_not_present(_written, true, true);
+      } else {
+        memcpy(decomp_io_buf + _written, buffer, size);
+        _written += size;
+        return size;
+      }
+    }
+    _written += size;
+    return own_fwrite(buffer, 1, size, ftempout);
+  }
+
+  uint64_t written() const {
+    return _written;
+  }
+
+private:
+  uint64_t _written;
+  bool& _in_memory;
+};
+
+recompress_deflate_result try_recompression_deflate(FILE* file) {
+  if (file == fin) {
+    seek_64(file, input_file_pos);
+  } else {
+    seek_64(file, 0);
+  }
+
+  recompress_deflate_result result;
+  memset(&result, 0, sizeof(result));
+  
+  OwnFileInputStream is(file);
+
+  {
+    result.uncompressed_in_memory = true;
+    UncompressedOutStream uos(result.uncompressed_in_memory);
+    uint64_t compressed_stream_size = 0;
+    result.accepted = preflate_decode(uos, result.recon_data,
+                                      compressed_stream_size, is, []() { print_work_sign(true); },
+                                      0,
+                                      preflate_meta_block_size); // you can set a minimum deflate stream size here
+    result.compressed_stream_size = compressed_stream_size;
+    result.uncompressed_stream_size = uos.written();
+
+    if (preflate_verify && result.accepted) {
+      if (file == fin) {
+        seek_64(file, input_file_pos);
+      } else {
+        seek_64(file, 0);
+      }
+      OwnFileInputStream is2(file);
+      std::vector<uint8_t> orgdata(result.compressed_stream_size);
+      is2.read(orgdata.data(), orgdata.size());
+
+      MemStream reencoded_deflate;
+      MemStream uncompressed_mem(result.uncompressed_in_memory ? std::vector<uint8_t>(decomp_io_buf, decomp_io_buf + result.uncompressed_stream_size) : std::vector<uint8_t>());
+      OwnFileInputStream uncompressed_file(result.uncompressed_in_memory ? NULL : ftempout);
+      if (!preflate_reencode(reencoded_deflate, result.recon_data, 
+                             result.uncompressed_in_memory ? (InputStream&)uncompressed_mem : (InputStream&)uncompressed_file, 
+                             result.uncompressed_stream_size,
+                             [] {})
+          || orgdata != reencoded_deflate.data()) {
+        result.accepted = false;
+        static size_t counter = 0;
+        char namebuf[50];
+        while (true) {
+          snprintf(namebuf, 49, "preflate_error_%04d.raw", counter++);
+          FILE* f = fopen(namebuf, "rb");
+          if (f) {
+            fclose(f);
+            continue;
+          }
+          f = fopen(namebuf, "wb");
+          fwrite(orgdata.data(), 1, orgdata.size(), f);
+          fclose(f);
+          break;
+        }
+      }
+    }
+  }
+  return std::move(result);
+}
+
+class OwnFileOutputStream : public OutputStream {
+public:
+  OwnFileOutputStream(FILE* f) : _f(f) {}
+
+  virtual size_t write(const unsigned char* buffer, const size_t size) {
+    return own_fwrite(buffer, 1, size, _f);
+  }
+private:
+  FILE* _f;
+};
+
+bool try_reconstructing_deflate(FILE* fin, FILE* fout, const recompress_deflate_result& rdres) {
+  OwnFileOutputStream os(fout);
+  OwnFileInputStream is(fin);
+  bool result = preflate_reencode(os, rdres.recon_data, is, rdres.uncompressed_stream_size, []() { print_work_sign(true); });
+  return result;
+}
+bool try_reconstructing_deflate_skip(FILE* fin, FILE* fout, const recompress_deflate_result& rdres, const size_t read_part, const size_t skip_part) {
+  std::vector<unsigned char> unpacked_output;
+  unpacked_output.resize(rdres.uncompressed_stream_size);
+  frs_offset = 0;
+  frs_skip_len = skip_part;
+  frs_line_len = read_part;
+  if ((int64_t)fread_skip(unpacked_output.data(), 1, rdres.uncompressed_stream_size, fin) != rdres.uncompressed_stream_size) {
+    return false;
+  }
+  OwnFileOutputStream os(fout);
+  return preflate_reencode(os, rdres.recon_data, unpacked_output, []() { print_work_sign(true); });
+}
+class OwnFileOutputStreamMultiPNG : public OutputStream {
+public:
+  OwnFileOutputStreamMultiPNG(FILE* f, 
+                      const size_t idat_count, 
+                      const uint32_t* idat_crcs, 
+                      const uint32_t* idat_lengths) 
+  : _f(f), _idat_count(idat_count), _idat_crcs(idat_crcs), _idat_lengths(idat_lengths)
+  , _idat_idx(0), _to_read(_idat_lengths[0])
+  {}
+
+  virtual size_t write(const unsigned char* buffer_, const size_t size_) {
+    if (_idat_idx >= _idat_count) {
+      return 0;
+    }
+    size_t written = 0;
+    size_t size = size_;
+    const unsigned char* buffer = buffer_;
+    while (size > _to_read) {
+      own_fwrite(buffer, 1, _to_read, _f);
+      written += _to_read;
+      size -= _to_read;
+      buffer += _to_read;
+      ++_idat_idx;
+      if (_idat_idx >= _idat_count) {
+        return written;
+      }
+      unsigned char crc_out[4] = {_idat_crcs[_idat_idx] >> 24, _idat_crcs[_idat_idx] >> 16, _idat_crcs[_idat_idx] >> 8, _idat_crcs[_idat_idx] >> 0};
+      own_fwrite(crc_out, 1, 4, _f);
+      _to_read = _idat_lengths[_idat_idx];
+      unsigned char len_out[4] = {_to_read >> 24, _to_read >> 16, _to_read >> 8, _to_read >> 0};
+      own_fwrite(len_out, 1, 4, _f);
+      own_fwrite("IDAT", 1, 4, _f);
+    }
+    own_fwrite(buffer, 1, size, _f);
+    written += size;
+    _to_read -= size;
+    return written;
+  }
+private:
+  FILE* _f;
+  const size_t _idat_count;
+  const uint32_t* _idat_crcs;
+  const uint32_t* _idat_lengths;
+  size_t _idat_idx, _to_read;
+};
+bool try_reconstructing_deflate_multipng(FILE* fin, FILE* fout, const recompress_deflate_result& rdres,
+                                const size_t idat_count, const uint32_t* idat_crcs, const uint32_t* idat_lengths) {
+  std::vector<unsigned char> unpacked_output;
+  unpacked_output.resize(rdres.uncompressed_stream_size);
+  if ((int64_t)own_fread(unpacked_output.data(), 1, rdres.uncompressed_stream_size, fin) != rdres.uncompressed_stream_size) {
+    return false;
+  }
+  OwnFileOutputStreamMultiPNG os(fout, idat_count, idat_crcs, idat_lengths);
+  return preflate_reencode(os, rdres.recon_data, unpacked_output, []() { print_work_sign(true); });
+}
+
+static uint64_t sum_compressed = 0, sum_uncompressed = 0, sum_recon = 0, sum_expansion = 0;
+void debug_sums(const recompress_deflate_result& rdres) {
+  if (DEBUG_MODE) {
+    sum_compressed += rdres.compressed_stream_size;
+    sum_uncompressed += rdres.uncompressed_stream_size;
+    sum_expansion += rdres.uncompressed_stream_size - rdres.compressed_stream_size;
+    sum_recon += rdres.recon_data.size();
+    printf("deflate sums: c %I64d, u %I64d, x %I64d, r %I64d, i %I64d, o %I64d\n",
+           sum_compressed, sum_uncompressed, sum_expansion, sum_recon, _ftelli64(fin), _ftelli64(fout));
+  }
+}
+void debug_pos() {
+  if (DEBUG_MODE) {
+    printf("deflate pos: i %I64d, o %I64d\n", _ftelli64(fin), _ftelli64(fout));
+  }
+}
 void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc) {
   init_decompression_variables();
 
   int bmp_header_type = 0; // 0 = none, 1 = 8-bit, 2 = 24-bit
 
-        // try to decompress at current position
-        long long compressed_stream_size = -1;
-        bool in_memory;
-        retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
+  // try to decompress at current position
+  recompress_deflate_result rdres = try_recompression_deflate(fin);
 
-        if (retval > 0) { // seems to be a zLib-Stream
+  if (rdres.uncompressed_stream_size > 0) { // seems to be a zLib-Stream
 
-          decompressed_streams_count++;
-          if (img_bpc == 8) {
-            decompressed_pdf_count_8_bit++;
-          } else {
-            decompressed_pdf_count++;
-          }
+    decompressed_streams_count++;
+    if (img_bpc == 8) {
+      decompressed_pdf_count_8_bit++;
+    } else {
+      decompressed_pdf_count++;
+    }
+    
+    debug_deflate_detected(rdres, "in PDF");
 
+    if (rdres.accepted) {
+      recompressed_streams_count++;
+      recompressed_pdf_count++;
+
+      non_zlib_was_used = true;
+      debug_sums(rdres);
+
+      if (img_bpc == 8) {
+        if (best_identical_bytes_decomp == (img_width * img_height)) {
+          bmp_header_type = 1;
           if (DEBUG_MODE) {
-          print_debug_percent();
-          cout << "Possible zLib-Stream in PDF found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          cout << "Compressed size: " << compressed_stream_size << endl;
-          cout << "Can be decompressed to " << retval << " bytes" << endl;
+            printf("Image size did match (8 bit)\n");
           }
-          for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) continue;
-            int comp_level = (index % 9) + 1;
-            int mem_level = (index / 9) + 1;
+          recompressed_pdf_count_8_bit++;
+          recompressed_pdf_count--;
+        } else if (best_identical_bytes_decomp == (img_width * img_height * 3)) {
+          bmp_header_type = 2;
+          if (DEBUG_MODE) {
+            printf("Image size did match (24 bit)\n");
+          }
+          decompressed_pdf_count_8_bit--;
+          decompressed_pdf_count_24_bit++;
+          recompressed_pdf_count_24_bit++;
+          recompressed_pdf_count--;
+        } else {
+          if (DEBUG_MODE) {
+            printf("Image size didn't match with stream size\n");
+          }
+          recompressed_pdf_count--;
+        }
+      }
 
-            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
+      // end uncompressed data
 
-            if (final_compression_found){ MTF.Update(); break; }
+      compressed_data_found = true;
+      end_uncompressed_data();
+
+      debug_pos();
+
+      // write compressed data header (PDF) without 12 first bytes
+      //   (/FlateDecode)
+
+      unsigned char bmp_c = 0;
+
+      if (bmp_header_type == 1) {
+        // 8 Bit, Bit 7,6 = 01
+        bmp_c = 64;
+      } else if (bmp_header_type == 2) {
+        // 24 Bit, Bit 7,6 = 10
+        bmp_c = 128;
+      }
+
+      fout_fput_deflate_hdr(D_PDF, bmp_c, rdres, in_buf + cb + 12, pdf_header_length - 12, false);
+      fout_fput_recon_data(rdres);
+
+      // eventually write BMP header
+
+      if (bmp_header_type > 0) {
+
+        int i;
+
+        fout_fputc('B');
+        fout_fputc('M');
+        // BMP size in bytes
+        int bmp_size = ((img_width+3) & -4) * img_height;
+        if (bmp_header_type == 2) bmp_size *= 3;
+        if (bmp_header_type == 1) {
+          bmp_size += 54 + 1024;
+        } else {
+          bmp_size += 54;
+        }
+        fout_fput32_little_endian(bmp_size);
+
+        for (i = 0; i < 4; i++) {
+          fout_fputc(0);
+        }
+        fout_fputc(54);
+        if (bmp_header_type == 1) {
+          fout_fputc(4);
+        } else {
+          fout_fputc(0);
+        }
+        fout_fputc(0);
+        fout_fputc(0);
+        fout_fputc(40);
+        fout_fputc(0);
+        fout_fputc(0);
+        fout_fputc(0);
+
+        fout_fput32_little_endian(img_width);
+        fout_fput32_little_endian(img_height);
+
+        fout_fputc(1);
+        fout_fputc(0);
+
+        if (bmp_header_type == 1) {
+          fout_fputc(8);
+        } else {
+          fout_fputc(24);
+        }
+        fout_fputc(0);
+
+        for (i = 0; i < 4; i++) {
+          fout_fputc(0);
+        }
+
+        if (bmp_header_type == 2)  img_width *= 3;
+
+        int datasize = ((img_width+3) & -4) * img_height;
+        if (bmp_header_type == 2) datasize *= 3;
+        fout_fput32_little_endian(datasize);
+
+        for (i = 0; i < 16; i++) {
+          fout_fputc(0);
+        }
+
+        if (bmp_header_type == 1) {
+          // write BMP palette
+          for (i = 0; i < 1024; i++) {
+            fout_fputc(0);
+          }
+        }
+      }
+
+      // write decompressed data
+
+      if ((bmp_header_type == 0) || ((img_width % 4) == 0)) {
+        fout_fput_uncompressed(rdres);
+      } else {
+        if (!rdres.uncompressed_in_memory) {
+          ftempout = fopen(tempfile1,"rb");
+          if (ftempout == NULL) {
+            error(ERR_TEMP_FILE_DISAPPEARED);
           }
 
-          if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
-            recompressed_streams_count++;
-            recompressed_pdf_count++;
+          fseek(ftempout, 0, SEEK_SET);
+        }
 
-            if (DEBUG_MODE) {
-            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
-            }
+        unsigned char* buf_ptr = decomp_io_buf;
+        for (int y = 0; y < img_height; y++) {
 
-            if (img_bpc == 8) {
-              if (best_identical_bytes_decomp == (img_width * img_height)) {
-                bmp_header_type = 1;
-                if (DEBUG_MODE) {
-                  printf("Image size did match (8 bit)\n");
-                }
-                recompressed_pdf_count_8_bit++;
-                recompressed_pdf_count--;
-              } else if (best_identical_bytes_decomp == (img_width * img_height * 3)) {
-                bmp_header_type = 2;
-                if (DEBUG_MODE) {
-                  printf("Image size did match (24 bit)\n");
-                }
-                decompressed_pdf_count_8_bit--;
-                decompressed_pdf_count_24_bit++;
-                recompressed_pdf_count_24_bit++;
-                recompressed_pdf_count--;
-              } else {
-                if (DEBUG_MODE) {
-                  printf("Image size didn't match with stream size\n");
-                }
-                recompressed_pdf_count--;
-              }
-            }
-
-            if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
-              if (fast_mode) {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                for (int i = 0; i < 81; i++) {
-                  if (i != ((best_compression - 1) + (best_mem_level - 1) * 9)) {
-                    comp_mem_level_count[i] = -1;
-                  }
-                }
-                anything_was_used = true;
-              } else {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                anything_was_used = true;
-              }
-            }
-
-            // end uncompressed data
-
-            compressed_data_found = true;
-            end_uncompressed_data();
-
-            // write compressed data header (PDF) without 12 first bytes
-            //   (/FlateDecode)
-
-            unsigned char bmp_c = 0;
-
-            if (bmp_header_type == 1) {
-              // 8 Bit, Bit 7,6 = 01
-              bmp_c = 64;
-            } else if (bmp_header_type == 2) {
-              // 24 Bit, Bit 7,6 = 10
-              bmp_c = 128;
-            }
-
-            if (best_penalty_bytes_len == 0) {
-              fout_fputc(1 + (best_compression << 2) + bmp_c);
-            } else {
-              fout_fputc(1 + 2 + (best_compression << 2) + bmp_c);
-            }
-            fout_fputc(0); // PDF
-            fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
-
-            pdf_header_length -= 12;
-
-            fout_fput24(pdf_header_length);
-
-            own_fwrite(in_buf + cb + 12, 1, pdf_header_length, fout);
-
-            // store penalty bytes, if any
-            if (best_penalty_bytes_len != 0) {
-              if (DEBUG_MODE) {
-                printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
-              }
-              fout_fput32(best_penalty_bytes_len);
-              for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
-                fout_fputc(best_penalty_bytes[pbc]);
-              }
-            }
-
-            fout_fput64(best_identical_bytes);
-            fout_fput64(best_identical_bytes_decomp);
-
-            // eventually write BMP header
-
-            if (bmp_header_type > 0) {
-
-              int i;
-
-              fout_fputc('B');
-              fout_fputc('M');
-              // BMP size in bytes
-              int bmp_size = ((img_width+3) & -4) * img_height;
-              if (bmp_header_type == 2) bmp_size *= 3;
-              if (bmp_header_type == 1) {
-                bmp_size += 54 + 1024;
-              } else {
-                bmp_size += 54;
-              }
-              fout_fput32_little_endian(bmp_size);
-
-              for (i = 0; i < 4; i++) {
-                fout_fputc(0);
-              }
-              fout_fputc(54);
-              if (bmp_header_type == 1) {
-                fout_fputc(4);
-              } else {
-                fout_fputc(0);
-              }
-              fout_fputc(0);
-              fout_fputc(0);
-              fout_fputc(40);
-              fout_fputc(0);
-              fout_fputc(0);
-              fout_fputc(0);
-
-              fout_fput32_little_endian(img_width);
-              fout_fput32_little_endian(img_height);
-
-              fout_fputc(1);
-              fout_fputc(0);
-
-              if (bmp_header_type == 1) {
-                fout_fputc(8);
-              } else {
-                fout_fputc(24);
-              }
-              fout_fputc(0);
-
-              for (i = 0; i < 4; i++) {
-                fout_fputc(0);
-              }
-
-              if (bmp_header_type == 2)  img_width *= 3;
-
-              int datasize = ((img_width+3) & -4) * img_height;
-              if (bmp_header_type == 2) datasize *= 3;
-              fout_fput32_little_endian(datasize);
-
-              for (i = 0; i < 16; i++) {
-                fout_fputc(0);
-              }
-
-              if (bmp_header_type == 1) {
-                // write BMP palette
-                for (i = 0; i < 1024; i++) {
-                  fout_fputc(0);
-                }
-              }
-            }
-
-            // write decompressed data
-
-            if ((bmp_header_type == 0) || ((img_width % 4) == 0)) {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
-            } else {
-              if (!in_memory) {
-                ftempout = fopen(tempfile1,"rb");
-                if (ftempout == NULL) {
-                  error(ERR_TEMP_FILE_DISAPPEARED);
-                }
-
-                fseek(ftempout, 0, SEEK_SET);
-              }
-
-              unsigned char* buf_ptr = decomp_io_buf;
-              for (int y = 0; y < img_height; y++) {
-
-                if (in_memory) {
-                  fast_copy(buf_ptr, fout, img_width);
-                  buf_ptr += img_width;
-                } else {
-                  fast_copy(ftempout, fout, img_width);
-                }
-
-                for (int i = 0; i < (4 - (img_width % 4)); i++) {
-                  fout_fputc(0);
-                }
-
-              }
-
-              safe_fclose(&ftempout);
-            }
-
-            // start new uncompressed data
-
-            // set input file pointer after recompressed data
-            input_file_pos += best_identical_bytes - 1;
-            cb += best_identical_bytes - 1;
-
+          if (rdres.uncompressed_in_memory) {
+            fast_copy(buf_ptr, fout, img_width);
+            buf_ptr += img_width;
           } else {
-            if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
-            if (DEBUG_MODE) {
-            printf("No matches\n");
-            }
+            fast_copy(ftempout, fout, img_width);
+          }
+
+          for (int i = 0; i < (4 - (img_width % 4)); i++) {
+            fout_fputc(0);
           }
 
         }
 
+        safe_fclose(&ftempout);
+      }
 
+      // start new uncompressed data
+      debug_pos();
+
+      // set input file pointer after recompressed data
+      input_file_pos += rdres.compressed_stream_size - 1;
+      cb += rdres.compressed_stream_size - 1;
+
+    } else {
+      if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
+      if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
+      if (DEBUG_MODE) {
+        printf("No matches\n");
+      }
+    }
+  }
+}
+
+void try_decompression_deflate_type(unsigned& dcounter, unsigned& rcounter, 
+                                    const unsigned char type, 
+                                    const unsigned char* hdr, const int hdr_length, const bool inc_last, 
+                                    const char* debugname) {
+  init_decompression_variables();
+
+  // try to decompress at current position
+  recompress_deflate_result rdres = try_recompression_deflate(fin);
+
+  if (rdres.uncompressed_stream_size > 0) { // seems to be a zLib-Stream
+    decompressed_streams_count++;
+    dcounter++;
+
+    debug_deflate_detected(rdres, debugname);
+
+    if (rdres.accepted) {
+      recompressed_streams_count++;
+      rcounter++;
+
+      non_zlib_was_used = true;
+
+      debug_sums(rdres);
+
+      // end uncompressed data
+
+      debug_pos();
+
+      compressed_data_found = true;
+      end_uncompressed_data();
+
+      // check recursion
+      recursion_result r = recursion_write_file_and_compress(rdres);
+
+#if 0
+      // Do we really want to allow uncompressed streams that are smaller than the compressed
+      // ones? (It makes sense if the uncompressed stream contains a JPEG, or something similar.
+      if (rdres.uncompressed_stream_size <= rdres.compressed_stream_size && !r.success) {
+        recompressed_streams_count--;
+        compressed_data_found = false;
+        return;
+      }
+#endif
+
+      debug_pos();
+
+      // write compressed data header without first bytes
+      fout_fput_deflate_rec(type, rdres, hdr, hdr_length, inc_last, r);
+
+      debug_pos();
+
+      // set input file pointer after recompressed data
+      input_file_pos += rdres.compressed_stream_size - 1;
+      cb += rdres.compressed_stream_size - 1;
+
+    } else {
+      if (type == D_SWF && intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
+      if (type != D_BRUTE && brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
+      if (DEBUG_MODE) {
+        printf("No matches\n");
+      }
+    }
+
+  }
 }
 
 void try_decompression_zip(int zip_header_length) {
-  init_decompression_variables();
-
-        int windowbits;
-
-        // try to decompress at current position
-        long long compressed_stream_size = -1;
-        bool in_memory;
-        retval = try_to_decompress(fin, -15, compressed_stream_size, in_memory);
-
-        if (retval > 0) { // seems to be a zLib-Stream
-
-          decompressed_streams_count++;
-          decompressed_zip_count++;
-
-          if (DEBUG_MODE) {
-          print_debug_percent();
-          cout << "Possible zLib-Stream in ZIP found at position " << saved_input_file_pos << endl;
-          cout << "Compressed size: " << compressed_stream_size << endl;
-          cout << "Can be decompressed to " << retval << " bytes" << endl;
-          }
-
-          for (windowbits = -15; windowbits < -7; windowbits++) {
-            for (int index = MTF.First(); index>=0; index=MTF.Next()){
-              if (comp_mem_level_count[index] == -1) continue;
-              int comp_level = (index % 9) + 1;
-              int mem_level = (index / 9) + 1;
-
-              try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
-
-              if (final_compression_found){ MTF.Update(); break; }
-            }
-            if (final_compression_found) break;
-          }
-
-          if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
-            recompressed_streams_count++;
-            recompressed_zip_count++;
-
-            windowbits = best_windowbits;
-            if (DEBUG_MODE) {
-            cout << "Best match with level combination " << best_compression << best_mem_level << ", windowbits = " << -windowbits << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
-            }
-
-            if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
-              if (fast_mode) {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                for (int i = 0; i < 81; i++) {
-                  if (i != ((best_compression - 1) + (best_mem_level - 1) * 9)) {
-                    comp_mem_level_count[i] = -1;
-                  }
-                }
-                anything_was_used = true;
-              } else {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                anything_was_used = true;
-              }
-            }
-
-            // end uncompressed data
-
-            compressed_data_found = true;
-            end_uncompressed_data();
-
-            // check recursion
-            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
-            recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
-
-            // write compressed data header (ZIP) without 4 first bytes (PK..)
-
-            int header_byte = 1 + (best_compression << 2);
-            if (best_penalty_bytes_len != 0) {
-              header_byte += 2;
-            }
-            if (r.success) {
-              header_byte += 128;
-            }
-            fout_fputc(header_byte);
-            fout_fputc(1); // ZIP
-            fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
-
-            zip_header_length -= 4;
-
-            fout_fput24(zip_header_length);
-
-            own_fwrite(in_buf + cb + 4, 1, zip_header_length, fout);
-
-            // store penalty bytes, if any
-            if (best_penalty_bytes_len != 0) {
-              if (DEBUG_MODE) {
-                printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
-              }
-              fout_fput32(best_penalty_bytes_len);
-              for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
-                fout_fputc(best_penalty_bytes[pbc]);
-              }
-            }
-
-            fout_fput64(best_identical_bytes);
-            fout_fput64(best_identical_bytes_decomp);
-
-            if (r.success) {
-              fout_fput64(r.file_length);
-            }
-
-            // write decompressed data
-            if (r.success) {
-              write_decompressed_data(r.file_length, r.file_name);
-              remove(r.file_name);
-              delete[] r.file_name;
-            } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
-            }
-
-            // set input file pointer after recompressed data
-            input_file_pos += best_identical_bytes - 1;
-            cb += best_identical_bytes - 1;
-
-          } else {
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
-            if (DEBUG_MODE) {
-            printf("No matches\n");
-            }
-          }
-
-        }
+  try_decompression_deflate_type(decompressed_zip_count, recompressed_zip_count, 
+                                 D_ZIP, in_buf + cb + 4, zip_header_length - 4, false,
+                                 "in ZIP");
 }
 
 void show_used_levels() {
@@ -3829,8 +3610,6 @@ bool compress_file(float min_percent, float max_percent) {
   comp_decomp_state = P_COMPRESS;
 
   init_temp_files();
-  intense_ignore_offsets = new set<long long>();
-  brute_ignore_offsets = new set<long long>();
   decomp_io_buf = new unsigned char[MAX_IO_BUFFER_SIZE];
 
   global_min_percent = min_percent;
@@ -3900,7 +3679,9 @@ bool compress_file(float min_percent, float max_percent) {
         printf("extra field length: %i\n", extra_field_length);
         }
 
-        if ((filename_length + extra_field_length) <= CHECKBUF_SIZE) {
+        if ((filename_length + extra_field_length) <= CHECKBUF_SIZE
+            && compressed_size > 0 && compressed_size != uncompressed_size
+            && in_buf[cb + 8] == 8 && in_buf[cb + 9] == 0) {
 
           int header_length = 30 + filename_length + extra_field_length;
 
@@ -4240,7 +4021,7 @@ bool compress_file(float min_percent, float max_percent) {
           idat_lengths[0] += 2;
 
           input_file_pos += 6;
-          try_decompression_png_multi(-windowbits);
+          try_decompression_png_multi(fpng, -windowbits);
           cb += 6;
 
           safe_fclose(&fpng);
@@ -4724,7 +4505,7 @@ while (fin_pos < fin_length) {
   unsigned char header1 = fin_fgetc();
   if (header1 == 0) { // uncompressed data
     long long uncompressed_data_length;
-    uncompressed_data_length = fin_fget64();
+    uncompressed_data_length = fin_fget_vlint();
 
     if (uncompressed_data_length == 0) break; // end of PCF file, used by bZip2 compress-on-the-fly
 
@@ -4738,59 +4519,23 @@ while (fin_pos < fin_length) {
 
     unsigned char headertype = fin_fgetc();
 
-    if (headertype == 0) { // PDF recompression
-      if (DEBUG_MODE) {
-      printf("Decompressed data - PDF\n");
-      }
-
-      unsigned char header2 = fin_fgetc();
-
-      bool penalty_bytes_stored = ((header1 & 2) == 2);
-      int compression_level = (header1 >> 2) & 15;
-      int bmp_c = (header1 >> 6);
-      int windowbits = -(((header2 >> 4) & 15) + 8);
-      int memlevel = header2 & 15;
-
-      if (DEBUG_MODE) {
-      printf("Compression level: %i\n", compression_level);
-      printf("Window size: %i\n", -windowbits);
-      printf("Memory level: %i\n", memlevel);
-      if (bmp_c == 1) printf("Skipping BMP header (8-Bit)\n");
-      if (bmp_c == 2) printf("Skipping BMP header (24-Bit)\n");
-      }
-
-      int pdf_header_length;
-      pdf_header_length = (fin_fgetc() << 16);
-      pdf_header_length += (fin_fgetc() << 8);
-      pdf_header_length += fin_fgetc();
-
+    switch (headertype) {
+    case D_PDF: { // PDF recompression
+      recompress_deflate_result rdres;
+      unsigned hdr_length;
       // restore PDF header
       fprintf(fout, "/FlateDecode");
+      fin_fget_deflate_hdr(rdres, header1, in, hdr_length, false);
+      fin_fget_recon_data(rdres);
+      int bmp_c = (header1 >> 6);
 
-      own_fread(in, 1, pdf_header_length, fin);
-      own_fwrite(in, 1, pdf_header_length, fout);
-
-      // read penalty bytes
-      if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
-        own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
-      }
-
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
-
+      debug_deflate_reconstruct(rdres, "PDF", hdr_length, 0);
       if (DEBUG_MODE) {
-      cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
+        if (bmp_c == 1) printf("Skipping BMP header (8-Bit)\n");
+        if (bmp_c == 2) printf("Skipping BMP header (24-Bit)\n");
       }
-
-      // keep file position for penalty bytes
-      long long old_fout_pos = tell_64(fout);
 
       // read BMP header
-
       int bmp_width = 0;
 
       switch (bmp_c) {
@@ -4806,457 +4551,117 @@ while (fin_pos < fin_length) {
         if (bmp_c == 2) bmp_width *= 3;
       }
 
+      uint64_t read_part, skip_part;
       if ((bmp_c == 0) || ((bmp_width % 4) == 0)) {
         // recompress directly to fout
-        retval = def_part(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-        if (retval != Z_OK) {
-          printf("Error recompressing data!");
-          cout << "retval = " << retval << endl;
-          exit(0);
-        }
+        read_part = rdres.uncompressed_stream_size;
+        skip_part = 0;
       } else { // lines aligned to 4 byte, skip those bytes
         // recompress directly to fout, but skipping bytes
-
-        retval = def_part_skip(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length, bmp_width);
-
-        if (retval != Z_OK) {
-          printf("Error recompressing data!");
-          cout << "retval = " << retval << endl;
-          exit(0);
-        }
-
+        read_part = bmp_width;
+        skip_part = (-bmp_width) & 3;
       }
-
-      if (penalty_bytes_stored) {
-        fflush(fout);
-
-        long long fsave_fout_pos = tell_64(fout);
-
-        int pb_pos = 0;
-        for (int pbc = 0; pbc < penalty_bytes_len; pbc += 5) {
-          pb_pos = ((unsigned char)penalty_bytes[pbc]) << 24;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 1]) << 16;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 2]) << 8;
-          pb_pos += (unsigned char)penalty_bytes[pbc + 3];
-
-          seek_64(fout, old_fout_pos + pb_pos);
-          own_fwrite(penalty_bytes + pbc + 4, 1, 1, fout);
-        }
-
-        seek_64(fout, fsave_fout_pos);
+      if (!try_reconstructing_deflate_skip(fin, fout, rdres, read_part, skip_part)) {
+        printf("Error recompressing data!");
+        exit(0);
       }
-
-    } else if (headertype == 1) { // ZIP recompression
-
-      if (DEBUG_MODE) {
-      printf("Decompressed data - ZIP\n");
-      }
-
-      unsigned char header2 = fin_fgetc();
-
-      bool penalty_bytes_stored = ((header1 & 2) == 2);
-      bool recursion_used = ((header1 & 128) == 128);
-      int compression_level = (header1 >> 2) & 15;
-      int windowbits = -(((header2 >> 4) & 15) + 8);
-      int memlevel = header2 & 15;
-
-      if (DEBUG_MODE) {
-      printf("Compression level: %i\n", compression_level);
-      printf("Window size: %i\n", -windowbits);
-      printf("Memory level: %i\n", memlevel);
-      }
-
-      int zip_header_length;
-      zip_header_length = (fin_fgetc() << 16);
-      zip_header_length += (fin_fgetc() << 8);
-      zip_header_length += fin_fgetc();
-
-      if (DEBUG_MODE) {
-      printf("ZIP header length: %i\n", zip_header_length);
-      }
-
+      break;
+    }     
+    case D_ZIP: { // ZIP recompression
+      recompress_deflate_result rdres;
+      unsigned hdr_length;
+      int64_t recursion_data_length;
       fputc('P', fout);
       fputc('K', fout);
       fputc(3, fout);
       fputc(4, fout);
+      bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
 
-      own_fread(in, 1, zip_header_length, fin);
-      own_fwrite(in, 1, zip_header_length, fout);
+      debug_deflate_reconstruct(rdres, "ZIP", hdr_length, recursion_data_length);
 
-      // read penalty bytes
-      if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
-        own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
-      }
-
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
-
-      long long recursion_data_length = 0;
-      if (recursion_used) {
-        recursion_data_length = fin_fget64();
-      }
-
-      if (DEBUG_MODE) {
-        if (recursion_used) {
-          cout << "Recursion data length: " << recursion_data_length << endl;
-        } else {
-          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
-        }
-      }
-
-      long long old_fout_pos = tell_64(fout);
-
-      if (recursion_used) {
-        recursion_result r = recursion_decompress(recursion_data_length);
-        retval = def_part(r.frecurse, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-        safe_fclose(&r.frecurse);
-        remove(r.file_name);
-        delete[] r.file_name;
-      } else {
-        retval = def_part(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-      }
-
-      if (retval != Z_OK) {
+      if (!ok) {
         printf("Error recompressing data!");
-        cout << "retval = " << retval << endl;
         exit(0);
       }
-
-      if (penalty_bytes_stored) {
-        fflush(fout);
-
-        long long fsave_fout_pos = tell_64(fout);
-        int pb_pos = 0;
-        for (int pbc = 0; pbc < penalty_bytes_len; pbc += 5) {
-          pb_pos = ((unsigned char)penalty_bytes[pbc]) << 24;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 1]) << 16;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 2]) << 8;
-          pb_pos += (unsigned char)penalty_bytes[pbc + 3];
-
-          seek_64(fout, old_fout_pos + pb_pos);
-          own_fwrite(penalty_bytes + pbc + 4, 1, 1, fout);
-
-        }
-
-        seek_64(fout, fsave_fout_pos);
-      }
-
-    } else if (headertype == 2) { // GZip recompression
-
-      if (DEBUG_MODE) {
-      printf("Decompressed data - GZip\n");
-      }
-
-      unsigned char header2 = fin_fgetc();
-
-      bool penalty_bytes_stored = ((header1 & 2) == 2);
-      bool recursion_used = ((header1 & 128) == 128);
-      int compression_level = (header1 >> 2) & 15;
-      int windowbits = -(((header2 >> 4) & 15) + 8);
-      int memlevel = header2 & 15;
-
-      if (DEBUG_MODE) {
-      printf("Compression level: %i\n", compression_level);
-      printf("Window size: %i\n", -windowbits);
-      printf("Memory level: %i\n", memlevel);
-      }
-
-      int gzip_header_length;
-      gzip_header_length = (fin_fgetc() << 16);
-      gzip_header_length += (fin_fgetc() << 8);
-      gzip_header_length += fin_fgetc();
-
-      if (DEBUG_MODE) {
-      printf("GZip header length: %i\n", gzip_header_length);
-      }
-
+      break;
+    }
+    case D_GZIP: { // GZip recompression
+      recompress_deflate_result rdres;
+      unsigned hdr_length;
+      int64_t recursion_data_length;
       fputc(31, fout);
       fputc(139, fout);
+      bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
 
-      own_fread(in, 1, gzip_header_length, fin);
-      own_fwrite(in, 1, gzip_header_length, fout);
+      debug_deflate_reconstruct(rdres, "GZIP", hdr_length, recursion_data_length);
 
-      // read penalty bytes
-      if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
-        own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
-      }
-
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
-
-      long long recursion_data_length = 0;
-      if (recursion_used) {
-        recursion_data_length = fin_fget64();
-      }
-
-      if (DEBUG_MODE) {
-        if (recursion_used) {
-          cout << "Recursion data length: " << recursion_data_length << endl;
-        } else {
-          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
-        }
-      }
-
-      long long old_fout_pos = tell_64(fout);
-
-      if (recursion_used) {
-        recursion_result r = recursion_decompress(recursion_data_length);
-        retval = def_part(r.frecurse, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-        safe_fclose(&r.frecurse);
-        remove(r.file_name);
-        delete[] r.file_name;
-      } else {
-        retval = def_part(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-      }
-
-      if (retval != Z_OK) {
+      if (!ok) {
         printf("Error recompressing data!");
-        cout << "retval = " << retval << endl;
         exit(0);
       }
-
-      if (penalty_bytes_stored) {
-        fflush(fout);
-
-        long long fsave_fout_pos = tell_64(fout);
-        int pb_pos = 0;
-        for (int pbc = 0; pbc < penalty_bytes_len; pbc += 5) {
-          pb_pos = ((unsigned char)penalty_bytes[pbc]) << 24;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 1]) << 16;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 2]) << 8;
-          pb_pos += (unsigned char)penalty_bytes[pbc + 3];
-
-          seek_64(fout, old_fout_pos + pb_pos);
-          own_fwrite(penalty_bytes + pbc + 4, 1, 1, fout);
-        }
-
-        seek_64(fout, fsave_fout_pos);
-      }
-
-    } else if (headertype == 3) { // PNG recompression
-
-      if (DEBUG_MODE) {
-      printf("Decompressed data - PNG\n");
-      }
-
-      unsigned char header2 = fin_fgetc();
-
-      bool penalty_bytes_stored = ((header1 & 2) == 2);
-      int compression_level = (header1 >> 2) & 15;
-      int windowbits = -(((header2 >> 4) & 15) + 8);
-      int memlevel = header2 & 15;
-
-      if (DEBUG_MODE) {
-      printf("Compression level: %i\n", compression_level);
-      printf("Window size: %i\n", -windowbits);
-      printf("Memory level: %i\n", memlevel);
-      }
-
+      break;
+    }
+    case D_PNG: { // PNG recompression
+      recompress_deflate_result rdres;
+      unsigned hdr_length;
       // restore IDAT
       fprintf(fout, "IDAT");
 
-      // restore zLib header (decrease by 1)
-      own_fread(in, 1, 2, fin);
-      unsigned char decchar = *(in + 1) - 1;
-      own_fwrite(in, 1, 1, fout);
-      fputc(decchar, fout);
+      fin_fget_deflate_hdr(rdres, header1, in, hdr_length, true);
+      fin_fget_recon_data(rdres);
+      debug_sums(rdres);
+      debug_pos();
 
-      // read penalty bytes
-      if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
-        own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
-      }
+      debug_deflate_reconstruct(rdres, "PNG", hdr_length, 0);
 
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
-
-      if (DEBUG_MODE) {
-      cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
-      }
-
-      long long old_fout_pos = tell_64(fout);
-
-      retval = def_part(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-
-      if (retval != Z_OK) {
+      if (!try_reconstructing_deflate(fin, fout, rdres)) {
         printf("Error recompressing data!");
-        cout << "retval = " << retval << endl;
         exit(0);
       }
-
-      if (penalty_bytes_stored) {
-        fflush(fout);
-
-        long long fsave_fout_pos = tell_64(fout);
-
-        int pb_pos = 0;
-        for (int pbc = 0; pbc < penalty_bytes_len; pbc += 5) {
-          pb_pos = ((unsigned char)penalty_bytes[pbc]) << 24;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 1]) << 16;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 2]) << 8;
-          pb_pos += (unsigned char)penalty_bytes[pbc + 3];
-
-          seek_64(fout, old_fout_pos + pb_pos);
-          own_fwrite(penalty_bytes + pbc + 4, 1, 1, fout);
-        }
-
-        seek_64(fout, fsave_fout_pos);
-      }
-
-    } else if (headertype == 4) { // PNG multi recompression
-
-      if (DEBUG_MODE) {
-      printf("Decompressed data - PNG multi\n");
-      }
-
-      unsigned char header2 = fin_fgetc();
-
-      bool penalty_bytes_stored = ((header1 & 2) == 2);
-      int compression_level = (header1 >> 2) & 15;
-      int windowbits = -(((header2 >> 4) & 15) + 8);
-      int memlevel = header2 & 15;
-
-      if (DEBUG_MODE) {
-      printf("Compression level: %i\n", compression_level);
-      printf("Window size: %i\n", -windowbits);
-      printf("Memory level: %i\n", memlevel);
-      }
-
+      debug_pos();
+      break;
+    }
+    case D_MULTIPNG: { // PNG multi recompression
+      recompress_deflate_result rdres;
+      unsigned hdr_length;
       // restore first IDAT
       fprintf(fout, "IDAT");
-
-      // restore zLib header (decrease by 1)
-      own_fread(in, 1, 2, fin);
-      unsigned char decchar = *(in + 1) - 1;
-      own_fwrite(in, 1, 1, fout);
-      fputc(decchar, fout);
+      
+      fin_fget_deflate_hdr(rdres, header1, in, hdr_length, true);
 
       // get IDAT count
-      own_fread(in, 1, 2, fin);
-      idat_count = (in[0] << 8) + in[1];
-      idat_count++;
+      idat_count = fin_fget_vlint() + 1;
 
       idat_crcs = (unsigned int*)(realloc(idat_crcs, idat_count * sizeof(unsigned int)));
       idat_lengths = (unsigned int*)(realloc(idat_lengths, idat_count * sizeof(unsigned int)));
 
       // get first IDAT length
-      own_fread(in, 1, 4, fin);
-      idat_lengths[0] = (in[0] << 24) + (in[1] << 16) + (in[2] << 8) + in[3];
-      idat_lengths[0] -= 2; // zLib header length
+      idat_lengths[0] = fin_fget_vlint() - 2; // zLib header length
 
       // get IDAT chunk lengths and CRCs
       for (int i = 1; i < idat_count; i++) {
-        own_fread(in, 1, 4, fin);
-        idat_crcs[i] = (in[0] << 24) + (in[1] << 16) + (in[2] << 8) + in[3];
-        own_fread(in, 1, 4, fin);
-        idat_lengths[i] = (in[0] << 24) + (in[1] << 16) + (in[2] << 8) + in[3];
+        idat_crcs[i]    = fin_fget32();
+        idat_lengths[i] = fin_fget_vlint();
       }
 
-      // read penalty bytes
-      if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
-        own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
-      }
+      fin_fget_recon_data(rdres);
+      debug_sums(rdres);
+      debug_pos();
 
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
+      debug_deflate_reconstruct(rdres, "PNG multi", hdr_length, 0);
 
-      if (DEBUG_MODE) {
-      cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
-      }
-
-      remove(tempfile1);
-      ftempout = tryOpen(tempfile1,"wb");
-
-      fast_copy(fin, ftempout, decompressed_data_length);
-
-      safe_fclose(&ftempout);
-
-      remove(tempfile2);
-
-      ftempout = tryOpen(tempfile1,"rb");
-      frecomp = tryOpen(tempfile2,"wb");
-
-      long long old_frecomp_pos = tell_64(frecomp);
-
-      // recompress data
-      retval = def(ftempout, frecomp, compression_level, windowbits, memlevel);
-      if ((!penalty_bytes_stored) || (retval != Z_OK)) safe_fclose(&frecomp);
-      safe_fclose(&ftempout);
-
-      if (retval != Z_OK) {
+      if (!try_reconstructing_deflate_multipng(fin, fout, rdres, idat_count, idat_crcs, idat_lengths)) {
         printf("Error recompressing data!");
-        cout << "retval = " << retval << endl;
         exit(0);
       }
-
-      if (penalty_bytes_stored) {
-        fflush(frecomp);
-
-        int pb_pos = 0;
-        for (int pbc = 0; pbc < penalty_bytes_len; pbc += 5) {
-          pb_pos = ((unsigned char)penalty_bytes[pbc]) << 24;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 1]) << 16;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 2]) << 8;
-          pb_pos += (unsigned char)penalty_bytes[pbc + 3];
-
-          seek_64(frecomp, old_frecomp_pos + pb_pos);
-          own_fwrite(penalty_bytes + pbc + 4, 1, 1, frecomp);
-        }
-
-        safe_fclose(&frecomp);
-      }
-
-      frecomp = tryOpen(tempfile2,"rb");
-
-      long long remaining_bytes = recompressed_data_length;
-      unsigned int act_idat_chunk = 0;
-      for (;;) {
-        if ((remaining_bytes + 2) > (int)idat_lengths[act_idat_chunk]) {
-          fast_copy(frecomp, fout, idat_lengths[act_idat_chunk]);
-          remaining_bytes -= idat_lengths[act_idat_chunk];
-
-          fputc((idat_crcs[act_idat_chunk+1] >> 24) % 256, fout);
-          fputc((idat_crcs[act_idat_chunk+1] >> 16) % 256, fout);
-          fputc((idat_crcs[act_idat_chunk+1] >> 8) % 256, fout);
-          fputc(idat_crcs[act_idat_chunk+1]  % 256, fout);
-          fputc((idat_lengths[act_idat_chunk+1] >> 24) % 256, fout);
-          fputc((idat_lengths[act_idat_chunk+1] >> 16) % 256, fout);
-          fputc((idat_lengths[act_idat_chunk+1] >> 8) % 256, fout);
-          fputc(idat_lengths[act_idat_chunk+1]  % 256, fout);
-          fprintf(fout, "IDAT");
-        } else {
-          fast_copy(frecomp, fout, remaining_bytes);
-          break;
-        }
-        act_idat_chunk++;
-      }
-
-      safe_fclose(&frecomp);
-
-      remove(tempfile2);
-      remove(tempfile1);
-
+      debug_pos();
       free(idat_lengths);
       idat_lengths = NULL;
       free(idat_crcs);
       idat_crcs = NULL;
-
-    } else if (headertype == 5) { // GIF recompression
+      break;
+    }
+    case D_GIF: { // GIF recompression
 
       if (DEBUG_MODE) {
       printf("Decompressed data - GIF\n");
@@ -5271,10 +4676,7 @@ while (fin_pos < fin_length) {
       GifDiffStruct gDiff;
 
       // read diff bytes
-      gDiff.GIFDiffIndex = (fin_fgetc() << 24);
-      gDiff.GIFDiffIndex += (fin_fgetc() << 16);
-      gDiff.GIFDiffIndex += (fin_fgetc() << 8);
-      gDiff.GIFDiffIndex += fin_fgetc();
+      gDiff.GIFDiffIndex = fin_fget_vlint();
       gDiff.GIFDiff = (unsigned char*)malloc(gDiff.GIFDiffIndex * sizeof(unsigned char));
       own_fread(gDiff.GIFDiff, 1, gDiff.GIFDiffIndex, fin);
       if (DEBUG_MODE) {
@@ -5286,15 +4688,12 @@ while (fin_pos < fin_length) {
 
       // read penalty bytes
       if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
+        penalty_bytes_len = fin_fget_vlint();
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
+      long long recompressed_data_length = fin_fget_vlint();
+      long long decompressed_data_length = fin_fget_vlint();
 
       if (DEBUG_MODE) {
       cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
@@ -5359,8 +4758,9 @@ while (fin_pos < fin_length) {
       }
 
       GifDiffFree(&gDiff);
-
-    } else if (headertype == 6) { // JPG recompression
+      break;
+    }
+    case D_JPG: { // JPG recompression
 
       if (DEBUG_MODE) {
       printf("Decompressed data - JPG\n");
@@ -5368,8 +4768,8 @@ while (fin_pos < fin_length) {
 
       bool mjpg_dht_used = ((header1 & 4) == 4);
 
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
+      long long recompressed_data_length = fin_fget_vlint();
+      long long decompressed_data_length = fin_fget_vlint();
 
       if (DEBUG_MODE) {
       cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
@@ -5478,107 +4878,26 @@ while (fin_pos < fin_length) {
         remove(tempfile2);
         remove(tempfile1);
       }
-
-    } else if (headertype == 7) { // SWF recompression
-
-      if (DEBUG_MODE) {
-      printf("Decompressed data - SWF\n");
-      }
-
-      unsigned char header2 = fin_fgetc();
-
-      bool penalty_bytes_stored = ((header1 & 2) == 2);
-      bool recursion_used = ((header1 & 128) == 128);
-      int compression_level = (header1 >> 2) & 15;
-      int windowbits = -(((header2 >> 4) & 15) + 8);
-      int memlevel = header2 & 15;
-
-      if (DEBUG_MODE) {
-      printf("Compression level: %i\n", compression_level);
-      printf("Window size: %i\n", -windowbits);
-      printf("Memory level: %i\n", memlevel);
-      }
-
+      break;
+    }
+    case D_SWF: { // SWF recompression
+      recompress_deflate_result rdres;
+      unsigned hdr_length;
+      int64_t recursion_data_length;
       fputc('C', fout);
       fputc('W', fout);
       fputc('S', fout);
-      // get Flash version
-      char c = fin_fgetc();
-      fputc(c, fout);
-      // get length from SWF header
-      for (int i = 0; i < 4; i++) {
-        c = fin_fgetc();
-        fputc(c, fout);
-      }
+      bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, true, recursion_data_length);
 
-      // restore zLib header (decrease by 1)
-      own_fread(in, 1, 2, fin);
-      unsigned char decchar = *(in + 1) - 1;
-      own_fwrite(in, 1, 1, fout);
-      fputc(decchar, fout);
+      debug_deflate_reconstruct(rdres, "SWF", hdr_length, recursion_data_length);
 
-      // read penalty bytes
-      if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
-        own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
-      }
-
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
-
-      long long recursion_data_length = 0;
-      if (recursion_used) {
-        recursion_data_length = fin_fget64();
-      }
-
-      if (DEBUG_MODE) {
-        if (recursion_used) {
-          cout << "Recursion data length: " << recursion_data_length << endl;
-        } else {
-          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
-        }
-      }
-
-      long long old_fout_pos = tell_64(fout);
-
-      if (recursion_used) {
-        recursion_result r = recursion_decompress(recursion_data_length);
-        retval = def_part(r.frecurse, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-        safe_fclose(&r.frecurse);
-        remove(r.file_name);
-        delete[] r.file_name;
-      } else {
-        retval = def_part(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-      }
-
-      if (retval != Z_OK) {
+      if (!ok) {
         printf("Error recompressing data!");
-        cout << "retval = " << retval << endl;
         exit(0);
       }
-
-      if (penalty_bytes_stored) {
-        fflush(fout);
-
-        long long fsave_fout_pos = tell_64(fout);
-        int pb_pos = 0;
-        for (int pbc = 0; pbc < penalty_bytes_len; pbc += 5) {
-          pb_pos = ((unsigned char)penalty_bytes[pbc]) << 24;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 1]) << 16;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 2]) << 8;
-          pb_pos += (unsigned char)penalty_bytes[pbc + 3];
-
-          seek_64(fout, old_fout_pos + pb_pos);
-          own_fwrite(penalty_bytes + pbc + 4, 1, 1, fout);
-        }
-
-        seek_64(fout, fsave_fout_pos);
-      }
-
-    } else if (headertype == 8) { // Base64 recompression
+      break;
+    }
+    case D_BASE64: { // Base64 recompression
 
       if (DEBUG_MODE) {
       printf("Decompressed data - Base64\n");
@@ -5588,20 +4907,17 @@ while (fin_pos < fin_length) {
       bool recursion_used = ((header1 & 128) == 128);
 
       // restore Base64 "header"
-      int base64_header_length;
-      base64_header_length = (fin_fgetc() << 8);
-      base64_header_length += fin_fgetc();
+      int base64_header_length = fin_fget_vlint();
 
       if (DEBUG_MODE) {
-      printf("Base64 header length: %i\n", base64_header_length);
+        printf("Base64 header length: %i\n", base64_header_length);
       }
       own_fread(in, 1, base64_header_length, fin);
       fputc(*(in) + 1, fout); // first char was decreased
       own_fwrite(in + 1, 1, base64_header_length - 1, fout);
 
       // read line length list
-      int line_count = fin_fgetc() << 8;
-      line_count += fin_fgetc();
+      int line_count = fin_fget_vlint();
 
       unsigned int* base64_line_len = new unsigned int[line_count];
 
@@ -5617,12 +4933,12 @@ while (fin_pos < fin_length) {
         if (line_case == 1) base64_line_len[line_count - 1] = fin_fgetc();
       }
 
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
+      long long recompressed_data_length = fin_fget_vlint();
+      long long decompressed_data_length = fin_fget_vlint();
 
       long long recursion_data_length = 0;
       if (recursion_used) {
-        recursion_data_length = fin_fget64();
+        recursion_data_length = fin_fget_vlint();
       }
 
       if (DEBUG_MODE) {
@@ -5646,7 +4962,9 @@ while (fin_pos < fin_length) {
       }
 
       delete[] base64_line_len;
-    } else if (headertype == 9) { // bZip2 recompression
+      break;
+    }
+    case D_BZIP2: { // bZip2 recompression
 
       if (DEBUG_MODE) {
       printf("Decompressed data - bZip2\n");
@@ -5664,19 +4982,16 @@ while (fin_pos < fin_length) {
 
       // read penalty bytes
       if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
+        penalty_bytes_len = fin_fget_vlint();
         own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
       }
 
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
+      long long recompressed_data_length = fin_fget_vlint();
+      long long decompressed_data_length = fin_fget_vlint();
 
       long long recursion_data_length = 0;
       if (recursion_used) {
-        recursion_data_length = fin_fget64();
+        recursion_data_length = fin_fget_vlint();
       }
 
       if (DEBUG_MODE) {
@@ -5722,14 +5037,16 @@ while (fin_pos < fin_length) {
 
         seek_64(fout, fsave_fout_pos);
       }
-    } else if (headertype == 10) { // MP3 recompression
+      break;
+    }
+    case D_MP3: { // MP3 recompression
 
       if (DEBUG_MODE) {
       printf("Decompressed data - MP3\n");
       }
 
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
+      long long recompressed_data_length = fin_fget_vlint();
+      long long decompressed_data_length = fin_fget_vlint();
 
       if (DEBUG_MODE) {
       cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
@@ -5784,175 +5101,37 @@ while (fin_pos < fin_length) {
         remove(tempfile2);
         remove(tempfile1);
       }
-    } else if (headertype == 254) { // brute mode recompression
+      break;
+    }
+    case D_BRUTE: { // brute mode recompression
+      recompress_deflate_result rdres;
+      unsigned hdr_length;
+      int64_t recursion_data_length;
+      bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
 
-      if (DEBUG_MODE) {
-      printf("Decompressed data - brute mode\n");
-      }
+      debug_deflate_reconstruct(rdres, "brute mode", hdr_length, recursion_data_length);
 
-      unsigned char header2 = fin_fgetc();
-
-      bool penalty_bytes_stored = ((header1 & 2) == 2);
-      bool recursion_used = ((header1 & 128) == 128);
-      int compression_level = (header1 >> 2) & 15;
-      int windowbits = -(((header2 >> 4) & 15) + 8);
-      int memlevel = header2 & 15;
-
-      if (DEBUG_MODE) {
-      printf("Compression level: %i\n", compression_level);
-      printf("Window size: %i\n", -windowbits);
-      printf("Memory level: %i\n", memlevel);
-      }
-
-      // read penalty bytes
-      if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
-        own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
-      }
-
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
-
-      long long recursion_data_length = 0;
-      if (recursion_used) {
-        recursion_data_length = fin_fget64();
-      }
-
-      if (DEBUG_MODE) {
-        if (recursion_used) {
-          cout << "Recursion data length: " << recursion_data_length << endl;
-        } else {
-          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
-        }
-      }
-
-      long long old_fout_pos = tell_64(fout);
-
-      if (recursion_used) {
-        recursion_result r = recursion_decompress(recursion_data_length);
-        retval = def_part(r.frecurse, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-        safe_fclose(&r.frecurse);
-        remove(r.file_name);
-        delete[] r.file_name;
-      } else {
-        retval = def_part(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-      }
-
-      if (retval != Z_OK) {
+      if (!ok) {
         printf("Error recompressing data!");
-        cout << "retval = " << retval << endl;
         exit(0);
       }
+      break;
+    }
+    case D_RAW: { // raw zLib recompression
+      recompress_deflate_result rdres;
+      unsigned hdr_length;
+      int64_t recursion_data_length;
+      bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, true, recursion_data_length);
 
-      if (penalty_bytes_stored) {
-        fflush(fout);
+      debug_deflate_reconstruct(rdres, "raw zLib", hdr_length, recursion_data_length);
 
-        long long fsave_fout_pos = tell_64(fout);
-        int pb_pos = 0;
-        for (int pbc = 0; pbc < penalty_bytes_len; pbc += 5) {
-          pb_pos = ((unsigned char)penalty_bytes[pbc]) << 24;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 1]) << 16;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 2]) << 8;
-          pb_pos += (unsigned char)penalty_bytes[pbc + 3];
-
-          seek_64(fout, old_fout_pos + pb_pos);
-          own_fwrite(penalty_bytes + pbc + 4, 1, 1, fout);
-        }
-
-        seek_64(fout, fsave_fout_pos);
-      }
-
-    } else if (headertype == 255) { // raw zLib recompression
-
-      if (DEBUG_MODE) {
-      printf("Decompressed data - raw zLib\n");
-      }
-
-      unsigned char header2 = fin_fgetc();
-
-      bool penalty_bytes_stored = ((header1 & 2) == 2);
-      bool recursion_used = ((header1 & 128) == 128);
-      int compression_level = (header1 >> 2) & 15;
-      int windowbits = -(((header2 >> 4) & 15) + 8);
-      int memlevel = header2 & 15;
-
-      if (DEBUG_MODE) {
-      printf("Compression level: %i\n", compression_level);
-      printf("Window size: %i\n", -windowbits);
-      printf("Memory level: %i\n", memlevel);
-      }
-
-      // restore zLib header (decrease by 1)
-      own_fread(in, 1, 2, fin);
-      unsigned char decchar = *(in + 1) - 1;
-      own_fwrite(in, 1, 1, fout);
-      fputc(decchar, fout);
-
-      // read penalty bytes
-      if (penalty_bytes_stored) {
-        penalty_bytes_len = (fin_fgetc() << 24);
-        penalty_bytes_len += (fin_fgetc() << 16);
-        penalty_bytes_len += (fin_fgetc() << 8);
-        penalty_bytes_len += fin_fgetc();
-        own_fread(penalty_bytes, 1, penalty_bytes_len, fin);
-      }
-
-      long long recompressed_data_length = fin_fget64();
-      long long decompressed_data_length = fin_fget64();
-
-      long long recursion_data_length = 0;
-      if (recursion_used) {
-        recursion_data_length = fin_fget64();
-      }
-
-      if (DEBUG_MODE) {
-        if (recursion_used) {
-          cout << "Recursion data length: " << recursion_data_length << endl;
-        } else {
-          cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
-        }
-      }
-
-      long long old_fout_pos = tell_64(fout);
-
-      if (recursion_used) {
-        recursion_result r = recursion_decompress(recursion_data_length);
-        retval = def_part(r.frecurse, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-        safe_fclose(&r.frecurse);
-        remove(r.file_name);
-        delete[] r.file_name;
-      } else {
-        retval = def_part(fin, fout, compression_level, windowbits, memlevel, decompressed_data_length, recompressed_data_length);
-      }
-
-      if (retval != Z_OK) {
+      if (!ok) {
         printf("Error recompressing data!");
-        cout << "retval = " << retval << endl;
         exit(0);
       }
-
-      if (penalty_bytes_stored) {
-        fflush(fout);
-
-        long long fsave_fout_pos = tell_64(fout);
-
-        int pb_pos = 0;
-        for (int pbc = 0; pbc < penalty_bytes_len; pbc += 5) {
-          pb_pos = ((unsigned char)penalty_bytes[pbc]) << 24;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 1]) << 16;
-          pb_pos += ((unsigned char)penalty_bytes[pbc + 2]) << 8;
-          pb_pos += (unsigned char)penalty_bytes[pbc + 3];
-
-          seek_64(fout, old_fout_pos + pb_pos);
-          own_fwrite(penalty_bytes + pbc + 4, 1, 1, fout);
-        }
-
-        seek_64(fout, fsave_fout_pos);
-      }
-    } else {
+      break;
+    }
+    default:
       printf("ERROR: Unsupported stream type %i\n", headertype);
       exit(0);
     }
@@ -6015,24 +5194,6 @@ void convert_file() {
   denit_convert();
 }
 
-long long try_to_decompress(FILE* file, int windowbits, long long& compressed_stream_size, bool& in_memory) {
-  long long r, decompressed_stream_size;
-
-  print_work_sign(true);
-
-  if (file == fin) {
-    seek_64(file, input_file_pos);
-  } else {
-    seek_64(file, 0);
-  }
-
-  in_memory = true;
-  r = inf(file, windowbits, compressed_stream_size, decompressed_stream_size, in_memory);
-  if (r == Z_OK) return decompressed_stream_size;
-
-  return r;
-}
-
 long long try_to_decompress_bzip2(FILE* file, int compression_level, long long& compressed_stream_size) {
   long long r, decompressed_stream_size;
 
@@ -6051,58 +5212,6 @@ long long try_to_decompress_bzip2(FILE* file, int compression_level, long long& 
   if (r == Z_OK) return decompressed_stream_size;
 
   return r;
-}
-
-void try_recompress(FILE* origfile, int comp_level, int mem_level, int windowbits, long long& compressed_stream_size, long long decomp_bytes_total, bool in_memory) {
-            print_work_sign(true);
-
-            identical_bytes = file_recompress(origfile, comp_level, windowbits, mem_level, identical_bytes_decomp, decomp_bytes_total, in_memory);
-            if (identical_bytes > -1) { // successfully recompressed?
-              if ((identical_bytes > best_identical_bytes) || ((identical_bytes == best_identical_bytes) && (penalty_bytes_len < best_penalty_bytes_len))) {
-                if (identical_bytes > min_ident_size) {
-                  if (DEBUG_MODE) {
-                  cout << "Identical recompressed bytes: " << identical_bytes << " of " << compressed_stream_size << endl;
-                  cout << "Identical decompressed bytes: " << identical_bytes_decomp << " of " << decomp_bytes_total << endl;
-                  }
-
-                  bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
-                  if (!enough_identical_compressed_bytes) {
-                    if ((identical_bytes > DEF_COMPARE_CHUNK) && (identical_bytes + IDENTICAL_COMPRESSED_BYTES_TOLERANCE >= compressed_stream_size)) {
-                      enough_identical_compressed_bytes = true;
-                    }
-                  }
-
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (enough_identical_compressed_bytes) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
-
-                  // Partial matches sometimes need all the decompressed bytes, but there are much less
-                  // identical recompressed bytes - in these cases, all the decompressed bytes have to
-                  // be stored together with the remaining recompressed bytes, so the result won't compress
-                  // better than the original stream. What's important here is the ratio between recompressed ratio
-                  // and decompressed ratio that shouldn't get too high.
-                  // Example: A stream has 5 of 1000 identical recompressed bytes, but needs 1000 of 1000 decompressed bytes,
-                  // so the ratio is (1000/1000)/(5/1000) = 200 which is too high. With 5 of 1000 decompressed bytes or
-                  // 1000 of 1000 identical recompressed bytes, ratio would've been 1 and we'd accept it.
-                  float partial_ratio = ((float)identical_bytes_decomp / decomp_bytes_total) / ((float)identical_bytes / compressed_stream_size);
-                  if (partial_ratio < 3.0f) {
-                    best_identical_bytes_decomp = identical_bytes_decomp;
-                    best_identical_bytes = identical_bytes;
-                    best_compression = comp_level;
-                    best_mem_level = mem_level;
-                    best_windowbits = windowbits;
-                    if (penalty_bytes_len > 0) {
-                      memcpy(best_penalty_bytes, penalty_bytes, penalty_bytes_len);
-                      best_penalty_bytes_len = penalty_bytes_len;
-                    } else {
-                      best_penalty_bytes_len = 0;
-                    }
-                  } else {
-                    if (DEBUG_MODE) {
-                    printf("Not enough identical recompressed bytes\n");
-                    }
-                  }
-                }
-              }
-            }
 }
 
 void try_recompress_bzip2(FILE* origfile, int level, long long& compressed_stream_size) {
@@ -6697,404 +5806,149 @@ long long compare_files_penalty(FILE* file1, FILE* file2, long long pos1, long l
 }
 
 void try_decompression_gzip(int gzip_header_length) {
-  init_decompression_variables();
-
-        int windowbits;
-
-        // try to decompress at current position
-        long long compressed_stream_size = -1;
-        bool in_memory;
-        retval = try_to_decompress(fin, -15, compressed_stream_size, in_memory);
-
-        if (retval > 0) { // seems to be a zLib-Stream
-
-          decompressed_streams_count++;
-          decompressed_gzip_count++;
-
-          if (DEBUG_MODE) {
-          print_debug_percent();
-          cout << "Possible zLib-Stream in GZip found at position " << saved_input_file_pos << endl;
-          cout << "Compressed size: " << compressed_stream_size << endl;
-          cout << "Can be decompressed to " << retval << " bytes" << endl;
-          }
-
-          for (windowbits = -15; windowbits < -7; windowbits++) {
-            for (int index = MTF.First(); index>=0; index=MTF.Next()){
-              if (comp_mem_level_count[index] == -1) continue;
-              int comp_level = (index % 9) + 1;
-              int mem_level = (index / 9) + 1;
-
-              try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
-
-              if (final_compression_found){ MTF.Update(); break; }
-            }
-            if (final_compression_found) break;
-          }
-
-          if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
-            recompressed_streams_count++;
-            recompressed_gzip_count++;
-
-            windowbits = best_windowbits;
-            if (DEBUG_MODE) {
-            cout << "Best match with level combination " << best_compression << best_mem_level << ", windowbits = " << -windowbits << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
-            }
-
-            if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
-              if (fast_mode) {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                for (int i = 0; i < 81; i++) {
-                  if (i != ((best_compression - 1) + (best_mem_level - 1) * 9)) {
-                    comp_mem_level_count[i] = -1;
-                  }
-                }
-                anything_was_used = true;
-              } else {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                anything_was_used = true;
-              }
-            }
-
-            // end uncompressed data
-
-            compressed_data_found = true;
-            end_uncompressed_data();
-
-            // check recursion
-            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
-            recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
-
-            // write compressed data header (GZip) without 2 first bytes
-
-            int header_byte = 1 + (best_compression << 2);
-            if (best_penalty_bytes_len != 0) {
-              header_byte += 2;
-            }
-            if (r.success) {
-              header_byte += 128;
-            }
-            fout_fputc(header_byte);
-            fout_fputc(2); // GZip
-            fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
-
-            gzip_header_length -= 2;
-
-            fout_fput24(gzip_header_length);
-
-            own_fwrite(in_buf + cb + 2, 1, gzip_header_length, fout);
-
-            // store penalty bytes, if any
-            if (best_penalty_bytes_len != 0) {
-              if (DEBUG_MODE) {
-                printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
-              }
-              fout_fput32(best_penalty_bytes_len);
-              for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
-                fout_fputc(best_penalty_bytes[pbc]);
-              }
-            }
-
-            fout_fput64(best_identical_bytes);
-            fout_fput64(best_identical_bytes_decomp);
-
-            if (r.success) {
-              fout_fput64(r.file_length);
-            }
-
-            // write decompressed data
-            if (r.success) {
-              write_decompressed_data(r.file_length, r.file_name);
-              remove(r.file_name);
-              delete[] r.file_name;
-            } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
-            }
-
-            // start new uncompressed data
-
-            // set input file pointer after recompressed data
-            input_file_pos += best_identical_bytes - 1;
-            cb += best_identical_bytes - 1;
-
-          } else {
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
-            if (DEBUG_MODE) {
-            printf("No matches\n");
-            }
-          }
-
-        }
-
-
+  try_decompression_deflate_type(decompressed_gzip_count, recompressed_gzip_count, 
+                                 D_GZIP, in_buf + cb + 2, gzip_header_length - 2, false,
+                                 "in GZIP");
 }
 
 void try_decompression_png (int windowbits) {
   init_decompression_variables();
 
-        // try to decompress at current position
-        long long compressed_stream_size = -1;
-        bool in_memory;
-        retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
+  // try to decompress at current position
+  recompress_deflate_result rdres = try_recompression_deflate(fin);
 
-        if (retval > 0) { // seems to be a zLib-Stream
+  if (rdres.uncompressed_stream_size > 0) { // seems to be a zLib-Stream
 
-          decompressed_streams_count++;
-          decompressed_png_count++;
+    decompressed_streams_count++;
+    decompressed_png_count++;
 
-          if (DEBUG_MODE) {
-          print_debug_percent();
-          cout << "Possible zLib-Stream in PNG found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          cout << "Compressed size: " << compressed_stream_size << endl;
-          cout << "Can be decompressed to " << retval << " bytes" << endl;
-          }
+    debug_deflate_detected(rdres, "in PNG");
 
-          for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) continue;
-            int comp_level = (index % 9) + 1;
-            int mem_level = (index / 9) + 1;
+    if (rdres.accepted) {
+      recompressed_streams_count++;
+      recompressed_png_count++;
 
-            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
+      non_zlib_was_used = true;
 
-            if (final_compression_found){ MTF.Update(); break; }
-          }
+      debug_sums(rdres);
 
-          if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
-            recompressed_streams_count++;
-            recompressed_png_count++;
+      // end uncompressed data
+      compressed_data_found = true;
+      end_uncompressed_data();
 
-            if (DEBUG_MODE) {
-            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
-            }
+      debug_pos();
 
-            if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
-              if (fast_mode) {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                for (int i = 0; i < 81; i++) {
-                  if (i != ((best_compression - 1) + (best_mem_level - 1) * 9)) {
-                    comp_mem_level_count[i] = -1;
-                  }
-                }
-                anything_was_used = true;
-              } else {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                anything_was_used = true;
-              }
-            }
+      // write compressed data header (PNG)
+      fout_fput_deflate_hdr(D_PNG, 0, rdres, zlib_header, 2, true);
 
-            // end uncompressed data
+      // write reconstruction and decompressed data
+      fout_fput_recon_data(rdres);
+      fout_fput_uncompressed(rdres);
 
-            compressed_data_found = true;
-            end_uncompressed_data();
+      debug_pos();
+      // set input file pointer after recompressed data
+      input_file_pos += rdres.compressed_stream_size - 1;
+      cb += rdres.compressed_stream_size - 1;
 
-            // write compressed data header (PNG)
-
-            if (best_penalty_bytes_len == 0) {
-              fout_fputc(1 + (best_compression << 2));
-            } else {
-              fout_fputc(1 + 2 + (best_compression << 2));
-            }
-            fout_fputc(3); // PNG
-            fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
-
-            // store zLib header, but increased by 1 to prevent finding it
-            //   again in the next pass
-            own_fwrite(zlib_header, 1, 1, fout);
-            unsigned char incchar = *(zlib_header + 1) + 1;
-            fout_fputc(incchar);
-
-            // store penalty bytes, if any
-            if (best_penalty_bytes_len != 0) {
-              if (DEBUG_MODE) {
-                printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
-              }
-              fout_fput32(best_penalty_bytes_len);
-              for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
-                fout_fputc(best_penalty_bytes[pbc]);
-              }
-            }
-
-            fout_fput64(best_identical_bytes);
-            fout_fput64(best_identical_bytes_decomp);
-
-            // write decompressed data
-
-            write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
-
-            // start new uncompressed data
-
-            // set input file pointer after recompressed data
-            input_file_pos += best_identical_bytes - 1;
-            cb += best_identical_bytes - 1;
-
-          } else {
-            if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
-            if (DEBUG_MODE) {
-            printf("No matches\n");
-            }
-          }
-
-        }
-
-
+    } else {
+      if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
+      if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
+      if (DEBUG_MODE) {
+        printf("No matches\n");
+      }
+    }
+  }
 }
 
-void try_decompression_png_multi(int windowbits) {
+void try_decompression_png_multi(FILE* fpng, int windowbits) {
   init_decompression_variables();
 
-        // try to decompress at current position
-        long long compressed_stream_size = -1;
-        bool in_memory;
-        retval = try_to_decompress(fpng, windowbits, compressed_stream_size, in_memory);
+  // try to decompress at current position
+  recompress_deflate_result rdres = try_recompression_deflate(fpng);
 
-        if (retval > 0) { // seems to be a zLib-Stream
+  if (rdres.uncompressed_stream_size > 0) { // seems to be a zLib-Stream
 
-          decompressed_streams_count++;
-          decompressed_png_multi_count++;
+    decompressed_streams_count++;
+    decompressed_png_multi_count++;
 
-          if (DEBUG_MODE) {
-          print_debug_percent();
-          cout << "Possible zLib-Stream in multiPNG found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          cout << "Compressed size: " << compressed_stream_size << endl;
-          cout << "Can be decompressed to " << retval << " bytes" << endl;
-          }
+    debug_deflate_detected(rdres, "in multiPNG");
 
-          for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) continue;
-            int comp_level = (index % 9) + 1;
-            int mem_level = (index / 9) + 1;
+    if (rdres.accepted) {
+      recompressed_streams_count++;
+      recompressed_png_multi_count++;
 
-            try_recompress(fpng, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
+      non_zlib_was_used = true;
 
-            if (final_compression_found){ MTF.Update(); break; }
-          }
+      debug_sums(rdres);
 
-          if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
-            recompressed_streams_count++;
-            recompressed_png_multi_count++;
+      // end uncompressed data
+      compressed_data_found = true;
+      end_uncompressed_data();
 
-            if (DEBUG_MODE) {
-            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
-            }
+      debug_pos();
 
-            if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
-              if (fast_mode) {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                for (int i = 0; i < 81; i++) {
-                  if (i != ((best_compression - 1) + (best_mem_level - 1) * 9)) {
-                    comp_mem_level_count[i] = -1;
-                  }
-                }
-                anything_was_used = true;
-              } else {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                anything_was_used = true;
-              }
-            }
+      // write compressed data header (PNG)
+      fout_fput_deflate_hdr(D_MULTIPNG, 0, rdres, zlib_header, 2, true);
 
-            // end uncompressed data
+      // simulate IDAT write to get IDAT pairs count
+      int i = 1;
+      int idat_pos = idat_lengths[0] - 2;
+      unsigned int idat_pairs_written_count = 0;
+      if (idat_pos < rdres.compressed_stream_size) {
+        do {
+          idat_pairs_written_count++;
 
-            compressed_data_found = true;
-            end_uncompressed_data();
+          idat_pos += idat_lengths[i];
+          if (idat_pos >= rdres.compressed_stream_size) break;
 
-            // write compressed data header (PNG)
+          i++;
+        } while (i < idat_count);
+      }
+      // store IDAT pairs count
+      fout_fput_vlint(idat_pairs_written_count);
 
-            if (best_penalty_bytes_len == 0) {
-              fout_fputc(1 + (best_compression << 2));
-            } else {
-              fout_fputc(1 + 2 + (best_compression << 2));
-            }
-            fout_fputc(4); // PNG multi
-            fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
+      // store IDAT CRCs and lengths
+      fout_fput_vlint(idat_lengths[0]);
 
-            // store zLib header, but increased by 1 to prevent finding it
-            //   again in the next pass
-            own_fwrite(zlib_header, 1, 1, fout);
-            unsigned char incchar = *(zlib_header + 1) + 1;
-            fout_fputc(incchar);
+      // store IDAT CRCs and lengths
+      i = 1;
+      idat_pos = idat_lengths[0] - 2;
+      idat_pairs_written_count = 0;
+      if (idat_pos < rdres.compressed_stream_size) {
+        do {
+          fout_fput32(idat_crcs[i]);
+          fout_fput_vlint(idat_lengths[i]);
 
-            // simulate IDAT write to get IDAT pairs count
-            int i = 1;
-            int idat_pos = idat_lengths[0] - 2;
-            unsigned int idat_pairs_written_count = 0;
-            if (idat_pos <= best_identical_bytes) {
-              do {
-                idat_pairs_written_count++;
+          idat_pairs_written_count++;
 
-                idat_pos += idat_lengths[i];
-                if (idat_pos > best_identical_bytes) break;
+          idat_pos += idat_lengths[i];
+          if (idat_pos >= rdres.compressed_stream_size) break;
 
-                i++;
-              } while (i < idat_count);
-            }
-            // store IDAT pairs count
-            fout_fput16(idat_pairs_written_count);
+          i++;
+        } while (i < idat_count);
+      }
 
-            // store IDAT CRCs and lengths
-            fout_fput32(idat_lengths[0]);
+      // write reconstruction and decompressed data
+      fout_fput_recon_data(rdres);
+      fout_fput_uncompressed(rdres);
 
-            // store IDAT CRCs and lengths
-            i = 1;
-            idat_pos = idat_lengths[0] - 2;
-            idat_pairs_written_count = 0;
-            if (idat_pos <= best_identical_bytes) {
-              do {
-                fout_fput32(idat_crcs[i]);
-                fout_fput32(idat_lengths[i]);
+      debug_pos();
 
-                idat_pairs_written_count++;
+      // set input file pointer after recompressed data
+      input_file_pos += rdres.compressed_stream_size - 1;
+      cb += rdres.compressed_stream_size - 1;
+      // now add IDAT chunk overhead
+      input_file_pos += (idat_pairs_written_count * 12);
+      cb += (idat_pairs_written_count * 12);
 
-                idat_pos += idat_lengths[i];
-                if (idat_pos > best_identical_bytes) break;
-
-                i++;
-              } while (i < idat_count);
-            }
-
-            // store penalty bytes, if any
-            if (best_penalty_bytes_len != 0) {
-              if (DEBUG_MODE) {
-                printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
-              }
-              fout_fput32(best_penalty_bytes_len);
-              for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
-                fout_fputc(best_penalty_bytes[pbc]);
-              }
-            }
-
-            fout_fput64(best_identical_bytes);
-            fout_fput64(best_identical_bytes_decomp);
-
-            // write decompressed data
-
-            write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
-
-            // start new uncompressed data
-
-            // set input file pointer after recompressed data
-            input_file_pos += best_identical_bytes - 1;
-            cb += best_identical_bytes - 1;
-            // now add IDAT chunk overhead
-            input_file_pos += (idat_pairs_written_count * 12);
-            cb += (idat_pairs_written_count * 12);
-
-          } else {
-            if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
-            if (DEBUG_MODE) {
-            printf("No matches\n");
-            }
-          }
-
-        }
-
-
+    } else {
+      if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
+      if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
+      if (DEBUG_MODE) {
+        printf("No matches\n");
+      }
+    }
+  }
 }
 
 // GIF functions
@@ -7140,6 +5994,44 @@ int DGifGetLineByte(GifFileType *GifFile, GifPixelType *Line, int LineLen, GifCo
     return result;
 }
 
+unsigned char** alloc_gif_screenbuf(GifFileType* myGifFile) {
+  if (myGifFile->SHeight <= 0 || myGifFile->SWidth <= 0) {
+    return nullptr;
+  }
+  unsigned char** ScreenBuff = new unsigned char*[myGifFile->SHeight];
+  for (int i = 0; i < myGifFile->SHeight; i++) {
+    ScreenBuff[i] = new unsigned char[myGifFile->SWidth];
+  }
+
+  for (int i = 0; i < myGifFile->SWidth; i++)  /* Set its color to BackGround. */
+    ScreenBuff[0][i] = myGifFile->SBackGroundColor;
+  for (int i = 1; i < myGifFile->SHeight; i++) {
+    memcpy(ScreenBuff[i], ScreenBuff[0], myGifFile->SWidth);
+  }
+  return ScreenBuff;
+}
+void free_gif_screenbuf(unsigned char** ScreenBuff, GifFileType* myGifFile) {
+  if (ScreenBuff != NULL) {
+    for (int i = 0; i < myGifFile->SHeight; i++) {
+      delete[] ScreenBuff[i];
+    }
+    delete[] ScreenBuff;
+  }
+}
+
+bool r_gif_result(unsigned char** ScreenBuff, GifFileType* myGifFile, GifFileType* newGifFile, bool result) {
+  free_gif_screenbuf(ScreenBuff, myGifFile);
+  DGifCloseFile(myGifFile);
+  EGifCloseFile(newGifFile);
+  return result;
+}
+bool r_gif_error(unsigned char** ScreenBuff, GifFileType* myGifFile, GifFileType* newGifFile) {
+  return r_gif_result(ScreenBuff, myGifFile, newGifFile, false);
+}
+bool r_gif_ok(unsigned char** ScreenBuff, GifFileType* myGifFile, GifFileType* newGifFile) {
+  return r_gif_result(ScreenBuff, myGifFile, newGifFile, true);
+}
+
 bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifCodeStruct* g, GifDiffStruct* gd) {
   int i, j;
   long long last_pos = -1;
@@ -7166,46 +6058,27 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
 
   newGifFile->BlockSize = block_size;
 
-  unsigned char** ScreenBuff;
-
   if (newGifFile == NULL) {
     return false;
   }
-
-  ScreenBuff = new unsigned char*[myGifFile->SHeight];
-  for (i = 0; i < myGifFile->SHeight; i++) {
-    ScreenBuff[i] = new unsigned char[myGifFile->SWidth];
-  }
-
-  for (i = 0; i < myGifFile->SWidth; i++)  /* Set its color to BackGround. */
-    ScreenBuff[0][i] = myGifFile->SBackGroundColor;
-  for (i = 1; i < myGifFile->SHeight; i++) {
-    memcpy(ScreenBuff[i], ScreenBuff[0], myGifFile->SWidth);
+  unsigned char** ScreenBuff = alloc_gif_screenbuf(myGifFile);
+  if (!ScreenBuff) {
+    DGifCloseFile(myGifFile);
+    EGifCloseFile(newGifFile);
+    return false;
   }
 
   EGifPutScreenDesc(newGifFile, myGifFile->SWidth, myGifFile->SHeight, myGifFile->SColorResolution, myGifFile->SBackGroundColor, myGifFile->SPixelAspectRatio, myGifFile->SColorMap);
 
   do {
     if (DGifGetRecordType(myGifFile, &RecordType) == GIF_ERROR) {
-      for (i = 0; i < myGifFile->SHeight; i++) {
-        delete[] ScreenBuff[i];
-      }
-      delete[] ScreenBuff;
-      DGifCloseFile(myGifFile);
-      EGifCloseFile(newGifFile);
-      return false;
+      return r_gif_error(ScreenBuff, myGifFile, newGifFile);
     }
 
     switch (RecordType) {
       case IMAGE_DESC_RECORD_TYPE:
         if (DGifGetImageDesc(myGifFile) == GIF_ERROR) {
-          for (i = 0; i < myGifFile->SHeight; i++) {
-            delete[] ScreenBuff[i];
-          }
-          delete[] ScreenBuff;
-          DGifCloseFile(myGifFile);
-          EGifCloseFile(newGifFile);
-          return false;
+          return r_gif_error(ScreenBuff, myGifFile, newGifFile);
         }
 
         src_pos = tell_64(srcfile);
@@ -7239,13 +6112,7 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
 
         // this does send a clear code, so we pass g and gd
         if (EGifPutImageDesc(newGifFile, g, gd, Row, Col, Width, Height, myGifFile->Image.Interlace, myGifFile->Image.ColorMap) == GIF_ERROR) {
-          for (i = 0; i < myGifFile->SHeight; i++) {
-            delete[] ScreenBuff[i];
-          }
-          delete[] ScreenBuff;
-          DGifCloseFile(myGifFile);
-          EGifCloseFile(newGifFile);
-          return false;
+          return r_gif_error(ScreenBuff, myGifFile, newGifFile);
         }
 
         newgif_may_write = true;
@@ -7271,23 +6138,11 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
         /* Skip any extension blocks in file: */
 
         if (DGifGetExtension(myGifFile, &ExtCode, &Extension) == GIF_ERROR) {
-          for (i = 0; i < myGifFile->SHeight; i++) {
-            delete[] ScreenBuff[i];
-          }
-          delete[] ScreenBuff;
-          DGifCloseFile(myGifFile);
-          EGifCloseFile(newGifFile);
-          return false;
+          return r_gif_error(ScreenBuff, myGifFile, newGifFile);
         }
         while (Extension != NULL) {
           if (DGifGetExtensionNext(myGifFile, &Extension) == GIF_ERROR) {
-            for (i = 0; i < myGifFile->SHeight; i++) {
-              delete[] ScreenBuff[i];
-            }
-            delete[] ScreenBuff;
-            DGifCloseFile(myGifFile);
-            EGifCloseFile(newGifFile);
-            return false;
+            return r_gif_error(ScreenBuff, myGifFile, newGifFile);
           }
         }
         break;
@@ -7304,16 +6159,19 @@ bool recompress_gif(FILE* srcfile, FILE* dstfile, unsigned char block_size, GifC
     fast_copy(srcfile, dstfile, src_pos - last_pos);
     seek_64(srcfile, src_pos);
   }
+  return r_gif_ok(ScreenBuff, myGifFile, newGifFile);
+}
 
-  for (i = 0; i < myGifFile->SHeight; i++) {
-    delete[] ScreenBuff[i];
-  }
-  delete[] ScreenBuff;
-
+bool d_gif_result(unsigned char** ScreenBuff, GifFileType* myGifFile, bool result) {
+  free_gif_screenbuf(ScreenBuff, myGifFile);
   DGifCloseFile(myGifFile);
-  EGifCloseFile(newGifFile);
-
-  return true;
+  return result;
+}
+bool d_gif_error(unsigned char** ScreenBuff, GifFileType* myGifFile) {
+  return d_gif_result(ScreenBuff, myGifFile, false);
+}
+bool d_gif_ok(unsigned char** ScreenBuff, GifFileType* myGifFile) {
+  return d_gif_result(ScreenBuff, myGifFile, true);
 }
 
 bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_length, long long& decomp_length, unsigned char& block_size, GifCodeStruct* g) {
@@ -7344,27 +6202,15 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
     switch (RecordType) {
       case IMAGE_DESC_RECORD_TYPE:
         if (ScreenBuff == NULL) {
-          ScreenBuff = new unsigned char*[myGifFile->SHeight];
-          for (i = 0; i < myGifFile->SHeight; i++) {
-            ScreenBuff[i] = new unsigned char[myGifFile->SWidth];
-          }
-
-          for (i = 0; i < myGifFile->SWidth; i++)  /* Set its color to BackGround. */
-            ScreenBuff[0][i] = myGifFile->SBackGroundColor;
-          for (i = 1; i < myGifFile->SHeight; i++) {
-            memcpy(ScreenBuff[i], ScreenBuff[0], myGifFile->SWidth);
+          ScreenBuff = alloc_gif_screenbuf(myGifFile);
+          if (!ScreenBuff) {
+            DGifCloseFile(myGifFile);
+            return false;
           }
         }
 
         if (DGifGetImageDesc(myGifFile) == GIF_ERROR) {
-          if (ScreenBuff != NULL) {
-            for (i = 0; i < myGifFile->SHeight; i++) {
-              delete[] ScreenBuff[i];
-            }
-            delete[] ScreenBuff;
-          }
-          DGifCloseFile(myGifFile);
-          return false;
+          return d_gif_error(ScreenBuff, myGifFile);
         }
 
         srcfile_pos = tell_64(srcfile);
@@ -7401,14 +6247,7 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
 
         if (((Col + Width) > myGifFile->SWidth) ||
             ((Row + Height) > myGifFile->SHeight)) {
-             if (ScreenBuff != NULL) {
-               for (i = 0; i < myGifFile->SHeight; i++) {
-                 delete[] ScreenBuff[i];
-               }
-               delete[] ScreenBuff;
-             }
-             DGifCloseFile(myGifFile);
-             return false;
+          return d_gif_error(ScreenBuff, myGifFile);
         }
 
         if (myGifFile->Image.Interlace) {
@@ -7416,16 +6255,9 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
           for (i = 0; i < 4; i++) {
             for (j = Row + InterlacedOffset[i]; j < (Row + Height); j += InterlacedJumps[i]) {
               if (DGifGetLineByte(myGifFile, &ScreenBuff[j][Col], Width, g) == GIF_ERROR) {
-                if (ScreenBuff != NULL) {
-                  for (i = 0; i < myGifFile->SHeight; i++) {
-                    delete[] ScreenBuff[i];
-                  }
-                  delete[] ScreenBuff;
-                }
-                DGifCloseFile(myGifFile);
                 // TODO: If this fails, write as much rows to dstfile
                 //       as possible to support second decompression.
-                return false;
+                return d_gif_error(ScreenBuff, myGifFile);
               }
             }
           }
@@ -7436,14 +6268,7 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
         } else {
           for (i = Row; i < (Row + Height); i++) {
             if (DGifGetLineByte(myGifFile, &ScreenBuff[i][Col], Width, g) == GIF_ERROR) {
-              if (ScreenBuff != NULL) {
-                for (i = 0; i < myGifFile->SHeight; i++) {
-                  delete[] ScreenBuff[i];
-                }
-                delete[] ScreenBuff;
-              }
-              DGifCloseFile(myGifFile);
-              return false;
+              return d_gif_error(ScreenBuff, myGifFile);
             }
             // write to dstfile
             own_fwrite(&ScreenBuff[i][Col], 1, Width, dstfile);
@@ -7457,25 +6282,11 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
         /* Skip any extension blocks in file: */
 
         if (DGifGetExtension(myGifFile, &ExtCode, &Extension) == GIF_ERROR) {
-          if (ScreenBuff != NULL) {
-            for (i = 0; i < myGifFile->SHeight; i++) {
-              delete[] ScreenBuff[i];
-            }
-            delete[] ScreenBuff;
-          }
-          DGifCloseFile(myGifFile);
-          return false;
+          return d_gif_error(ScreenBuff, myGifFile);
         }
         while (Extension != NULL) {
           if (DGifGetExtensionNext(myGifFile, &Extension) == GIF_ERROR) {
-            if (ScreenBuff != NULL) {
-              for (i = 0; i < myGifFile->SHeight; i++) {
-                delete[] ScreenBuff[i];
-              }
-              delete[] ScreenBuff;
-            }
-            DGifCloseFile(myGifFile);
-            return false;
+            return d_gif_error(ScreenBuff, myGifFile);
           }
         }
         break;
@@ -7496,16 +6307,7 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
   gif_length = srcfile_pos - src_pos;
   decomp_length = tell_64(dstfile);
 
-  if (ScreenBuff != NULL) {
-    for (i = 0; i < myGifFile->SHeight; i++) {
-      delete[] ScreenBuff[i];
-    }
-    delete[] ScreenBuff;
-  }
-
-  DGifCloseFile(myGifFile);
-
-  return true;
+  return d_gif_ok(ScreenBuff, myGifFile);
 }
 
 void try_decompression_gif(unsigned char version[5]) {
@@ -7593,10 +6395,10 @@ void try_decompression_gif(unsigned char version[5]) {
         if (recompress_success_needed) add_bits += 128;
 
         fout_fputc(1 + add_bits);
-        fout_fputc(5); // GIF
+        fout_fputc(D_GIF); // GIF
 
         // store diff bytes
-        fout_fput32(gDiff.GIFDiffIndex);
+        fout_fput_vlint(gDiff.GIFDiffIndex);
         if(DEBUG_MODE) {
           if (gDiff.GIFDiffIndex > 0)
             printf("Diff bytes were used: %i bytes\n", gDiff.GIFDiffIndex);
@@ -7611,15 +6413,15 @@ void try_decompression_gif(unsigned char version[5]) {
             printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
           }
 
-          fout_fput32(best_penalty_bytes_len);
+          fout_fput_vlint(best_penalty_bytes_len);
 
           for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
             fout_fputc(best_penalty_bytes[pbc]);
           }
         }
 
-        fout_fput64(best_identical_bytes);
-        fout_fput64(decomp_length);
+        fout_fput_vlint(best_identical_bytes);
+        fout_fput_vlint(decomp_length);
 
         // write decompressed data
         write_decompressed_data(decomp_length);
@@ -7831,10 +6633,10 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           } else {
             fout_fputc(1); // no penalty bytes
           }
-          fout_fputc(6); // JPG
+          fout_fputc(D_JPG); // JPG
 
-          fout_fput64(best_identical_bytes);
-          fout_fput64(best_identical_bytes_decomp);
+          fout_fput_vlint(best_identical_bytes);
+          fout_fput_vlint(best_identical_bytes_decomp);
 
           // write compressed JPG
           if (in_memory) {
@@ -7977,10 +6779,10 @@ void try_decompression_mp3 (long long mp3_length) {
           // write compressed data header (MP3)
 
           fout_fputc(1); // no penalty bytes
-          fout_fputc(10); // MP3
+          fout_fputc(D_MP3); // MP3
 
-          fout_fput64(best_identical_bytes);
-          fout_fput64(best_identical_bytes_decomp);
+          fout_fput_vlint(best_identical_bytes);
+          fout_fput_vlint(best_identical_bytes_decomp);
 
           // write compressed MP3
           if (in_memory) {
@@ -8042,6 +6844,7 @@ bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsign
         region1_size = (char)side_reader->read(3);
         if (region0_size + region1_size > 20) {
           // region size out of bounds
+          delete side_reader;
           return false;
         }
       } else {
@@ -8051,7 +6854,7 @@ bool is_valid_mp3_frame(unsigned char* frame_data, unsigned char header2, unsign
     }
   }
 
-  delete(side_reader);
+  delete side_reader;
 
   return true;
 }
@@ -8075,387 +6878,21 @@ inline unsigned short mp3_calc_layer3_crc(unsigned char header2, unsigned char h
 }
 
 void try_decompression_zlib(int windowbits) {
-  init_decompression_variables();
-
-        // try to decompress at current position
-        long long compressed_stream_size = -1;
-        bool in_memory;
-        retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
-
-        if (retval > 0) { // seems to be a zLib-Stream
-
-          decompressed_streams_count++;
-          decompressed_zlib_count++;
-
-          if (DEBUG_MODE) {
-          print_debug_percent();
-          cout << "Possible zLib-Stream (intense mode) found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          cout << "Compressed size: " << compressed_stream_size << endl;
-          cout << "Can be decompressed to " << retval << " bytes" << endl;
-          }
-
-          for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) continue;
-            int comp_level = (index % 9) + 1;
-            int mem_level = (index / 9) + 1;
-
-            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
-
-            if (final_compression_found){ MTF.Update(); break; }
-          }
-
-          if ((best_identical_bytes > min_ident_size_intense_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
-            recompressed_streams_count++;
-            recompressed_zlib_count++;
-
-            if (DEBUG_MODE) {
-            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
-            }
-
-            if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
-              if (fast_mode) {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                for (int i = 0; i < 81; i++) {
-                  if (i != ((best_compression - 1) + (best_mem_level - 1) * 9)) {
-                    comp_mem_level_count[i] = -1;
-                  }
-                }
-                anything_was_used = true;
-              } else {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                anything_was_used = true;
-              }
-            }
-
-            // end uncompressed data
-
-            compressed_data_found = true;
-            end_uncompressed_data();
-
-            // check recursion
-            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
-            recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
-
-            // write compressed data header (zLib)
-
-            int header_byte = 1 + (best_compression << 2);
-            if (best_penalty_bytes_len != 0) {
-              header_byte += 2;
-            }
-            if (r.success) {
-              header_byte += 128;
-            }
-            fout_fputc(header_byte);
-            fout_fputc(255); // raw zLib
-            fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
-
-            // store zLib header, but increased by 1 to prevent finding it
-            //   again in the next pass
-            own_fwrite(in_buf + cb, 1, 1, fout);
-            unsigned char incchar = *(in_buf + cb + 1) + 1;
-            fout_fputc(incchar);
-
-            // store penalty bytes, if any
-            if (best_penalty_bytes_len != 0) {
-              if (DEBUG_MODE) {
-                printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
-              }
-              fout_fput32(best_penalty_bytes_len);
-              for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
-                fout_fputc(best_penalty_bytes[pbc]);
-              }
-            }
-
-            fout_fput64(best_identical_bytes);
-            fout_fput64(best_identical_bytes_decomp);
-
-            if (r.success) {
-              fout_fput64(r.file_length);
-            }
-
-            // write decompressed data
-            if (r.success) {
-              write_decompressed_data(r.file_length, r.file_name);
-              remove(r.file_name);
-              delete[] r.file_name;
-            } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
-            }
-
-            // start new uncompressed data
-
-            // set input file pointer after recompressed data
-            input_file_pos += best_identical_bytes - 1;
-            cb += best_identical_bytes - 1;
-
-          } else {
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
-            if (DEBUG_MODE) {
-            printf("No matches\n");
-            }
-          }
-
-        }
-
-
+  try_decompression_deflate_type(decompressed_zlib_count, recompressed_zlib_count, 
+                                 D_RAW, in_buf + cb, 2, true,
+                                 "(intense mode)");
 }
 
 void try_decompression_brute() {
-  init_decompression_variables();
-
-        int windowbits;
-
-        // try to decompress at current position
-        long long compressed_stream_size = -1;
-        bool in_memory;
-        retval = try_to_decompress(fin, -15, compressed_stream_size, in_memory);
-
-        if (retval > 0) { // seems to be a zLib-Stream
-
-          decompressed_streams_count++;
-          decompressed_brute_count++;
-
-          if (DEBUG_MODE) {
-          print_debug_percent();
-          cout << "Possible zLib-Stream (brute mode) found at position " << saved_input_file_pos << endl;
-          cout << "Compressed size: " << compressed_stream_size << endl;
-          cout << "Can be decompressed to " << retval << " bytes" << endl;
-          }
-
-          for (windowbits = -15; windowbits < -7; windowbits++) {
-            for (int index = MTF.First(); index>=0; index=MTF.Next()){
-              if (comp_mem_level_count[index] == -1) continue;
-              int comp_level = (index % 9) + 1;
-              int mem_level = (index / 9) + 1;
-
-              try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
-
-              if (final_compression_found){ MTF.Update(); break; }
-            }
-            if (final_compression_found) break;
-          }
-
-          if ((best_identical_bytes > min_ident_size_intense_brute_mode) && (best_identical_bytes < best_identical_bytes_decomp)) {
-            recompressed_streams_count++;
-            recompressed_brute_count++;
-
-            windowbits = best_windowbits;
-            if (DEBUG_MODE) {
-            cout << "Best match with level combination " << best_compression << best_mem_level << ", windowbits = " << -windowbits << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
-            }
-
-            if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
-              if (fast_mode) {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                for (int i = 0; i < 81; i++) {
-                  if (i != ((best_compression - 1) + (best_mem_level - 1) * 9)) {
-                    comp_mem_level_count[i] = -1;
-                  }
-                }
-                anything_was_used = true;
-              } else {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                anything_was_used = true;
-              }
-            }
-
-            // end uncompressed data
-
-            compressed_data_found = true;
-            end_uncompressed_data();
-
-            // check recursion
-            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
-            recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
-
-            // write compressed data header (brute)
-
-            int header_byte = 1 + (best_compression << 2);
-            if (best_penalty_bytes_len != 0) {
-              header_byte += 2;
-            }
-            if (r.success) {
-              header_byte += 128;
-            }
-            fout_fputc(header_byte);
-            fout_fputc(254); // brute
-            fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
-
-            // store penalty bytes, if any
-            if (best_penalty_bytes_len != 0) {
-              if (DEBUG_MODE) {
-                printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
-              }
-              fout_fput32(best_penalty_bytes_len);
-              for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
-                fout_fputc(best_penalty_bytes[pbc]);
-              }
-            }
-
-            fout_fput64(best_identical_bytes);
-            fout_fput64(best_identical_bytes_decomp);
-
-            if (r.success) {
-              fout_fput64(r.file_length);
-            }
-
-            // write decompressed data
-            if (r.success) {
-              write_decompressed_data(r.file_length, r.file_name);
-              remove(r.file_name);
-              delete[] r.file_name;
-            } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
-            }
-
-            // set input file pointer after recompressed data
-            input_file_pos += best_identical_bytes - 1;
-            cb += best_identical_bytes - 1;
-
-          } else {
-            if (DEBUG_MODE) {
-            printf("No matches\n");
-            }
-          }
-
-        }
-
-
+  try_decompression_deflate_type(decompressed_brute_count, recompressed_brute_count, 
+                                 D_BRUTE, in_buf + cb, 0, false,
+                                 "(brute mode)");
 }
 
 void try_decompression_swf(int windowbits) {
-  init_decompression_variables();
-
-        // try to decompress at current position
-        long long compressed_stream_size = -1;
-        bool in_memory;
-        retval = try_to_decompress(fin, windowbits, compressed_stream_size, in_memory);
-
-        if (retval > 0) { // seems to be a zLib-Stream
-
-          decompressed_streams_count++;
-          decompressed_swf_count++;
-
-          if (DEBUG_MODE) {
-          print_debug_percent();
-          cout << "Possible zLib-Stream in SWF found at position " << saved_input_file_pos << ", windowbits = " << -windowbits << endl;
-          cout << "Compressed size: " << compressed_stream_size << endl;
-          cout << "Can be decompressed to " << retval << " bytes" << endl;
-          }
-
-          for (int index = MTF.First(); index>=0; index=MTF.Next()){
-            if (comp_mem_level_count[index] == -1) continue;
-            int comp_level = (index % 9) + 1;
-            int mem_level = (index / 9) + 1;
-
-            try_recompress(fin, comp_level, mem_level, windowbits, compressed_stream_size, retval, in_memory);
-
-            if (final_compression_found){ MTF.Update(); break; }
-          }
-
-          if ((best_identical_bytes > min_ident_size) && (best_identical_bytes < best_identical_bytes_decomp)) {
-            recompressed_streams_count++;
-            recompressed_swf_count++;
-
-            if (DEBUG_MODE) {
-            cout << "Best match with level combination " << best_compression << best_mem_level << ": " << best_identical_bytes << " bytes, decompressed to " << best_identical_bytes_decomp << " bytes" << endl;
-            }
-
-            if (!(comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9] == -1)) {
-              if (fast_mode) {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                for (int i = 0; i < 81; i++) {
-                  if (i != ((best_compression - 1) + (best_mem_level - 1) * 9)) {
-                    comp_mem_level_count[i] = -1;
-                  }
-                }
-                anything_was_used = true;
-              } else {
-                comp_mem_level_count[(best_compression - 1) + (best_mem_level - 1) * 9]++;
-                zlib_level_was_used[(best_compression - 1) + (best_mem_level - 1) * 9] = true;
-                anything_was_used = true;
-              }
-            }
-
-            // end uncompressed data
-
-            compressed_data_found = true;
-            end_uncompressed_data();
-
-            // check recursion
-            write_ftempout_if_not_present(best_identical_bytes_decomp, in_memory);
-            recursion_result r = recursion_compress(best_identical_bytes, best_identical_bytes_decomp);
-
-            // write compressed data header (SWF)
-
-            int header_byte = 1 + (best_compression << 2);
-            if (best_penalty_bytes_len != 0) {
-              header_byte += 2;
-            }
-            if (r.success) {
-              header_byte += 128;
-            }
-            fout_fputc(header_byte);
-            fout_fputc(7); // SWF
-            fout_fputc((((-windowbits) - 8) << 4) + best_mem_level);
-
-            // store version and length from SWF header
-            own_fwrite(in_buf + cb + 3, 1, 5, fout);
-
-            // store zLib header, but increased by 1 to prevent finding it
-            //   again in the next pass
-            own_fwrite(in_buf + cb + 8, 1, 1, fout);
-            unsigned char incchar = *(in_buf + cb + 9) + 1;
-            fout_fputc(incchar);
-
-            // store penalty bytes, if any
-            if (best_penalty_bytes_len != 0) {
-              if (DEBUG_MODE) {
-                printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
-              }
-              fout_fput32(best_penalty_bytes_len);
-              for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
-                fout_fputc(best_penalty_bytes[pbc]);
-              }
-            }
-
-            fout_fput64(best_identical_bytes);
-            fout_fput64(best_identical_bytes_decomp);
-
-            if (r.success) {
-              fout_fput64(r.file_length);
-            }
-
-            // write decompressed data
-            if (r.success) {
-              write_decompressed_data(r.file_length, r.file_name);
-              remove(r.file_name);
-              delete[] r.file_name;
-            } else {
-              write_decompressed_data_io_buf(best_identical_bytes_decomp, in_memory);
-            }
-
-            // start new uncompressed data
-
-            // set input file pointer after recompressed data
-            input_file_pos += best_identical_bytes - 1;
-            cb += best_identical_bytes - 1;
-
-          } else {
-            if (intense_mode_is_active()) intense_ignore_offsets->insert(input_file_pos - 2);
-            if (brute_mode_is_active()) brute_ignore_offsets->insert(input_file_pos);
-            if (DEBUG_MODE) {
-            printf("No matches\n");
-            }
-          }
-
-        }
-
+  try_decompression_deflate_type(decompressed_swf_count, recompressed_swf_count, 
+                                 D_SWF, in_buf + cb + 3, 7, true,
+                                 "in SWF");
 }
 
 void try_decompression_bzip2(int compression_level) {
@@ -8511,7 +6948,7 @@ void try_decompression_bzip2(int compression_level) {
               header_byte += 128;
             }
             fout_fputc(header_byte);
-            fout_fputc(9); // Base64
+            fout_fputc(D_BZIP2); // Base64
             fout_fputc(compression_level);
 
             // store penalty bytes, if any
@@ -8519,17 +6956,17 @@ void try_decompression_bzip2(int compression_level) {
               if (DEBUG_MODE) {
                 printf("Penalty bytes were used: %i bytes\n", best_penalty_bytes_len);
               }
-              fout_fput32(best_penalty_bytes_len);
+              fout_fput_vlint(best_penalty_bytes_len);
               for (int pbc = 0; pbc < best_penalty_bytes_len; pbc++) {
                 fout_fputc(best_penalty_bytes[pbc]);
               }
             }
 
-            fout_fput64(best_identical_bytes);
-            fout_fput64(best_identical_bytes_decomp);
+            fout_fput_vlint(best_identical_bytes);
+            fout_fput_vlint(best_identical_bytes_decomp);
 
             if (r.success) {
-              fout_fput64(r.file_length);
+              fout_fput_vlint(r.file_length);
             }
 
             // write decompressed data
@@ -8835,15 +7272,15 @@ void try_decompression_base64(int base64_header_length) {
               header_byte += 128;
             }
             fout_fputc(header_byte);
-            fout_fputc(8); // Base64
+            fout_fputc(D_BASE64); // Base64
 
-            fout_fput16(base64_header_length);
+            fout_fput_vlint(base64_header_length);
 
             // write "header", but change first char to prevent re-detection
             fout_fputc(in_buf[cb] - 1);
             own_fwrite(in_buf + cb + 1, 1, base64_header_length - 1, fout);
 
-            fout_fput16(line_count);
+            fout_fput_vlint(line_count);
             if (line_case == 2) {
               for (i = 0; i < line_count; i++) {
                 fout_fputc(base64_line_len[i]);
@@ -8855,11 +7292,11 @@ void try_decompression_base64(int base64_header_length) {
 
             delete[] base64_line_len;
 
-            fout_fput64(identical_bytes);
-            fout_fput64(identical_bytes_decomp);
+            fout_fput_vlint(identical_bytes);
+            fout_fput_vlint(identical_bytes_decomp);
 
             if (r.success) {
-              fout_fput64(r.file_length);
+              fout_fput_vlint(r.file_length);
             }
 
             // write decompressed data
@@ -8996,7 +7433,9 @@ long long fileSize64(char* filename) {
     unsigned long s1 = 0, s2 = 0;
 
     #ifdef _MSC_VER
-    HANDLE h = CreateFile(convertCharArrayToLPCWSTR(filename), 0, (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    wchar_t* wfilename = convertCharArrayToLPCWSTR(filename);
+    HANDLE h = CreateFile(wfilename, 0, (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    delete[] wfilename;
     #else
     HANDLE h = CreateFile(filename, 0, (FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     #endif
@@ -9281,6 +7720,14 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
   }
   tmp_r.success = compress_file(recursion_min_percent, recursion_max_percent);
 
+  delete intense_ignore_offsets;
+  delete brute_ignore_offsets;
+  delete[] input_file_name;
+  delete[] output_file_name;
+  delete[] penalty_bytes;
+  delete[] local_penalty_bytes;
+  delete[] best_penalty_bytes;
+
   if (anything_was_used)
     rescue_anything_was_used = true;
 
@@ -9307,6 +7754,8 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
 
   if (!tmp_r.success) {
     remove(tmp_r.file_name);
+    delete[] tmp_r.file_name;
+    tmp_r.file_name = NULL;
   } else {
     if ((recursion_depth + 1) > max_recursion_depth_used)
       max_recursion_depth_used = (recursion_depth + 1);
@@ -9315,6 +7764,11 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
   }
 
   return tmp_r;
+}
+recursion_result recursion_write_file_and_compress(const recompress_deflate_result& rdres) {
+  write_ftempout_if_not_present(rdres.uncompressed_stream_size, rdres.uncompressed_in_memory);
+  recursion_result r = recursion_compress(rdres.compressed_stream_size, rdres.uncompressed_stream_size);
+  return r;
 }
 
 recursion_result recursion_decompress(long long recursion_data_length) {
@@ -9362,6 +7816,12 @@ recursion_result recursion_decompress(long long recursion_data_length) {
   }
   decompress_file();
 
+  delete[] input_file_name;
+  delete[] output_file_name;
+  delete[] penalty_bytes;
+  delete[] local_penalty_bytes;
+  delete[] best_penalty_bytes;
+
   recursion_depth--;
   recursion_pop();
 
@@ -9408,17 +7868,6 @@ void fout_fputc(char c) {
   }
 }
 
-void fout_fput16(int v) {
-  fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);
-}
-
-void fout_fput24(int v) {
-  fout_fputc((v >> 16) % 256);
-  fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);
-}
-
 void fout_fput32_little_endian(int v) {
   fout_fputc(v % 256);
   fout_fputc((v >> 8) % 256);
@@ -9440,26 +7889,116 @@ void fout_fput32(unsigned int v) {
   fout_fputc(v % 256);
 }
 
-void fout_fput64(long long v) {
-  fout_fputc((v >> 56) % 256);
-  fout_fputc((v >> 48) % 256);
-  fout_fputc((v >> 40) % 256);
-  fout_fputc((v >> 32) % 256);
-  fout_fputc((v >> 24) % 256);
-  fout_fputc((v >> 16) % 256);
-  fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);
+void fout_fput_vlint(unsigned long long v) {
+  while (v >= 128) {
+    fout_fputc((v & 127) + 128);
+    v = (v >> 7) - 1;
+  }
+  fout_fputc(v);
 }
+void fout_fput_deflate_hdr(const unsigned char type, const unsigned char flags, 
+                           const recompress_deflate_result& rdres,
+                           const unsigned char* hdr, const unsigned hdr_length,
+                           const bool inc_last_hdr_byte) {
+  fout_fputc(1 + (rdres.zlib_perfect ? rdres.zlib_comp_level << 2 : 2) + flags);
+  fout_fputc(type); // PDF/PNG/...
+  if (rdres.zlib_perfect) {
+    fout_fputc(((rdres.zlib_window_bits - 8) << 4) + rdres.zlib_mem_level);
+  }
+  fout_fput_vlint(hdr_length);
+  if (!inc_last_hdr_byte) {
+    own_fwrite(hdr, 1, hdr_length, fout);
+  } else {
+    own_fwrite(hdr, 1, hdr_length - 1, fout);
+    fout_fputc(hdr[hdr_length - 1] + 1);
+  }
+}
+void fin_fget_deflate_hdr(recompress_deflate_result& rdres, const unsigned char flags, 
+                          unsigned char* hdr_data, unsigned& hdr_length, 
+                          const bool inc_last_hdr_byte) {
+  rdres.zlib_perfect = (flags & 2) == 0;
+  if (rdres.zlib_perfect) {
+    unsigned char zlib_params = fin_fgetc();
+    rdres.zlib_comp_level  = (flags & 0x3c) >> 2;
+    rdres.zlib_mem_level   = zlib_params & 0x0f;
+    rdres.zlib_window_bits = ((zlib_params >> 4) & 0x7) + 8;
+  }
+  hdr_length = fin_fget_vlint();
+  if (!inc_last_hdr_byte) {
+    own_fread(hdr_data, 1, hdr_length, fin);
+  } else {
+    own_fread(hdr_data, 1, hdr_length - 1, fin);
+    hdr_data[hdr_length - 1] = fin_fgetc() - 1;
+  }
+  own_fwrite(hdr_data, 1, hdr_length, fout);
+}
+void fout_fput_recon_data(const recompress_deflate_result& rdres) {
+  if (!rdres.zlib_perfect) {
+    fout_fput_vlint(rdres.recon_data.size());
+    own_fwrite(rdres.recon_data.data(), 1, rdres.recon_data.size(), fout);
+  }
 
-void fout_fput64(unsigned long long v) {
-  fout_fputc((v >> 56) % 256);
-  fout_fputc((v >> 48) % 256);
-  fout_fputc((v >> 40) % 256);
-  fout_fputc((v >> 32) % 256);
-  fout_fputc((v >> 24) % 256);
-  fout_fputc((v >> 16) % 256);
-  fout_fputc((v >> 8) % 256);
-  fout_fputc(v % 256);
+  fout_fput_vlint(rdres.compressed_stream_size);
+  fout_fput_vlint(rdres.uncompressed_stream_size);
+}
+void fin_fget_recon_data(recompress_deflate_result& rdres) {
+  if (!rdres.zlib_perfect) {
+    size_t sz = fin_fget_vlint();
+    rdres.recon_data.resize(sz);
+    own_fread(rdres.recon_data.data(), 1, rdres.recon_data.size(), fin);
+  }
+
+  rdres.compressed_stream_size = fin_fget_vlint();
+  rdres.uncompressed_stream_size = fin_fget_vlint();
+}
+void fout_fput_uncompressed(const recompress_deflate_result& rdres) {
+    write_decompressed_data_io_buf(rdres.uncompressed_stream_size, rdres.uncompressed_in_memory);
+}
+void fin_fget_uncompressed(const recompress_deflate_result&) {
+}
+void fout_fput_deflate_rec(const unsigned char type,
+                           const recompress_deflate_result& rdres,
+                           const unsigned char* hdr, const unsigned hdr_length, const bool inc_last,
+                           const recursion_result& recres) {
+  fout_fput_deflate_hdr(type, recres.success ? 128 : 0, rdres, hdr, hdr_length, inc_last);
+  fout_fput_recon_data(rdres);
+  
+  // write decompressed data
+  if (recres.success) {
+    fout_fput_vlint(recres.file_length);
+    write_decompressed_data(recres.file_length, recres.file_name);
+    remove(recres.file_name);
+    delete[] recres.file_name;
+  } else {
+    fout_fput_uncompressed(rdres);
+  }
+}
+bool fin_fget_deflate_rec(recompress_deflate_result& rdres, const unsigned char flags, 
+                          unsigned char* hdr, unsigned& hdr_length, const bool inc_last,
+                          int64_t& recursion_length) {
+  fin_fget_deflate_hdr(rdres, flags, hdr, hdr_length, inc_last);
+  fin_fget_recon_data(rdres);
+
+  debug_sums(rdres);
+  
+  // write decompressed data
+  if (flags & 128) {
+    recursion_length = fin_fget_vlint();
+    recursion_result r = recursion_decompress(recursion_length);
+    debug_pos();
+    bool result = try_reconstructing_deflate(r.frecurse, fout, rdres);
+    debug_pos();
+    safe_fclose(&r.frecurse);
+    remove(r.file_name);
+    delete[] r.file_name;
+    return result;
+  } else {
+    recursion_length = 0;
+    debug_pos();
+    bool result = try_reconstructing_deflate(fin, fout, rdres);
+    debug_pos();
+    return result;
+  }
 }
 
 unsigned char fin_fgetc() {
@@ -9473,19 +8012,33 @@ unsigned char fin_fgetc() {
     return temp_buf[0];
   }
 }
-
-long long fin_fget64() {
-  long long result = ((long long)fin_fgetc() << 56);
-  result += ((long long)fin_fgetc() << 48);
-  result += ((long long)fin_fgetc() << 40);
-  result += ((long long)fin_fgetc() << 32);
-  result += ((long long)fin_fgetc() << 24);
-  result += ((long long)fin_fgetc() << 16);
-  result += ((long long)fin_fgetc() << 8);
-  result += (long long)fin_fgetc();
-  
+int32_t fin_fget32_little_endian() {
+  int32_t result = 0;
+  result += ((long)fin_fgetc() << 0);
+  result += ((long)fin_fgetc() << 8);
+  result += ((long)fin_fgetc() << 16);
+  result += ((long)fin_fgetc() << 24);
   return result;
 }
+int32_t fin_fget32() {
+  int32_t result = 0;
+  result += ((long)fin_fgetc() << 24);
+  result += ((long)fin_fgetc() << 16);
+  result += ((long)fin_fgetc() << 8);
+  result += (long)fin_fgetc();
+  return result;
+}
+long long fin_fget_vlint() {
+  unsigned char c;
+  long long v = 0, o = 0, s = 0;
+  while ((c = fin_fgetc()) >= 128) {
+    v += (((long long)(c & 127)) << s);
+    s += 7;
+    o = (o + 1) << 7;
+  }
+  return v + o + (((long long)c) << s);
+}
+
 
 void init_compress_otf() {
   if (comp_decomp_state == P_CONVERT) compression_otf_method = conversion_to_method;
@@ -9514,7 +8067,7 @@ void init_compress_otf() {
         threads = auto_detected_thread_count();
       }
 
-      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage, block_size, otf_xz_filter_enabled, otf_xz_filter_delta_enabled, otf_xz_filter_delta_distance, otf_xz_filter_used_count)) {
+      if (!init_encoder_mt(&otf_xz_stream_c, threads, max_memory, memory_usage, block_size, otf_xz_extra_params)) {
         printf("ERROR: xz Multi-Threaded init failed\n");
         exit(1);
       }
