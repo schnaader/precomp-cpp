@@ -44,3 +44,6 @@ vs2015/paq8o8pre/x64
 vs2015/Precomp/Debug
 vs2015/Precomp/Release
 vs2015/Precomp/x64
+
+# CMAKE
+build/
