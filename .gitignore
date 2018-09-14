@@ -47,3 +47,6 @@ vs2015/Precomp/x64
 
 # CMAKE
 build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
