@@ -3246,13 +3246,13 @@ void debug_sums(const recompress_deflate_result& rdres) {
     sum_uncompressed += rdres.uncompressed_stream_size;
     sum_expansion += rdres.uncompressed_stream_size - rdres.compressed_stream_size;
     sum_recon += rdres.recon_data.size();
-    printf("deflate sums: c %I64d, u %I64d, x %I64d, r %I64d, i %I64d, o %I64d\n",
-           sum_compressed, sum_uncompressed, sum_expansion, sum_recon, _ftelli64(fin), _ftelli64(fout));
+    //printf("deflate sums: c %I64d, u %I64d, x %I64d, r %I64d, i %I64d, o %I64d\n",
+    //       sum_compressed, sum_uncompressed, sum_expansion, sum_recon, (uint64_t)tell_64(fin), (uint64_t)tell_64(fout));
   }
 }
 void debug_pos() {
   if (DEBUG_MODE) {
-    printf("deflate pos: i %I64d, o %I64d\n", _ftelli64(fin), _ftelli64(fout));
+    //printf("deflate pos: i %I64d, o %I64d\n", (uint64_t)tell_64(fin), (uint64_t)tell_64(fout));
   }
 }
 void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width, int img_height, int img_bpc) {

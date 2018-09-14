@@ -49,7 +49,7 @@ public:
     return _cacheStartPos + _cache.size();
   }
   const unsigned char* cacheData(const uint64_t pos) const {
-    return _cache.data() + (ptrdiff_t)(pos - _cacheStartPos);
+    return _cache.data() + (std::ptrdiff_t)(pos - _cacheStartPos);
   }
   const unsigned char* cacheEnd() const {
     return _cache.data() + _cache.size();

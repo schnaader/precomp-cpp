@@ -5,6 +5,15 @@ project(precomp)
 set(SRCDIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(OBJDIR ${CMAKE_CURRENT_BINARY_DIR})
 
+if (UNIX)
+  set(CMAKE_C_FLAGS "-DLINUX -DUNIX -DHAVE_STDBOOL_H")
+  set(CMAKE_CXX_FLAGS "-DUNIX")
+  set(CMAKE_CXX_STANDARD 11)
+  set(THREADS_PREFER_PTHREAD_FLAG ON)
+  find_package(Threads REQUIRED)
+endif()
+
+
 include_directories(AFTER ${SRCDIR})
 
 function(add_stem2file VAR pattern stem)
@@ -110,3 +119,7 @@ set(PRECOMP_HDR "${SRCDIR}/precomp.h")
 add_executable(precomp ${GIF_SRC} ${BZIP_SRC} ${ZLIB_SRC} ${PACKARI_SRC}
                        ${PACKJPG_SRC} ${PACKMP3_SRC} ${LZMA_SRC} ${PREFLATE_SRC}
                        ${PRECOMP_SRC} ${PRECOMP_HDR})
+
+if (UNIX)
+  target_link_libraries(precomp Threads::Threads)
+endif()
