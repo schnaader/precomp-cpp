@@ -3209,10 +3209,10 @@ public:
       if (_idat_idx >= _idat_count) {
         return written;
       }
-      unsigned char crc_out[4] = {_idat_crcs[_idat_idx] >> 24, _idat_crcs[_idat_idx] >> 16, _idat_crcs[_idat_idx] >> 8, _idat_crcs[_idat_idx] >> 0};
+      unsigned char crc_out[4] = {(unsigned char)(_idat_crcs[_idat_idx] >> 24), (unsigned char)(_idat_crcs[_idat_idx] >> 16), (unsigned char)(_idat_crcs[_idat_idx] >> 8), (unsigned char)(_idat_crcs[_idat_idx] >> 0)};
       own_fwrite(crc_out, 1, 4, _f);
       _to_read = _idat_lengths[_idat_idx];
-      unsigned char len_out[4] = {_to_read >> 24, _to_read >> 16, _to_read >> 8, _to_read >> 0};
+      unsigned char len_out[4] = {(unsigned char)(_to_read >> 24), (unsigned char)(_to_read >> 16), (unsigned char)(_to_read >> 8), (unsigned char)(_to_read >> 0)};
       own_fwrite(len_out, 1, 4, _f);
       own_fwrite("IDAT", 1, 4, _f);
     }
