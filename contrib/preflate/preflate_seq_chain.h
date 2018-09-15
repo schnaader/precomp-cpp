@@ -16,6 +16,7 @@
 #define PREFLATE_SEQ_CHAIN_H
 
 #include <algorithm>
+#include <cstdint>
 #include "preflate_input.h"
 
 struct SeqChainEntry {

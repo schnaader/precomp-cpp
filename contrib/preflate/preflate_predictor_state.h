@@ -15,6 +15,7 @@
 #ifndef PREFLATE_PREDICTOR_STATE_H
 #define PREFLATE_PREDICTOR_STATE_H
 
+#include <cstdint>
 #include <vector>
 
 #include "preflate_input.h"
