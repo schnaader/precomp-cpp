@@ -19,9 +19,9 @@
 // version information
 #define V_MAJOR 0
 #define V_MINOR 4
-#define V_MINOR2 133
+#define V_MINOR2 7
 //#define V_STATE "ALPHA"
-#define V_STATE "EXPERIMENTAL (w/ preflate support)"
+#define V_STATE "DEVELOPMENT"
 #define V_MSG "USE FOR TESTING ONLY"
 //#define V_MSG "USE AT YOUR OWN RISK!"
 #ifdef UNIX
@@ -623,7 +623,7 @@ int init(int argc, char* argv[]) {
   }
   printf(" - %s\n",V_MSG);
   printf("Free for non-commercial use - Copyright 2006-2018 by Christian Schneider\n");
-  printf("- experimental preflate v0.3.4 support - Copyright 2018 by Dirk Steinke\n\n");
+  printf("  preflate v0.3.4 support - Copyright 2018 by Dirk Steinke\n\n");
 
   // init compression and memory level count
   bool use_zlib_level[81];
