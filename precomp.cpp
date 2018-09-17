@@ -5209,7 +5209,8 @@ long long try_to_decompress_bzip2(FILE* file, int compression_level, long long& 
   }
 
   r = inf_bzip2(file, ftempout, compressed_stream_size, decompressed_stream_size);
-  if (r == Z_OK) return decompressed_stream_size;
+  safe_fclose(&ftempout);
+  if (r == BZ_OK) return decompressed_stream_size;
 
   return r;
 }
