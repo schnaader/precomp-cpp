@@ -3680,8 +3680,7 @@ bool compress_file(float min_percent, float max_percent) {
         }
 
         if ((filename_length + extra_field_length) <= CHECKBUF_SIZE
-            && compressed_size > 0 && compressed_size != uncompressed_size
-            && in_buf[cb + 8] == 8 && in_buf[cb + 9] == 0) {
+            && in_buf[cb + 8] == 8 && in_buf[cb + 9] == 0) { // Compression method 8: Deflate
 
           int header_length = 30 + filename_length + extra_field_length;
 
