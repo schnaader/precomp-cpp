@@ -3302,7 +3302,8 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
           if (DEBUG_MODE) {
             printf("Image size didn't match with stream size\n");
           }
-          recompressed_pdf_count--;
+          decompressed_pdf_count_8_bit--;
+          decompressed_pdf_count++;
         }
       }
 
