@@ -1,0 +1,22 @@
+language: cpp
+sudo: required
+dist: trusty
+compiler:
+- clang
+- gcc
+os:
+- linux
+- osx
+
+matrix:
+  exclude:
+    - os: osx
+      compiler: gcc
+
+before_install:
+- echo $LANG
+- echo $LC_ALL
+
+script:
+- if [ $TRAVIS_OS_NAME == linux ]; then cmake -Bbuild -H. -G"Unix Makefiles"; cd build; make; fi
+- if [ $TRAVIS_OS_NAME == osx ]; then cmake -Bbuild -H. -G"Unix Makefiles"; cd build; make; fi
