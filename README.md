@@ -2,8 +2,16 @@ Precomp
 =======
 
 [![Join the chat at https://gitter.im/schnaader/precomp-cpp](https://badges.gitter.im/schnaader/precomp-cpp.svg)](https://gitter.im/schnaader/precomp-cpp?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build Status](https://travis-ci.org/schnaader/precomp-cpp.svg?branch=develop)](https://travis-ci.org/schnaader/precomp-cpp)
+[![Build status](https://ci.appveyor.com/api/projects/status/noofdvr23uk2oyyi?svg=true)](https://ci.appveyor.com/project/schnaader/precomp-cpp)
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/precomp.svg)](https://repology.org/metapackage/precomp)
+
+Fork note
+---------
+This is an experimental fork of precomp, that uses the preflate library for
+deflate stream recompression.
+
 
 What is Precomp?
 ----------------

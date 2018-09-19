@@ -6,6 +6,7 @@
 #include <string.h>
 #include <errno.h>
 #include "api/lzma.h"
+#include "precomp_xz.h"
 
 bool check(lzma_ret ret) {
   if (ret == LZMA_OK)
@@ -52,9 +53,28 @@ lzma_filter get_filter(lzma_vli filter_id) {
   return result;
 }
 
-bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64_t &memory_usage, uint64_t &block_size, bool* filter_enabled, bool filter_delta_enabled, int filter_delta_distance, int filter_count)
+bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, 
+                     uint64_t &memory_usage, uint64_t &block_size, 
+                     const lzma_init_mt_extra_parameters& extra_params)
 {
-  lzma_vli filter_to_lzma_vli[6] = { LZMA_FILTER_X86, LZMA_FILTER_POWERPC, LZMA_FILTER_IA64, LZMA_FILTER_ARM, LZMA_FILTER_ARMTHUMB, LZMA_FILTER_SPARC };
+  int filter_count = extra_params.enable_filter_arm
+                + extra_params.enable_filter_armthumb
+                + extra_params.enable_filter_delta
+                + extra_params.enable_filter_ia64
+                + extra_params.enable_filter_powerpc
+                + extra_params.enable_filter_sparc
+                + extra_params.enable_filter_x86;
+  if (filter_count + 1 /* for lzma2 */ >= LZMA_FILTERS_MAX) {
+    fprintf(stderr, "Too many filters for LZMA\n");
+    return false;
+  }
+  int lclp = (extra_params.lc != 0 ? extra_params.lc - 1 : LZMA_LC_DEFAULT)
+           + (extra_params.lp != 0 ? extra_params.lp - 1 : LZMA_LP_DEFAULT);
+  int pb = extra_params.pb != 0 ? extra_params.pb - 1 : LZMA_PB_DEFAULT;
+  if (lclp < LZMA_LCLP_MIN || lclp > LZMA_LCLP_MAX || pb < LZMA_PB_MIN || pb > LZMA_PB_MAX) {
+    fprintf(stderr, "Bad values for literal compression\n");
+    return false;
+  }
 
   // The threaded encoder takes the options as pointer to
   // a lzma_mt structure.
@@ -112,6 +132,16 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64
     return false;
   }
 
+  if (extra_params.lc > 0) {
+    opt_lzma2.lc = extra_params.lc - 1;
+  }
+  if (extra_params.lp > 0) {
+    opt_lzma2.lp = extra_params.lp - 1;
+  }
+  if (extra_params.pb > 0) {
+    opt_lzma2.pb = extra_params.pb - 1;
+  }
+
   lzma_filter filterLzma2;
   filterLzma2.id = LZMA_FILTER_LZMA2;
   filterLzma2.options = &opt_lzma2;
@@ -119,31 +149,37 @@ bool init_encoder_mt(lzma_stream *strm, int threads, uint64_t max_memory, uint64
   lzma_filter filterDelta;
   lzma_options_delta delta_options;
   delta_options.type = LZMA_DELTA_TYPE_BYTE;
-  delta_options.dist = filter_delta_distance;
+  delta_options.dist = extra_params.filter_delta_distance;
   filterDelta.id = LZMA_FILTER_DELTA;
   filterDelta.options = &delta_options;
   
   lzma_filter* filters;
-  if (filter_count == 0) {
-    filters = new lzma_filter[2];
-    filters[0] = filterLzma2;
-    filters[1] = get_filter(LZMA_VLI_UNKNOWN);
-  } else {
-    filters = new lzma_filter[filter_count + 2];
-    int filter_idx = 0;
-    if (filter_delta_enabled) {
-      filters[filter_idx] = filterDelta;
-      filter_idx++;
-    }
-    for (int i = 0; i < 6; i++) {
-      if (filter_enabled[i]) {
-        filters[filter_idx] = get_filter(filter_to_lzma_vli[i]);
-        filter_idx++;
-      }
-    }
-    filters[filter_count] = filterLzma2;
-    filters[filter_count + 1] = get_filter(LZMA_VLI_UNKNOWN);
+  filters = new lzma_filter[filter_count + 2]; // +2 for lzma2 & unknown
+  int filter_idx = 0;
+  if (extra_params.enable_filter_delta) {
+    filters[filter_idx++] = filterDelta;
   }
+
+  if (extra_params.enable_filter_x86) {
+    filters[filter_idx++] = get_filter(LZMA_FILTER_X86);
+  }
+  if (extra_params.enable_filter_powerpc) {
+    filters[filter_idx++] = get_filter(LZMA_FILTER_POWERPC);
+  }
+  if (extra_params.enable_filter_ia64) {
+    filters[filter_idx++] = get_filter(LZMA_FILTER_IA64);
+  }
+  if (extra_params.enable_filter_arm) {
+    filters[filter_idx++] = get_filter(LZMA_FILTER_ARM);
+  }
+  if (extra_params.enable_filter_armthumb) {
+    filters[filter_idx++] = get_filter(LZMA_FILTER_ARMTHUMB);
+  }
+  if (extra_params.enable_filter_sparc) {
+    filters[filter_idx++] = get_filter(LZMA_FILTER_SPARC);
+  }
+  filters[filter_idx++] = filterLzma2;
+  filters[filter_idx++] = get_filter(LZMA_VLI_UNKNOWN);
 
   mt.filters = filters;
 

@@ -1,0 +1,6 @@
+version: 1.0.{build}
+build_script:
+- cmd: >-
+    cmake -Bbuild -H. -G"Visual Studio 14 2015 Win64"
+
+    msbuild build\precomp.sln
