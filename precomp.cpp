@@ -3282,14 +3282,14 @@ void try_decompression_pdf(int windowbits, int pdf_header_length, int img_width,
       debug_sums(rdres);
 
       if (img_bpc == 8) {
-        if (best_identical_bytes_decomp == (img_width * img_height)) {
+        if (rdres.uncompressed_stream_size == (img_width * img_height)) {
           bmp_header_type = 1;
           if (DEBUG_MODE) {
             printf("Image size did match (8 bit)\n");
           }
           recompressed_pdf_count_8_bit++;
           recompressed_pdf_count--;
-        } else if (best_identical_bytes_decomp == (img_width * img_height * 3)) {
+        } else if (rdres.uncompressed_stream_size == (img_width * img_height * 3)) {
           bmp_header_type = 2;
           if (DEBUG_MODE) {
             printf("Image size did match (24 bit)\n");
