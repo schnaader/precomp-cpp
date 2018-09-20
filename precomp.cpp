@@ -74,7 +74,7 @@
 #endif
 #ifdef _MSC_VER
 #include <io.h>
-#define ftruncate _chsize
+#define ftruncate _chsize_s
 #else
 #include <unistd.h>
 #endif
