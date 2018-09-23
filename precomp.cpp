@@ -129,6 +129,7 @@ char tempfile2[19] = "~temp000000002.dat";
 char tempfile3[19] = "~temp000000003.dat";
 char* tempfilelist;
 int tempfilelist_count = 0;
+int tempfile_instance = 0;
 
 #include "precomp.h"
 
@@ -7464,10 +7465,23 @@ long long fileSize64(char* filename) {
 }
 
 void init_temp_files() {
+  if (recursion_depth == 0) {
+    int i = 0, j, k;
+    do {
+      k = i;
+      for (j = 1; j >= 0; j--) {
+        metatempfile[5 + j] = '0' + (k % 10);
+        k /= 10;
+      }
+      i++;
+    } while (file_exists(metatempfile));
+    tempfile_instance = i - 1;
+  }
+
   int i = 0, j, k;
   do {
     k = i;
-    for (j = 7; j >= 0; j--) {
+    for (j = 7; j >= 2; j--) {
       metatempfile[5+j] = '0' + (k % 10);
       k /= 10;
     }
@@ -7475,11 +7489,19 @@ void init_temp_files() {
   } while (file_exists(metatempfile));
 
   k = i - 1;
-  for (j = 7; j >= 0; j--) {
+  for (j = 7; j >= 2; j--) {
     tempfile0[5+j] = '0' + (k % 10);
     tempfile1[5+j] = '0' + (k % 10);
     tempfile2[5+j] = '0' + (k % 10);
     tempfile3[5+j] = '0' + (k % 10);
+    k /= 10;
+  }
+  k = tempfile_instance;
+  for (j = 1; j >= 0; j--) {
+    tempfile0[5 + j] = '0' + (k % 10);
+    tempfile1[5 + j] = '0' + (k % 10);
+    tempfile2[5 + j] = '0' + (k % 10);
+    tempfile3[5 + j] = '0' + (k % 10);
     k /= 10;
   }
 
