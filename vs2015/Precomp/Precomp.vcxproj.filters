@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="preflate">
+      <UniqueIdentifier>{9416e607-1e8a-4ca1-9f51-9bff0801a2c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="preflate\support">
+      <UniqueIdentifier>{f6506460-d4fd-438f-ab05-9dadebe44308}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\precomp.cpp">
@@ -311,6 +317,105 @@
     </ClCompile>
     <ClCompile Include="..\..\contrib\liblzma\check\crc64_fast.c">
       <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\arithmetic_coder.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\array_helper.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\bit_helper.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\bitstream.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\const_division.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\filestream.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\huffman_decoder.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\huffman_encoder.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\huffman_helper.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\memstream.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\outputcachestream.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\support_tests.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\support\task_pool.cpp">
+      <Filter>preflate\support</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_block_decoder.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_block_reencoder.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_block_trees.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_checker.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_complevel_estimator.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_constants.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_decoder.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_hash_chain.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_info.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_parameter_estimator.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_parser_config.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_predictor_state.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_reencoder.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_seq_chain.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_statistical_codec.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_statistical_debug.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_statistical_model.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_token.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_token_predictor.cpp">
+      <Filter>preflate</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\contrib\preflate\preflate_tree_predictor.cpp">
+      <Filter>preflate</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

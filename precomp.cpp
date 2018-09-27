@@ -1630,40 +1630,43 @@ int init_comfort(int argc, char* argv[]) {
           for (j = 0; j < (int)strlen(value); j++) {
             switch (toupper(value[j])) {
               case 'X':
-                otf_xz_filter_enabled[0] = true;
+                otf_xz_extra_params.enable_filter_x86 = true;
                 break;
               case 'P':
-                otf_xz_filter_enabled[1] = true;
+                otf_xz_extra_params.enable_filter_powerpc = true;
                 break;
               case 'I':
-                otf_xz_filter_enabled[2] = true;
+                otf_xz_extra_params.enable_filter_ia64 = true;
                 break;
               case 'A':
-                otf_xz_filter_enabled[3] = true;
+                otf_xz_extra_params.enable_filter_arm = true;
                 break;
               case 'T':
-                otf_xz_filter_enabled[4] = true;
+                otf_xz_extra_params.enable_filter_armthumb = true;
                 break;
               case 'S':
-                otf_xz_filter_enabled[5] = true;
+                otf_xz_extra_params.enable_filter_sparc = true;
                 break;
               case 'D':
                 {
                   j++;
                   char nextchar = value[j];
                   if ((nextchar < '0') || (nextchar > '9')) {
-                    printf("ERROR: LZMA delta filter must be followed by a distance (1..256)\n");
+                    printf("ERROR: LZMA delta filter must be followed by a distance (%d..%d)\n",
+                        LZMA_DELTA_DIST_MIN, LZMA_DELTA_DIST_MAX);
                     wait_for_key();
                     exit(1);
                   }
-                  otf_xz_filter_delta_enabled = true;
+                  otf_xz_extra_params.enable_filter_delta = true;
                   while ((value[j] > '0') && (value[j] < '9')) {
-                    otf_xz_filter_delta_distance *= 10;
-                    otf_xz_filter_delta_distance += (value[j] - '0');
+                    otf_xz_extra_params.filter_delta_distance *= 10;
+                    otf_xz_extra_params.filter_delta_distance += (value[j] - '0');
                     j++;
                   }
-                  if ((otf_xz_filter_delta_distance < 1) || (otf_xz_filter_delta_distance > 256)) {
-                    printf("ERROR: LZMA delta filter distance must be in range 1..256\n");
+                  if (otf_xz_extra_params.filter_delta_distance < LZMA_DELTA_DIST_MIN 
+                       || otf_xz_extra_params.filter_delta_distance > LZMA_DELTA_DIST_MAX) {
+                    printf("ERROR: LZMA delta filter distance must be in range %d..%d\n",
+                        LZMA_DELTA_DIST_MIN, LZMA_DELTA_DIST_MAX);
                     wait_for_key();
                     exit(1);
                   }

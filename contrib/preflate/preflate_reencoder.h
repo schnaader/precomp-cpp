@@ -17,8 +17,8 @@
 
 #include <vector>
 #include "preflate_statistical_codec.h"
-#include <support/stream.h>
-#include <support/task_pool.h>
+#include "support/stream.h"
+#include "support/task_pool.h"
 
 class PreflateReencoderTask {
 public:
