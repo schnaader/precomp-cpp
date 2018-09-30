@@ -94,7 +94,7 @@ public:
   BitOutputStream(OutputStream&);
 
   void put(const size_t value, const unsigned n) {
-    if (_bitPos + n > BITS) {
+    if (_bitPos + n >= BITS) {
       _flush();
     }
     _bits   |= (value & ((1 << n) - 1)) << _bitPos;

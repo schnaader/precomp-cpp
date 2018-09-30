@@ -210,41 +210,41 @@ bool preflate_checker(const std::vector<unsigned char>& deflate_raw) {
 
   for (size_t blockno = 0, n = std::min(blocks.size(), dblocks.size()); blockno < n; ++blockno) {
     if (dblocks[blockno].type != blocks[blockno].type) {
-      printf("block %d: type differs: org %d, new %d\n", blockno, blocks[blockno].type, dblocks[blockno].type);
+      printf("block %zu: type differs: org %d, new %d\n", blockno, blocks[blockno].type, dblocks[blockno].type);
       return false;
     }
     for (unsigned i = 0, n = std::min(dblocks[blockno].tokens.size(), blocks[blockno].tokens.size()); i < n; ++i) {
       PreflateToken orgToken = blocks[blockno].tokens[i];
       PreflateToken newToken = dblocks[blockno].tokens[i];
       if (newToken.len != orgToken.len || newToken.dist != orgToken.dist) {
-        printf("block %d: generated token %d differs: org(%d,%d), new(%d,%d)\n",
+        printf("block %zu: generated token %d differs: org(%d,%d), new(%d,%d)\n",
                blockno, i, orgToken.len, orgToken.dist, newToken.len, newToken.dist);
         return false;
       }
     }
     if (dblocks[blockno].tokens.size() != blocks[blockno].tokens.size()) {
-      printf("block %d: differing token count: org %d, new %d\n",
+      printf("block %zu: differing token count: org %d, new %d\n",
              blockno, (int)blocks[blockno].tokens.size(), (int)dblocks[blockno].tokens.size());
       return false;
     }
     if (dblocks[blockno].type == PreflateTokenBlock::DYNAMIC_HUFF) {
       if (dblocks[blockno].nlen != blocks[blockno].nlen) {
-        printf("block %d: literal/len count differs: org %d, new %d\n",
+        printf("block %zu: literal/len count differs: org %d, new %d\n",
                blockno, blocks[blockno].nlen, dblocks[blockno].nlen);
         return false;
       }
       if (dblocks[blockno].ndist != blocks[blockno].ndist) {
-        printf("block %d: dist count differs: org %d, new %d\n",
+        printf("block %zu: dist count differs: org %d, new %d\n",
                blockno, blocks[blockno].ndist, dblocks[blockno].ndist);
         return false;
       }
       if (dblocks[blockno].ncode != blocks[blockno].ncode) {
-        printf("block %d: tree code count differs: org %d, new %d\n",
+        printf("block %zu: tree code count differs: org %d, new %d\n",
                blockno, blocks[blockno].ncode, dblocks[blockno].ncode);
         return false;
       }
       if (dblocks[blockno].treecodes != blocks[blockno].treecodes) {
-        printf("block %d: generated tree codes differs\n", blockno);
+        printf("block %zu: generated tree codes differs\n", blockno);
         return false;
       }
     }

@@ -86,7 +86,7 @@ void PreflateSubModel<N>::buildDefault(const unsigned defval) {
 }
 template <unsigned N>
 void PreflateSubModel<N>::build_scale_down() {
-  unsigned boundBits = 0;
+  unsigned boundBits = ~0xFFFFu; // Make sure that upper bits are all set, to limit the range of zeroJunk
   for (unsigned i = 0; i <= N; ++i) {
     boundBits |= bounds[i];
   }

@@ -74,9 +74,9 @@ unsigned PreflatePredictorState::prefixCompare(
     return 0;
   }
 
-  const unsigned char* scan  = s2 + 2; 
-  const unsigned char* match = s1 + 2; 
-  const unsigned char* scanend = s2 + maxLen - 8;
+  const unsigned char* scan  = s2 + 3;
+  const unsigned char* match = s1 + 3;
+  const unsigned char* scanend = s2 + maxLen;
 
 /* while (scan < scanend
           && *++scan == *++match && *++scan == *++match
@@ -84,9 +84,10 @@ unsigned PreflatePredictorState::prefixCompare(
           && *++scan == *++match && *++scan == *++match
           && *++scan == *++match && *++scan == *++match) {
  }*/
-  scanend = s2 + maxLen;
   while (scan < scanend
-          && *++scan == *++match) {
+          && *scan == *match) {
+    ++scan;
+    ++match;
   }
 
   return scan - s2;
@@ -209,7 +210,6 @@ PreflateToken PreflatePredictorState::seqMatch(
     if (bestLen >= h.niceLen || !chainIt.next()) {
       return bestMatch;
     }
-    unsigned minDistOff = chainIt.len() - PreflateConstants::MIN_MATCH;
     if (chainIt.dist() > h.curMaxDistHop1Plus + chainIt.len() - PreflateConstants::MIN_MATCH) {
       return bestMatch;
     }

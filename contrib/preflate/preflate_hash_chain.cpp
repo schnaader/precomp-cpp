@@ -59,10 +59,10 @@ void PreflateHashChainExt::updateHash(const unsigned l) {
   if (pos - totalShift >= 0xfe08) {
     reshift();
   }
-  for (unsigned i = 0; i < l; ++i) {
-    updateRunningHash(b[2 + i]);
+  for (unsigned i = 2; i < std::min(l + 2, _input.remaining()); ++i) {
+    updateRunningHash(b[i]);
     unsigned h = runningHash & hashMask;
-    unsigned p = (pos + i) - totalShift;
+    unsigned p = (pos + i - 2) - totalShift;
     chainDepth[p] = chainDepth[head[h]] + 1;
     prev[p] = head[h];
     head[h] = p;
@@ -75,24 +75,31 @@ void PreflateHashChainExt::skipHash(const unsigned l) {
   if (pos - totalShift >= 0xfe08) {
     reshift();
   }
-  updateRunningHash(b[2]);
-  unsigned h = runningHash & hashMask;
-  unsigned p = (pos) - totalShift;
-  chainDepth[p] = chainDepth[head[h]] + 1;
-  prev[p] = head[h];
-  head[h] = p;
+  unsigned remaining = _input.remaining();
+  if (remaining > 2) {
+    updateRunningHash(b[2]);
+    unsigned h = runningHash & hashMask;
+    unsigned p = (pos) - totalShift;
+    chainDepth[p] = chainDepth[head[h]] + 1;
+    prev[p] = head[h];
+    head[h] = p;
 
-  // Skipped data is not inserted into the hash chain,
-  // but we must still update the chainDepth, to avoid
-  // bad analysis results
-  // --------------------
-  for (unsigned i = 1; i < l; ++i) {
-    unsigned p = (pos + i)-totalShift;
-    chainDepth[p] = 0xffff8000;
+    // Skipped data is not inserted into the hash chain,
+    // but we must still update the chainDepth, to avoid
+    // bad analysis results
+    // --------------------
+    for (unsigned i = 1; i < l; ++i) {
+      unsigned p = (pos + i) - totalShift;
+      chainDepth[p] = 0xffff8000;
+    }
+    // l must be at least 3
+    if (remaining > l) {
+      updateRunningHash(b[l]);
+      if (remaining > l + 1) {
+        updateRunningHash(b[l + 1]);
+      }
+    }
   }
-  // l must be at least 3
-  updateRunningHash(b[l]);
-  updateRunningHash(b[l + 1]);
   _input.advance(l);
 }
 void PreflateHashChainExt::reshift() {
@@ -103,6 +110,6 @@ void PreflateHashChainExt::reshift() {
   for (unsigned i = delta + 8, n = 1 << 16; i < n; ++i) {
     prev[i - delta] = std::max(prev[i], delta) - delta;
   }
-  memmove(chainDepth + 8, chainDepth + 8 + delta, (0x10000 - delta) * sizeof(chainDepth[0]));
+  memmove(chainDepth + 8, chainDepth + 8 + delta, (0x10000 - 8 - delta) * sizeof(chainDepth[0]));
   totalShift += delta;
 }

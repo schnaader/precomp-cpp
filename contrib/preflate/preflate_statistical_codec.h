@@ -67,6 +67,27 @@ private:
   friend struct PreflateCorrectionSubModel;
 };
 
+template <>
+struct PreflateSubModel<0u> {
+  static const unsigned L = 0u;
+  PreflateSubModel() {}
+
+//  void build(const unsigned(&arr)[1], const unsigned defval, const uint8_t prec = 16) {}
+  void buildDefault(const unsigned defval) {}
+  void read(ArithmeticDecoder&, const uint8_t) {}
+  void write(ArithmeticEncoder&, const uint8_t) const {}
+  void encode(ArithmeticEncoder& codec, const unsigned item) const {}
+  unsigned decode(ArithmeticDecoder& codec) const { return 0; }
+  bool isEqualTo(const PreflateSubModel<0u>& m) const { return true; }
+
+  enum { isDefault = 1, isFixed = 1 };
+
+private:
+  void build_impl(const unsigned *arr, const unsigned defval, const uint8_t prec) {}
+  template <unsigned NEG, unsigned POS>
+  friend struct PreflateCorrectionSubModel;
+};
+
 template <unsigned NEG, unsigned POS>
 struct PreflateCorrectionSubModel {
   static const unsigned LNEG = NEG;
@@ -554,7 +575,6 @@ private:
   };
 
   bool inError;
-  bool inBlock;
   std::vector<modelType> modelList;
   std::vector<metaBlockInfo> blockList;
   std::vector<uint8_t> reconData;
@@ -596,9 +616,7 @@ private:
   };
 
   bool inError;
-  bool inBlock;
 
-  size_t currentMetaBlockId;
   const std::vector<uint8_t>& reconData;
   const uint64_t uncompressedSize;
   std::vector<modelType> modelList;

@@ -144,7 +144,7 @@ bool preflate_decode(OutputStream& unpacked_output,
   uint64_t sumBlockSizes = 0;
   uint64_t lastEndPos = 0;
   uint64_t uncompressedMetaStart = 0;
-  size_t MBSize = std::min<size_t>(std::max<size_t>(metaBlockSize, 1 << 18), (1 << 31) - 1);
+  size_t MBSize = std::min<size_t>(std::max<size_t>(metaBlockSize, 1u << 18), (1u << 31) - 1);
   size_t MBThreshold = (MBSize * 3) >> 1;
   PreflateDecoderHandler encoder(block_callback);
   size_t MBcount = 0;
@@ -158,14 +158,16 @@ bool preflate_decode(OutputStream& unpacked_output,
 
     bool ok = bdec.readBlock(newBlock, last);
     if (!ok) {
-      return false;
+      fail = true;
+      break;
     }
 
     uint64_t blockSize = decOutCache.cacheEndPos() - lastEndPos;
     lastEndPos = decOutCache.cacheEndPos();
     if (blockSize >= (1 << 31)) {
       // No mega blocks
-      return false;
+      fail = true;
+      break;
     }
 
     blocks.push_back(newBlock);
@@ -223,7 +225,8 @@ bool preflate_decode(OutputStream& unpacked_output,
                                  uncompressedOffset,
                                  last, paddingBits);
         if (!task.analyze() || !task.encode()) {
-          return false;
+          fail = true;
+          break;
         }
       } else {
         if (futureQueue.size() >= queueLimit) {
@@ -232,6 +235,7 @@ bool preflate_decode(OutputStream& unpacked_output,
           std::shared_ptr<PreflateDecoderTask> data = first.get();
           if (!data || !data->encode()) {
             fail = true;
+            break;
           }
         }
         std::shared_ptr<PreflateDecoderTask> ptask;

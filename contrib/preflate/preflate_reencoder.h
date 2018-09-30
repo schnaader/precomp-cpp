@@ -24,6 +24,7 @@ class PreflateReencoderTask {
 public:
   class Handler {
   public:
+    virtual ~Handler() {}
     virtual bool beginDecoding(const uint32_t metaBlockId, 
                                PreflatePredictionDecoder&, PreflateParameters&) = 0;
     virtual bool endDecoding(const uint32_t metaBlockId, PreflatePredictionDecoder&,
@@ -41,8 +42,8 @@ public:
                         const size_t uncompressedOffset,
                         const bool lastMetaBlock);
 
-  virtual bool decodeAndRepredict();
-  virtual bool reencode();
+  bool decodeAndRepredict();
+  bool reencode();
 
   uint32_t id() {
     return metaBlockId;

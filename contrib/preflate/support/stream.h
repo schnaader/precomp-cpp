@@ -19,17 +19,23 @@
 
 class InputStream {
 public:
+  virtual ~InputStream() {}
+
   virtual bool eof() const = 0;
   virtual size_t read(unsigned char* buffer, const size_t size) = 0;
 };
 
 class OutputStream {
 public:
+  virtual ~OutputStream() {}
+
   virtual size_t write(const unsigned char* buffer, const size_t size) = 0;
 };
 
 class SeekableStream {
 public:
+  virtual ~SeekableStream() {}
+
   virtual uint64_t tell() const = 0;
   virtual uint64_t seek(const uint64_t newPos) = 0;
 };

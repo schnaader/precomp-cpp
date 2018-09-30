@@ -92,7 +92,7 @@ void printFlagStatistics(const char *txt, unsigned(&flag)[2]) {
   }
 }
 void printCorrectionStatistics(const char *txt,
-                               unsigned data[], unsigned size, unsigned sum, int offset) {
+                               unsigned data[], unsigned size, unsigned sum, unsigned offset) {
   if (data[offset] == sum) {
     return;
   }
@@ -106,7 +106,7 @@ void printCorrectionStatistics(const char *txt,
       if (i != offset && (i == 0 || i + 1 == size)) {
         printf(" %sx %g%%", i == 0 ? "-" : "+", data[i] * 100.0 / sum);
       } else {
-        printf(" %s%d %g%%", i == offset ? "" : (i < offset ? "-" : "+"), (int)labs(i - offset), data[i] * 100.0 / sum);
+        printf(" %s%d %g%%", i == offset ? "" : (i < offset ? "-" : "+"), (int)labs((int)(i - offset)), data[i] * 100.0 / sum);
       }
     }
   }

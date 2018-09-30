@@ -22,7 +22,7 @@
 class OutputCacheStream : public OutputStream {
 public:
   OutputCacheStream(OutputStream& os);
-  ~OutputCacheStream();
+  virtual ~OutputCacheStream();
 
   size_t write(const unsigned char* buffer, const size_t size) {
 /*    if (size == 1) {

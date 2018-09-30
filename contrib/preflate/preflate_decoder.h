@@ -23,13 +23,14 @@
 #include "support/stream.h"
 #include "support/task_pool.h"
 
-class PreflateTokenPredictor;
-class PreflateTreePredictor;
+struct PreflateTokenPredictor;
+struct PreflateTreePredictor;
 
 class PreflateDecoderTask {
 public:
   class Handler {
   public:
+    virtual ~Handler() {}
     virtual uint32_t setModel(const PreflateStatisticsCounter&, const PreflateParameters&) = 0;
     virtual bool beginEncoding(const uint32_t metaBlockId, PreflatePredictionEncoder&, const uint32_t modelId) = 0;
     virtual bool endEncoding(const uint32_t metaBlockId, PreflatePredictionEncoder&, const size_t uncompressedSize) = 0;
