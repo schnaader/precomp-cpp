@@ -64,7 +64,7 @@ Legal stuff
 - zLib 1.2.11 (http://www.zlib.net) by Jean-loup Gailly and Mark Adler is used for compression/decompression of zLib streams.
 - GifLib 4.1.4 (http://sourceforge.net/projects/giflib) is used for compression/decompression of GIF files. The GIFLIB distribution is Copyright (c) 1997 Eric S. Raymond
 - liblzma from XZ Utils 5.2.3 (http://tukaani.org/xz) is used for compression/decompresson of lzma streams.
-- preflate v0.3.4 (https://github.com/deus-libri/preflate) by Dirk Steinke is used to create and use reconstruction information of deflate streams
+- preflate v0.3.5 (https://github.com/deus-libri/preflate) by Dirk Steinke is used to create and use reconstruction information of deflate streams
 
 License
 -------
