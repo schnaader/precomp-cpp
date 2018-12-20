@@ -286,6 +286,8 @@ int idat_count;
 
 long long suppress_mp3_type_until[16];
 long long suppress_mp3_big_value_pairs_sum;
+long long suppress_mp3_non_zero_padbits_sum;
+long long suppress_mp3_inconsistent_emphasis_sum;
 long long mp3_parsing_cache_second_frame;
 long long mp3_parsing_cache_n;
 long long mp3_parsing_cache_mp3_length;
@@ -639,6 +641,8 @@ int init(int argc, char* argv[]) {
     suppress_mp3_type_until[i] = -1;
   }
   suppress_mp3_big_value_pairs_sum = -1;
+  suppress_mp3_non_zero_padbits_sum = -1;
+  suppress_mp3_inconsistent_emphasis_sum = -1;
   mp3_parsing_cache_second_frame = -1;
   
   // init LZMA filters
@@ -1326,6 +1330,8 @@ int init_comfort(int argc, char* argv[]) {
     suppress_mp3_type_until[i] = -1;
   }
   suppress_mp3_big_value_pairs_sum = -1;
+  suppress_mp3_non_zero_padbits_sum = -1;
+  suppress_mp3_inconsistent_emphasis_sum = -1;
   mp3_parsing_cache_second_frame = -1;
 
   // init LZMA filters
@@ -4265,8 +4271,10 @@ bool compress_file(float min_percent, float max_percent) {
 
           // type must be MPEG-1, Layer III, packMP3 won't process any other files
           if ( type == MPEG1_LAYER_III ) {
-            // sum of position and length of last "big value pairs out of bounds" error is suppressed to avoid slowdowns
-            if (suppress_mp3_big_value_pairs_sum != position_length_sum) {
+            // sums of position and length of last MP3 errors are suppressed to avoid slowdowns
+            if    ((suppress_mp3_big_value_pairs_sum != position_length_sum)
+               && (suppress_mp3_non_zero_padbits_sum != position_length_sum)
+               && (suppress_mp3_inconsistent_emphasis_sum != position_length_sum)) {
               try_decompression_mp3(mp3_length);
             }
           } else if (type > 0) {
@@ -6734,6 +6742,16 @@ void try_decompression_mp3 (long long mp3_length) {
           if (DEBUG_MODE) {
             cout << "Ignoring following streams with position/length sum " << suppress_mp3_big_value_pairs_sum << " to avoid slowdown" << endl;
           }
+        } else if ((!recompress_success) && (strncmp(recompress_msg, "non-zero padbits found", 22) == 0)) {
+          suppress_mp3_non_zero_padbits_sum = saved_input_file_pos + mp3_length;
+          if (DEBUG_MODE) {
+            cout << "Ignoring following streams with position/length sum " << suppress_mp3_non_zero_padbits_sum << " to avoid slowdown" << endl;
+          }
+        } else if ((!recompress_success) && (strncmp(recompress_msg, "inconsistent use of emphasis", 28) == 0)) {
+          suppress_mp3_inconsistent_emphasis_sum = saved_input_file_pos + mp3_length;
+          if (DEBUG_MODE) {
+            cout << "Ignoring following streams with position/length sum " << suppress_mp3_inconsistent_emphasis_sum << " to avoid slowdown" << endl;
+          }
         }
 
         decompressed_streams_count++;
@@ -7598,6 +7616,8 @@ void recursion_push() {
   recursion_stack_push(&comp_decomp_state, sizeof(comp_decomp_state));
   recursion_stack_push(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
   recursion_stack_push(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
+  recursion_stack_push(&suppress_mp3_non_zero_padbits_sum, sizeof(suppress_mp3_non_zero_padbits_sum));
+  recursion_stack_push(&suppress_mp3_inconsistent_emphasis_sum, sizeof(suppress_mp3_inconsistent_emphasis_sum));
   recursion_stack_push(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
   recursion_stack_push(&mp3_parsing_cache_n, sizeof(mp3_parsing_cache_n));
   recursion_stack_push(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
@@ -7619,6 +7639,8 @@ void recursion_pop() {
   recursion_stack_pop(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
   recursion_stack_pop(&mp3_parsing_cache_n, sizeof(mp3_parsing_cache_n));
   recursion_stack_pop(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
+  recursion_stack_pop(&suppress_mp3_inconsistent_emphasis_sum, sizeof(suppress_mp3_inconsistent_emphasis_sum));
+  recursion_stack_pop(&suppress_mp3_non_zero_padbits_sum, sizeof(suppress_mp3_non_zero_padbits_sum));
   recursion_stack_pop(&suppress_mp3_big_value_pairs_sum, sizeof(suppress_mp3_big_value_pairs_sum));
   recursion_stack_pop(&suppress_mp3_type_until[0], sizeof(suppress_mp3_type_until[0]) * 16);
   recursion_stack_pop(&comp_decomp_state, sizeof(comp_decomp_state));
@@ -7735,6 +7757,8 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
       suppress_mp3_type_until[i] = -1;
   }
   suppress_mp3_big_value_pairs_sum = -1;
+  suppress_mp3_non_zero_padbits_sum = -1;
+  suppress_mp3_inconsistent_emphasis_sum = -1;
   mp3_parsing_cache_second_frame = -1;
 
   // disable compression-on-the-fly in recursion - we don't want compressed compressed streams
