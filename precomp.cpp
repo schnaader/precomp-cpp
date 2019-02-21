@@ -5984,24 +5984,12 @@ int writeFunc(GifFileType* GifFile, const GifByteType* buf, int count)
   }
 }
 
-void CopyLine(void* dst, void* src, int count)
-{
-    do
-    {
-      *(short*) dst = *(short*) src;
-      src = (unsigned char*)src + 2;
-      dst = (unsigned char*)dst + 2;
-      count -= 2;
-    }
-    while (count > 0);
-}
-
 int DGifGetLineByte(GifFileType *GifFile, GifPixelType *Line, int LineLen, GifCodeStruct *g)
 {
     GifPixelType* LineBuf = new GifPixelType[LineLen];
-    CopyLine(LineBuf, Line, LineLen);
+    memcpy(LineBuf, Line, LineLen);
     int result = DGifGetLine(GifFile, LineBuf, g, LineLen);
-    CopyLine(Line, LineBuf, LineLen);
+    memcpy(Line, LineBuf, LineLen);
     delete[] LineBuf;
 
     return result;
