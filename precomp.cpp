@@ -20,8 +20,8 @@
 #define V_MAJOR 0
 #define V_MINOR 4
 #define V_MINOR2 7
-//#define V_STATE "ALPHA"
-#define V_STATE "DEVELOPMENT"
+#define V_STATE "ALPHA"
+//#define V_STATE "DEVELOPMENT"
 #define V_MSG "USE FOR TESTING ONLY"
 //#define V_MSG "USE AT YOUR OWN RISK!"
 #ifdef UNIX
