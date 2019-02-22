@@ -2991,7 +2991,6 @@ int best_mem_level = -1;
 int best_windowbits = -1;
 int best_penalty_bytes_len = 0;
 long long identical_bytes_decomp = -1;
-bool final_compression_found = false;
 
 void init_decompression_variables() {
   identical_bytes = -1;
@@ -3001,7 +3000,6 @@ void init_decompression_variables() {
   best_penalty_bytes_len = 0;
   best_identical_bytes_decomp = -1;
   identical_bytes_decomp = -1;
-  final_compression_found = false;
 }
 
 struct recompress_deflate_result {
@@ -5239,15 +5237,6 @@ void try_recompress_bzip2(FILE* origfile, int level, long long& compressed_strea
                   cout << "Identical recompressed bytes: " << identical_bytes << " of " << compressed_stream_size << endl;
                   cout << "Identical decompressed bytes: " << identical_bytes_decomp << " of " << decomp_bytes_total << endl;
                   }
-
-                  bool enough_identical_compressed_bytes = (identical_bytes == compressed_stream_size);
-                  if (!enough_identical_compressed_bytes) {
-                    if ((identical_bytes > DEF_COMPARE_CHUNK) && (identical_bytes + IDENTICAL_COMPRESSED_BYTES_TOLERANCE >= compressed_stream_size)) {
-                      enough_identical_compressed_bytes = true;
-                    }
-                  }
-
-                  final_compression_found = (identical_bytes_decomp == decomp_bytes_total) && (enough_identical_compressed_bytes) && (penalty_bytes_len < PENALTY_BYTES_TOLERANCE);
                 }
 
                 best_identical_bytes_decomp = identical_bytes_decomp;
@@ -7594,7 +7583,6 @@ void recursion_push() {
   recursion_stack_push(&penalty_bytes_len, sizeof(penalty_bytes_len));
   recursion_stack_push(&best_penalty_bytes_len, sizeof(best_penalty_bytes_len));
   recursion_stack_push(&identical_bytes_decomp, sizeof(identical_bytes_decomp));
-  recursion_stack_push(&final_compression_found, sizeof(final_compression_found));
 
   recursion_stack_push(&anything_was_used, sizeof(anything_was_used));
   recursion_stack_push(&non_zlib_was_used, sizeof(non_zlib_was_used));
@@ -7638,7 +7626,6 @@ void recursion_pop() {
   recursion_stack_pop(&non_zlib_was_used, sizeof(non_zlib_was_used));
   recursion_stack_pop(&anything_was_used, sizeof(anything_was_used));
 
-  recursion_stack_pop(&final_compression_found, sizeof(final_compression_found));
   recursion_stack_pop(&identical_bytes_decomp, sizeof(identical_bytes_decomp));
   recursion_stack_pop(&best_penalty_bytes_len, sizeof(best_penalty_bytes_len));
   recursion_stack_pop(&penalty_bytes_len, sizeof(penalty_bytes_len));
