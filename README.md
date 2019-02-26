@@ -22,7 +22,7 @@ Usage example
 |`wget http://mattmahoney.net/dc/silesia.zip` <br> (or download from [here](http://mattmahoney.net/dc/silesia.html))|We want to compress this file (the [Silesia compression corpus](http://sun.aei.polsl.pl/~sdeor/index.php?page=silesia)). <br>Size: 67,633,896 bytes (100,0%)|
 |`7z a -mx=9 silesia.7z silesia.zip`|Compressing with [7-Zip](https://www.7-zip.org/) LZMA2, setting "Ultra". <br>Size: 67,405,052 bytes (99,7%)|
 |`precomp silesia.zip`|Compressing with Precomp results in `silesia.pcf`. <br>Size: 47,122,779 bytes (69,7%)|
-|`precomp -r -osilesia.zip_ silesia.pcf`|This restores the original file to a new file named `silesia.zip_`. <br> Without the `-o` parameter, Precomp would decompressed to `silesia.zip`.|
+|`precomp -r -osilesia.zip_ silesia.pcf`|This restores the original file to a new file named `silesia.zip_`. <br> Without the `-o` parameter, Precomp would decompress to `silesia.zip`.|
 |`diff -s silesia.zip silesia.zip_`|Compares the original file to the result file, they're identical|
 
 
