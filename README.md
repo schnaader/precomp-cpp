@@ -9,11 +9,22 @@ Precomp
 
 What is Precomp?
 ----------------
-Precomp is a command line precompressor. You can use it to achieve better compression on some file-/streamtypes (works on files and streams that are compressed with zLib or the Deflate compression method, bZip2, GIF, JPG and MP3). Precomp tries to decompress the streams, and if they can be decompressed and "re-"compressed so that they are bit-to-bit-identical with the original stream, the decompressed stream can be used instead of the compressed one.
+Precomp is a command line precompressor that can be used to further compress files that are already compressed. It improves compression on some file-/streamtypes - works on files and streams that are compressed with zLib or the Deflate compression method (like PDF, PNG, ZIP and many more), bZip2, GIF, JPG and MP3. Precomp tries to decompress the streams, and if they can be decompressed and "re-"compressed so that they are bit-to-bit-identical with the original stream, the decompressed stream can be used instead of the compressed one.
 
-The result is a .pcf file (PCF = PreCompressedFile) that contains more decompressed data than the original file. Note that this file is larger than the original file, but if you compress it with a compression method stronger than Deflate, the compression is better than before.
+The result of Precomp is either a smaller, LZMA2 compressed file with extension .pcf (PCF = PreCompressedFile) or, when using `-cn`, a file containing decompressed data from the original file together with reconstruction data. In this case, the file is larger than the original file, but can be compressed with any compression algorithm stronger than Deflate to get better compression.
 
-Since version 0.4.3, Precomp is available for Linux, too. The Linux and Windows versions are completely compatible, PCF files are exchangeable between Windows and Linux systems.
+Since version 0.4.3, Precomp is available for Linux/*nix/macOS, too. The different versions are completely compatible, PCF files are exchangeable between Windows/Linux/*nix/macOS systems.
+
+Usage example
+-------------
+|Command|Comment|
+|--|--|
+|`wget http://mattmahoney.net/dc/silesia.zip` <br> (or download from [here](http://mattmahoney.net/dc/silesia.html))|We want to compress this file (the [Silesia compression corpus](http://sun.aei.polsl.pl/~sdeor/index.php?page=silesia)). <br>Size: 67,633,896 bytes (100,0%)|
+|`7z a -mx=9 silesia.7z silesia.zip`|Compressing with [7-Zip](https://www.7-zip.org/) LZMA2, setting "Ultra". <br>Size: 67,405,052 bytes (99,7%)|
+|`precomp silesia.zip`|Compressing with Precomp results in `silesia.pcf`. <br>Size: 47,122,779 bytes (69,7%)|
+|`precomp -r -osilesia.zip_ silesia.pcf`|This restores the original file to a new file named `silesia.zip_`. <br> Without the `-o` parameter, Precomp would decompressed to `silesia.zip`.|
+|`diff -s silesia.zip silesia.zip_`|Compares the original file to the result file, they're identical|
+
 
 How can I contribute?
 ---------------------
