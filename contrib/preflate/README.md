@@ -1,4 +1,4 @@
-preflate v0.3.4
+preflate v0.3.5
 ===============
 Library to split deflate streams into uncompressed data and reconstruction information,
 or reconstruct the original deflate stream from those two. 
@@ -16,12 +16,13 @@ of the reconstructed deflate streams must not differ, e.g. if those streams are 
 into executables, or unsupported archive files where the indices cannot be adapted correctly.
 
 There are currently already some other tools available which try to solve this problem:
-- "precomp" is a tool which can do the bit-correct reconstruction very efficiently,
-  but only for deflate streams that were created by the ZLIB library. (It only needs
+- "precomp" is a tool which used to be able to do the bit-correct reconstruction very efficiently,
+  but only for deflate streams that were created by the ZLIB library. (It only needed
   to store the three relevant ZLIB parameters to allow reconstruction.)
-  It bails out for anything created by 7zip, kzip, or similar tools.
+  It bailed out for anything created by 7zip, kzip, or similar tools.
   Of course, "precomp" also handles JPG, PNG, ZIP, GIF, PDF, MP3, etc, which makes
   a very nice tool, and it is open source.
+  *UPDATE* The latest development version of "precomp" incorporates the "preflate" library.
 - "reflate" can reconstruct any deflate stream (also 7zip, kzip, etc), but it is only 
   close to perfect for streams that were created by ZLIB, compression level 9. 
   All lower compression levels of ZLIB require increasing reconstruction info, the further
@@ -39,14 +40,9 @@ There are currently already some other tools available which try to solve this p
   will create reconstruction data that are not just a few bytes.
   In my tests, compression time was the same for "grittibanzli" and "preflate", while
   for decompression it was faster. However, the higher memory requirements will put
-  a strain on some systems.
-
-
-What about "difflate"?
-----------------------
-The author of "precomp" has announced quite some time ago to work on "difflate", 
-which should basically be an open source alternative to "reflate". It is still in
-development and not yet feature complete. Let's wait and see.
+  a strain on some systems. I also got reports from other testers which did more intensive
+  tests where "grittibanzli" was much slower than "preflate" and has occasional crashes.
+  There doesn't seem to be active development right now.
 
 
 So, what is the point of "preflate"?
@@ -59,11 +55,9 @@ The goal of "preflate" is to get the best of both worlds:
 
 Right now, it has been tested on some ten thousand valid deflate streams, some extracted with
 "rawdet" from archives etc., and "preflate" was capable of inflating and reconstructing 
-all of them. There's also an experimental fork of "precomp" which incorporates it,
-where it has to cope with lots of invalid deflate streams, or random data which just
-looks like a deflate streams. It was tested on several GiB of data with tens of
-thousands of valid and invalid deflate streams, and it seems to work quite reliable, 
-albeit not perfect.
+all of them. v0.3.2 was incorporated into a fork of "precomp" on Windows, and tested
+with 100+GB of data without problems. "preflate" is now even part of mainline "precomp",
+which caused more feedback and the v0.3.5 bug fix release.
 
 There might be some unknown corner cases of valid deflate stream in which preflate 
 will fail. And there are probably some cases of invalid deflate streams which will
@@ -75,12 +69,12 @@ So, is "preflate" already better than "precomp" and "reflate"?
 No. It isn't. However, it is a reasonable alternative.
 
 First, "preflate" only works on raw deflate streams. So, it is not intended as 
-a tool, but as a library to be used by some other tool. (Did I mention the "precomp"
-fork?) The current ZLIB level detection inside "precomp" is much better than
-"preflate"s (and it needs to be), so there are a considerable amount of ZLIB deflate
+a tool, but as a library to be used by some other tool. 
+The ZLIB level detection inside previous versions of "precomp" were much better than
+"preflate"s (and it needed to be), so there are a considerable amount of ZLIB deflate
 streams, probably 20-30%, for which "preflate" generates reconstruction data that
 is bigger than 3 bytes (usually only a few tens of bytes though).
-Or in other words: there are files in which Vanilla "precomp" BEATS "preflate"
+Or in other words: there are files in which previous "precomp" version BEAT "preflate"
 in SIZE.
 
 It's quite slow. Since 0.2.1, there is some optimization for long runs of the same byte (e.g.
@@ -89,21 +83,18 @@ slower than now), but for most files the gain is only a few percent.
 Since 0.3.3, preflate utilizes a task pool which gives a nice
 speedup when handling large deflate streams on multi-core machines.
 Single thread performance is still poor though.
-Both "precomp" and "reflate" BEAT "preflate" in SPEED for small deflate
+Both previous "precomp" versions and "reflate" BEAT "preflate" in SPEED for small deflate
 streams or when restricted to a single core. (Expected to be around
 50-500%).
 
 However, "preflate" eats anything and can be successfully applied to files in which
-"precomp" will fail completely. It generates smaller reconstruction data than
+previous versions of "precomp" will fail completely. It generates smaller reconstruction data than
 "reflate" (in my tests). And it is open source.
 
 
 How do I build it?
 ------------------
-There is a make file, but it has only been tested so far with MinGW gmake.
-The produced executable is larger than 1MiB, while the MSVC compiler generated
-executables were around 100KiB. The reason for that is unclear at the moment. 
-There is also a CMake script which hopefully works for non Windows platforms.
+There is a CMake script which was tested mostly on Windows with MSVC.
 
 Note: Support for std::thread (used in preflate since 0.3.3) is tricky
 in MinGW, and you might need particular MinGW builds for that to work.
@@ -161,7 +152,11 @@ Changes
 - 0.3.4 - bug fix for 0.3.1: preflate would occasionally fail because the
           zlib parameter estimator would wrongly restrict its search range
           for large deflate streams split into meta blocks
-
+- 0.3.5 - bug fix: some undefined behaviour could lead to crashes.
+          Thanks to Andrew Epstein for reporting the bug and pointing to clang's sanitizers
+          to spot out-of-bounds accesses and undefined behaviour.
+          Also, 0.3.3 introduced a crash bug in the context of large invalid deflate streams.
+          Thanks to Christian Schneider for reporting.
 
 License
 -------
