@@ -124,3 +124,5 @@ add_executable(precomp ${GIF_SRC} ${BZIP_SRC} ${ZLIB_SRC} ${PACKARI_SRC}
 if (UNIX)
   target_link_libraries(precomp Threads::Threads)
 endif()
+
+install(TARGETS precomp DESTINATION bin)
