@@ -2292,7 +2292,7 @@ void denit_compress() {
    long long fout_length = fileSize64(output_file_name);
    if (recursion_depth == 0) {
     if (!DEBUG_MODE) {
-    printf(string(14,'\b').c_str());
+    printf("%s", string(14,'\b').c_str());
     cout << "100.00% - New size: " << fout_length << " instead of " << fin_length << "     " << endl;
     } else {
     cout << "New size: " << fout_length << " instead of " << fin_length << "     " << endl;
@@ -2364,7 +2364,7 @@ void denit_decompress() {
   #ifndef PRECOMPDLL
    if (recursion_depth == 0) {
     if (!DEBUG_MODE) {
-    printf(string(14,'\b').c_str());
+    printf("%s", string(14,'\b').c_str());
     printf("100.00%%\n");
     }
     printf("\nDone.\n");
@@ -2407,7 +2407,7 @@ void denit_convert() {
   long long fout_length = fileSize64(output_file_name);
   #ifndef PRECOMPDLL
    if (!DEBUG_MODE) {
-   printf(string(14,'\b').c_str());
+   printf("%s", string(14,'\b').c_str());
    cout << "100.00% - New size: " << fout_length << " instead of " << fin_length << "     " << endl;
    } else {
    cout << "New size: " << fout_length << " instead of " << fin_length << "     " << endl;
@@ -8275,7 +8275,7 @@ void print_debug_percent() {
 void show_progress(float percent, bool use_backspaces, bool check_time) {
   if (!check_time || ((get_time_ms() - sec_time) >= 250)) {
     if (use_backspaces) {
-      printf(string(6,'\b').c_str()); // backspace to remove work sign and 5 extra spaces
+      printf("%s", string(6,'\b').c_str()); // backspace to remove work sign and 5 extra spaces
     }
 
     bool new_lzma_text = false;
