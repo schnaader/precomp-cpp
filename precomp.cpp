@@ -6212,16 +6212,16 @@ bool decompress_gif(FILE* srcfile, FILE* dstfile, long long src_pos, int& gif_le
 
     switch (RecordType) {
       case IMAGE_DESC_RECORD_TYPE:
+        if (DGifGetImageDesc(myGifFile) == GIF_ERROR) {
+          return d_gif_error(ScreenBuff, myGifFile);
+        }
+
         if (ScreenBuff == NULL) {
           ScreenBuff = alloc_gif_screenbuf(myGifFile);
           if (!ScreenBuff) {
             DGifCloseFile(myGifFile);
             return false;
           }
-        }
-
-        if (DGifGetImageDesc(myGifFile) == GIF_ERROR) {
-          return d_gif_error(ScreenBuff, myGifFile);
         }
 
         srcfile_pos = tell_64(srcfile);
