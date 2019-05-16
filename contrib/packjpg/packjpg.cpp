@@ -3758,7 +3758,9 @@ INTERN bool jpg_parse_jfif( unsigned char type, unsigned int len, unsigned char*
 				cmpnfo[ cmp ].jid = segment[ hpos ];
 				cmpnfo[ cmp ].sfv = LBITS( segment[ hpos + 1 ], 4 );
 				cmpnfo[ cmp ].sfh = RBITS( segment[ hpos + 1 ], 4 );				
-				cmpnfo[ cmp ].qtable = qtables[ segment[ hpos + 2 ] ];
+				if (segment[hpos + 2] >= 0 && segment[hpos + 2] < 4) {
+					cmpnfo[cmp].qtable = qtables[segment[hpos + 2]];
+				}
 				hpos += 3;
 			}
 			
