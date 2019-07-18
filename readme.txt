@@ -35,7 +35,7 @@ JPG
 Precomp uses packJPG by Matthias Stirner (https://github.com/packjpg/packJPG) to losslessy compress JPG images.
 
 MP3
-Precomp uses packMP3 by Matthias Stirner (http://packjpg.encode.ru/?page_id=19) to losslessy compress MP3 audio files.
+Precomp uses packMP3 by Matthias Stirner to losslessy compress MP3 audio files.
 
 MJPEG
 MJPEG is a video format that consists of JPG images without huffman tables.
@@ -219,12 +219,12 @@ https://github.com/schnaader/precomp-cpp
 Thanks for support, help and comments:
   Stephan Busch (Squeeze Chart Author, http://www.squeezechart.com))
   Werner Bergmans (Maximum Compression Benchmark Author, http://www.maximumcompression.com)
-  Matthias Stirner (packJPG, packMP3, https://github.com/packjpg, http://packjpg.encode.ru, http://www.matthiasstirner.com)
+  Matthias Stirner (packJPG, packMP3, https://github.com/packjpg, http://www.matthiasstirner.com)
   Mark Adler (http://www.zlib.net)
   Matt Mahoney (http://www.mattmahoney.net)
   Malcolm Taylor (http://www.msoftware.co.nz)
   Simon Berger (helped to fix many bugs)
-  The whole ENCODE.RU forum (http://encode.ru/forum)
+  The whole encode.su forum (https://encode.su)
 
 8. Legal stuff
 --------------
