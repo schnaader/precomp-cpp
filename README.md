@@ -62,17 +62,17 @@ Thanks for support, help and comments:
 
 - Stephan Busch (Squeeze Chart Author, http://www.squeezechart.com)
 - Werner Bergmans (Maximum Compression Benchmark Author, http://www.maximumcompression.com)
-- Matthias Stirner (packJPG, packMP3, https://github.com/packjpg, http://packjpg.encode.ru, http://www.matthiasstirner.com)
+- Matthias Stirner (packJPG, packMP3, https://github.com/packjpg, http://www.matthiasstirner.com)
 - Mark Adler (http://www.zlib.net)
 - Matt Mahoney (http://www.mattmahoney.net)
 - Malcolm Taylor (http://www.msoftware.co.nz)
 - Simon Berger (helped to fix many bugs)
-- The whole ENCODE.RU forum (http://encode.ru/forum)
+- The whole encode.su forum (https://encode.su/)
 
 Legal stuff
 -----------
 - packJPG v2.5k (https://github.com/packjpg/packJPG) by Matthias Stirner is used for compression/decompression of JPG files.
-- packMP3 v1.0g by Matthias Stirner (http://packjpg.encode.ru/?page_id=19) by Matthias Stirner is used for compression/decompression of MP3 files.
+- packMP3 v1.0g by Matthias Stirner by Matthias Stirner is used for compression/decompression of MP3 files.
 - bZip2 1.0.6 (http://www.bzip.org) by Julian Seward is used for compression/decompression of bZip2 streams.
 - zLib 1.2.11 (http://www.zlib.net) by Jean-loup Gailly and Mark Adler is used for compression/decompression of zLib streams.
 - GifLib 4.1.4 (http://sourceforge.net/projects/giflib) is used for compression/decompression of GIF files. The GIFLIB distribution is Copyright (c) 1997 Eric S. Raymond
