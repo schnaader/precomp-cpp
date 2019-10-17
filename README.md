@@ -52,7 +52,7 @@ Donations
 ---------
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=X5SVF9YUQC9UG)
 
-To donate, you can either use the donate button here or the one on [my homepage](http://schnaader.info). You can also send bitcoins to
+To donate, you can either use the donate button here, the one at the top of the page ("Sponsor") or the one on [my homepage](http://schnaader.info). You can also send bitcoins to
 
     1KvQxn6KHp4tv92Z5Fy8dTPLz4XdosQpbz
 
