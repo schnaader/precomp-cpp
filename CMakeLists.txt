@@ -95,6 +95,33 @@ if (MSVC)
   add_definitions(-D_UNICODE -DUNICODE)
 endif (MSVC)
 
+set(BRUNSLI_SRC "")
+add_stem2file(BRUNSLI_SRC "${SRCDIR}/contrib/brunsli/c/common/%STEM%.cc"
+              "ans_params;constants;context;huffman_tree;lehmer_code;platform;\
+               predict;quant_matrix")
+add_stem2file(BRUNSLI_SRC "${SRCDIR}/contrib/brunsli/c/dec/%STEM%.cc"
+              "ans_decode;bit_reader;brunsli_decode;context_map_decode;histogram_decode;\
+               huffman_decode;huffman_table;jpeg_data_writer")
+add_stem2file(BRUNSLI_SRC "${SRCDIR}/contrib/brunsli/c/enc/%STEM%.cc"
+              "ans_encode;brunsli_encode;context_map_encode;histogram_encode;jpeg_data_reader;\
+               jpeg_huffman_decode;write_bits")
+include_directories(AFTER "${SRCDIR}/contrib/brunsli/c/common"
+                          "${SRCDIR}/contrib/brunsli/c/dec"
+                          "${SRCDIR}/contrib/brunsli/c/enc"
+                          "${SRCDIR}/contrib/brunsli/c/include")
+
+set(BROTLI_SRC "")
+add_stem2file(BROTLI_SRC "${SRCDIR}/contrib/brotli/c/common/%STEM%.c"
+              "dictionary;transform")
+add_stem2file(BROTLI_SRC "${SRCDIR}/contrib/brotli/c/dec/%STEM%.c"
+              "bit_reader;decode;huffman;state")
+add_stem2file(BROTLI_SRC "${SRCDIR}/contrib/brotli/c/enc/%STEM%.c"
+              "backward_references;backward_references_hq;bit_cost;block_splitter;\
+               brotli_bit_stream;cluster;compress_fragment;compress_fragment_two_pass;\
+               dictionary_hash;encode;encoder_dict;entropy_encode;histogram;literal_cost;\
+               memory;metablock;static_dict;utf8_util")
+include_directories(AFTER "${SRCDIR}/contrib/brotli/c/include")
+
 if ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
   add_definitions(-DBIT64)
 endif ("${CMAKE_SIZEOF_VOID_P}" EQUAL "8")
@@ -119,7 +146,7 @@ set(PRECOMP_HDR "${SRCDIR}/precomp.h")
 
 add_executable(precomp ${GIF_SRC} ${BZIP_SRC} ${ZLIB_SRC} ${PACKARI_SRC}
                        ${PACKJPG_SRC} ${PACKMP3_SRC} ${LZMA_SRC} ${PREFLATE_SRC}
-                       ${PRECOMP_SRC} ${PRECOMP_HDR})
+                       ${BRUNSLI_SRC} ${BROTLI_SRC} ${PRECOMP_SRC} ${PRECOMP_HDR})
 
 if (UNIX)
   target_link_libraries(precomp Threads::Threads)
