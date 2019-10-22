@@ -1394,12 +1394,13 @@ BrunsliStatus ProcessJpeg(State* state, JPEGData* jpg) {
 }  // namespace internal
 
 BrunsliStatus BrunsliDecodeJpeg(const uint8_t* data, const size_t len,
-                                JPEGData* jpg) {
+                                JPEGData* jpg, bool use_brotli) {
   if (!data) return BRUNSLI_INVALID_PARAM;
 
   State state;
   state.data = data;
   state.len = len;
+  state.use_brotli = use_brotli;
 
   return internal::dec::ProcessJpeg(&state, jpg);
 }

@@ -1371,8 +1371,10 @@ bool BrunsliSerialize(State* state, const JPEGData& jpg, uint32_t skip_sections,
  *
  * For "groups" workflow, few more stages are required, see comments.
  */
-bool BrunsliEncodeJpeg(const JPEGData& jpg, uint8_t* data, size_t* len) {
+bool BrunsliEncodeJpeg(const JPEGData& jpg, uint8_t* data, size_t* len, bool use_brotli) {
   State state;
+  state.use_brotli = use_brotli;
+
   std::vector<ComponentMeta>& meta = state.meta;
   size_t num_components = jpg.components.size();
 

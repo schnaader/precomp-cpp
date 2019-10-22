@@ -136,6 +136,8 @@ struct State {
 
   std::vector<ComponentMeta> meta;
   size_t num_contexts;
+
+  bool use_brotli;
 };
 
 // Encoder workflow:
