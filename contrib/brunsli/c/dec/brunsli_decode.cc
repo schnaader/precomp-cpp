@@ -973,29 +973,34 @@ static bool DecodeMetaDataSection(State* state, JPEGData* jpg) {
   if (state->section_end <= state->pos) return false;
   const size_t compressed_size = state->section_end - state->pos;
 
-  // Make additional check if compressed data is suspicious,
-  // i.e. expected output is larger than 1GiB, or compression ratio is larger
-  // than 4K.
-  // This will protect from broken streams that would require allocating
-  // gigantic chunk of memory.
-  // TODO: make AddMetaData more stream-friendly; in this case temporary
-  //               "metadata" string does not have to be allocated at all.
-  bool is_suspicious = (metadata_size >= (1u << 30)) ||
-                       ((metadata_size >> 12) > compressed_size);
-  if (is_suspicious) {
-    bool is_valid_brotli_stream =
-        ValidateBrotliStream(compressed_data, compressed_size, metadata_size);
-    if (!is_valid_brotli_stream) {
-      return false;
-    }
-  }
-
   std::string metadata(metadata_size, 0);
-  BrotliDecoderResult result =
-      BrotliDecoderDecompress(compressed_size, compressed_data, &metadata_size,
-                              reinterpret_cast<uint8_t*>(&metadata[0]));
-  if (result != BROTLI_DECODER_RESULT_SUCCESS) {
-    return false;
+  if (state->use_brotli) {
+	  // Make additional check if compressed data is suspicious,
+	  // i.e. expected output is larger than 1GiB, or compression ratio is larger
+	  // than 4K.
+	  // This will protect from broken streams that would require allocating
+	  // gigantic chunk of memory.
+	  // TODO: make AddMetaData more stream-friendly; in this case temporary
+	  //               "metadata" string does not have to be allocated at all.
+	  bool is_suspicious = (metadata_size >= (1u << 30)) ||
+		  ((metadata_size >> 12) > compressed_size);
+	  if (is_suspicious) {
+		  bool is_valid_brotli_stream =
+			  ValidateBrotliStream(compressed_data, compressed_size, metadata_size);
+		  if (!is_valid_brotli_stream) {
+			  return false;
+		  }
+	  }
+
+	  BrotliDecoderResult result =
+		  BrotliDecoderDecompress(compressed_size, compressed_data, &metadata_size,
+			  reinterpret_cast<uint8_t*>(&metadata[0]));
+	  if (result != BROTLI_DECODER_RESULT_SUCCESS) {
+		  return false;
+	  }
+  }
+  else {
+	  memcpy(reinterpret_cast<uint8_t*>(&metadata[0]), compressed_data, compressed_size);
   }
   if (!AddMetaData(metadata, jpg)) {
     return false;
