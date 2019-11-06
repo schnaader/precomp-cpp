@@ -4857,7 +4857,7 @@ while (fin_pos < fin_length) {
       unsigned char* jpg_mem_in = NULL;
       unsigned char* jpg_mem_out = NULL;
       unsigned int jpg_mem_out_size = -1;
-      bool in_memory = (recompressed_data_length <= MAX_IO_BUFFER_SIZE);
+      bool in_memory = (recompressed_data_length <= JPG_MAX_MEMORY_SIZE);
       bool recompress_success = false;
 
       if (in_memory) {
@@ -6587,7 +6587,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
         unsigned char* jpg_mem_in = NULL;
         unsigned char* jpg_mem_out = NULL;
         unsigned int jpg_mem_out_size = -1;
-        bool in_memory = ((jpg_length + MJPGDHT_LEN) <= MAX_IO_BUFFER_SIZE);
+        bool in_memory = ((jpg_length + MJPGDHT_LEN) <= JPG_MAX_MEMORY_SIZE);
 
         if (in_memory) { // small stream => do everything in memory
           jpg_mem_in = new unsigned char[jpg_length + MJPGDHT_LEN];
@@ -6677,7 +6677,10 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 			  brotli_used = false;
 		  }
         } else { // large stream => use temporary files
-          // try to decompress at current position
+		  if (DEBUG_MODE) {
+			printf("JPG too large for brunsli, using packJPG fallback...\n");
+		  }
+		  // try to decompress at current position
           fjpg = tryOpen(tempfile0,"wb");
           seek_64(fin, input_file_pos);
           fast_copy(fin, fjpg, jpg_length);

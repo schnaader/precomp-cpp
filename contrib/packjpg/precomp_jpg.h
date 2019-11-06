@@ -1,6 +1,8 @@
 // Motion JPEG DHT header
 // JPEG DHT Segment for YCrCb omitted from MJPEG data
 
+#define JPG_MAX_MEMORY_SIZE 512 * 1024 * 1024
+
 #define MJPGDHT_LEN 420
 unsigned char MJPGDHT[MJPGDHT_LEN] = {
 0xFF,0xC4,0x01,0xA2,
