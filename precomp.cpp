@@ -6560,7 +6560,6 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           jpg_mem_in = new unsigned char[jpg_length + MJPGDHT_LEN];
           seek_64(fin, input_file_pos);
           fast_copy(fin, jpg_mem_in, jpg_length);
-		  -
           pjglib_init_streams(jpg_mem_in, 1, jpg_length, jpg_mem_out, 1);
           recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
         } else { // large stream => use temporary files
