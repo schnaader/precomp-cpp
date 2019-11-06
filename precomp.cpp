@@ -92,7 +92,6 @@
 
 using namespace std;
 
-
 #include "contrib/bzip2/bzlib.h"
 #include "contrib/giflib/precomp_gif.h"
 #include "contrib/packjpg/precomp_jpg.h"
@@ -100,7 +99,9 @@ using namespace std;
 #include "contrib/zlib/zlib.h"
 #include "contrib/preflate/preflate.h"
 #include "contrib/brunsli/c/include/brunsli/brunsli_encode.h"
+#include "contrib/brunsli/c/include/brunsli/brunsli_decode.h"
 #include "contrib/brunsli/c/include/brunsli/jpeg_data_reader.h"
+#include "contrib/brunsli/c/include/brunsli/jpeg_data_writer.h"
 
 #define CHUNK 262144 // 256 KB buffersize
 #define DIV3CHUNK 262143 // DIV3CHUNK is a bit smaller/larger than CHUNK, so that DIV3CHUNK mod 3 = 0
@@ -4546,6 +4547,12 @@ bool compress_file(float min_percent, float max_percent) {
   return (anything_was_used || non_zlib_was_used);
 }
 
+int BrunsliStringWriter(void* data, const uint8_t* buf, size_t count) {
+	std::string* output = reinterpret_cast<std::string*>(data);
+	output->append(reinterpret_cast<const char*>(buf), count);
+	return count;
+}
+
 void decompress_file() {
 
   long long fin_pos;
@@ -4836,6 +4843,8 @@ while (fin_pos < fin_length) {
       }
 
       bool mjpg_dht_used = ((header1 & 4) == 4);
+	  bool brunsli_used = ((header1 & 8) == 8);
+	  bool brotli_used = ((header1 & 16) == 16);
 
       long long recompressed_data_length = fin_fget_vlint();
       long long decompressed_data_length = fin_fget_vlint();
@@ -4856,8 +4865,27 @@ while (fin_pos < fin_length) {
 
         fast_copy(fin, jpg_mem_in, decompressed_data_length);
 
-        pjglib_init_streams(jpg_mem_in, 1, decompressed_data_length, jpg_mem_out, 1);
-        recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+		if (brunsli_used) {
+			brunsli::JPEGData jpegData;
+			if (brunsli::BrunsliDecodeJpeg(jpg_mem_in, decompressed_data_length, &jpegData, brotli_used) == brunsli::BRUNSLI_OK) {
+				if (mjpg_dht_used) {
+					jpg_mem_out = new unsigned char[recompressed_data_length + MJPGDHT_LEN];
+				}
+				else {
+					jpg_mem_out = new unsigned char[recompressed_data_length];
+				}
+				std::string output;
+				brunsli::JPEGOutput writer(BrunsliStringWriter, &output);
+				if (brunsli::WriteJpeg(jpegData, writer)) {
+					jpg_mem_out_size = output.length();
+					memcpy(jpg_mem_out, output.data(), jpg_mem_out_size);
+					recompress_success = true;
+				}
+			}
+		} else {
+			pjglib_init_streams(jpg_mem_in, 1, decompressed_data_length, jpg_mem_out, 1);
+			recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+		}
       } else {
         remove(tempfile1);
         ftempout = tryOpen(tempfile1,"wb");
