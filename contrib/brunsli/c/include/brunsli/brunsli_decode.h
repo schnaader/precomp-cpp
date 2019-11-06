@@ -21,7 +21,7 @@ namespace brunsli {
 // The *jpg object is valid only as long as the input data is valid.
 // Returns BRUNSLI_OK, unless the data is not valid brunsli byte stream, or is
 // truncated.
-BrunsliStatus BrunsliDecodeJpeg(const uint8_t* data, size_t len, JPEGData* jpg);
+BrunsliStatus BrunsliDecodeJpeg(const uint8_t* data, size_t len, JPEGData* jpg, bool use_brotli);
 
 /* Check if data looks like Brunsli stream.
  * Currently, only 6 byte signature is compared
