@@ -6583,8 +6583,10 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 				  } else {
 					  if (jpg_mem_out != NULL) delete[] jpg_mem_out;
 					  jpg_mem_out = NULL;
-					  printf("Brunsli compression failed, using packJPG fallback...\n");
 				  }
+			  }
+			  if (DEBUG_MODE && !brunsli_success) {
+				  printf("Brunsli compression failed, using packJPG fallback...\n");
 			  }
 		  }
 
