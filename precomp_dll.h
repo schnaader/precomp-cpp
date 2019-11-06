@@ -15,11 +15,15 @@ class Switches {
     bool fast_mode;                //fast mode (default: off)
     bool brute_mode;               //brute mode (default: off)
     bool pdf_bmp_mode;             //wrap BMP header around PDF images
-                                   //  (default: off);
+                                   //  (default: off)
     bool prog_only;                //recompress progressive JPGs only
-                                   //  (default: off);
+                                   //  (default: off)
     bool use_mjpeg;                //insert huffman table for MJPEG recompression
-                                   //  (default: on);
+                                   //  (default: on)
+    bool use_brunsli;              //use brunsli for JPG compression
+                                   //  (default: on)
+    bool use_brotli;               //use brotli for JPG metadata when brunsli is used
+                                   //  (default: off)
     bool debug_mode;               //debug mode (default: off)
 
     unsigned int min_ident_size;   //minimal identical bytes (default: 4)

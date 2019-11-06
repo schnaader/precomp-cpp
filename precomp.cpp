@@ -299,6 +299,8 @@ bool brute_mode = false;
 bool pdf_bmp_mode = false;
 bool prog_only = false;
 bool use_mjpeg = true;
+bool use_brunsli = true;
+bool use_brotli = false;
 
 int intense_mode_depth_limit = -1;
 int brute_mode_depth_limit = -1;
@@ -356,6 +358,8 @@ void setSwitches(Switches switches) {
   brute_mode = switches.brute_mode;
   pdf_bmp_mode = switches.pdf_bmp_mode;
   prog_only = switches.prog_only;
+  use_brunsli = switches.use_brunsli;
+  use_brotli = switches.use_brotli;
   DEBUG_MODE = switches.debug_mode;
   min_ident_size = switches.min_ident_size;
   compression_otf_max_memory = switches.compression_otf_max_memory;
@@ -713,15 +717,17 @@ int init(int argc, char* argv[]) {
           }
         case 'B':
           {
-            if (parsePrefixText(argv[i] + 1, "brute")) { // brute mode
-              brute_mode = true;
-              if (strlen(argv[i]) > 6) {
-                brute_mode_depth_limit = parseIntUntilEnd(argv[i] + 6, "brute mode level limit", ERR_BRUTE_MODE_LIMIT_TOO_BIG);
-              }
-            } else {
-              printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-              exit(1);
-            }
+			if (parsePrefixText(argv[i] + 1, "brute")) { // brute mode
+			  brute_mode = true;
+			  if (strlen(argv[i]) > 6) {
+			    brute_mode_depth_limit = parseIntUntilEnd(argv[i] + 6, "brute mode level limit", ERR_BRUTE_MODE_LIMIT_TOO_BIG);
+			  }
+			}
+			else if (!parseSwitch(use_brunsli, argv[i] + 1, "jpgbrunsli")
+				  && !parseSwitch(use_brotli, argv[i] + 1, "jpgbrotli")) {
+			  printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+			  exit(1);
+			}
             break;
           }
         case 'L':
@@ -1221,7 +1227,9 @@ int init(int argc, char* argv[]) {
       printf("  pdfbmp[+-]   Wrap a BMP header around PDF images <off>\n");
       printf("  progonly[+-] Recompress progressive JPGs only (useful for PAQ) <off>\n");
       printf("  mjpeg[+-]    Insert huffman table for MJPEG recompression <on>\n");
-      printf("\n");
+	  printf("  brunsli[+-]  Prefer brunsli to packJPG for JPG streams <on>\n");
+	  printf("  brotli[+-]   Use brotli to compress metadata in JPG streams <off>\n");
+	  printf("\n");
       printf("  You can use an optional number following -intense and -brute to set a\n");
       printf("  limit for how deep in recursion they should be used. E.g. -intense0 means\n");
       printf("  that intense mode will be used but not in recursion, -intense2 that only\n");
@@ -1421,6 +1429,10 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,";; MJPEG recompression (on/off)\n");
       fprintf(fnewini,"MJPEG_recompression=on\n\n");
       fprintf(fnewini,";; Minimal identical byte size\n");
+	  fprintf(fnewini, "JPG_brunsli=on\n\n");
+	  fprintf(fnewini, ";; Prefer brunsli to packJPG for JPG streams (on/off)");
+	  fprintf(fnewini, "JPG_brotli=off\n\n");
+	  fprintf(fnewini, ";; Use brotli to compress metadata in JPG streams (on/off)");
       fprintf(fnewini,"Minimal_Size=4\n\n");
       fprintf(fnewini,";; Verbose mode (on/off)\n");
       fprintf(fnewini,"Verbose=off\n\n");
@@ -1831,6 +1843,46 @@ int init_comfort(int argc, char* argv[]) {
             exit(1);
           }
         }
+
+		if (strcmp(param, "jpg_brunsli") == 0) {
+			if (strcmp(value, "off") == 0) {
+				printf("INI: Disabled brunsli for JPG commpression\n");
+				use_brunsli = false;
+				valid_param = true;
+			}
+
+			if (strcmp(value, "on") == 0) {
+				printf("INI: Enabled brunsli for JPG compression\n");
+				use_brunsli = true;
+				valid_param = true;
+			}
+
+			if (!valid_param) {
+				printf("ERROR: Invalid brunsli compression value: %s\n", value);
+				wait_for_key();
+				exit(1);
+			}
+		}
+
+		if (strcmp(param, "jpg_brotli") == 0) {
+			if (strcmp(value, "off") == 0) {
+				printf("INI: Disabled brotli for JPG metadata compression\n");
+				use_brotli = false;
+				valid_param = true;
+			}
+
+			if (strcmp(value, "on") == 0) {
+				printf("INI: Enabled brotli for JPG metadata compression\n");
+				use_brotli = true;
+				valid_param = true;
+			}
+
+			if (!valid_param) {
+				printf("ERROR: Invalid brotli for metadata compression value: %s\n", value);
+				wait_for_key();
+				exit(1);
+			}
+		}
 
         if (strcmp(param, "compression_types_enable") == 0) {
           if (compression_type_line_used) {
@@ -6508,7 +6560,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           jpg_mem_in = new unsigned char[jpg_length + MJPGDHT_LEN];
           seek_64(fin, input_file_pos);
           fast_copy(fin, jpg_mem_in, jpg_length);
-
+		  -
           pjglib_init_streams(jpg_mem_in, 1, jpg_length, jpg_mem_out, 1);
           recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
         } else { // large stream => use temporary files
