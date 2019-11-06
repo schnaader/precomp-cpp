@@ -71,6 +71,7 @@ Thanks for support, help and comments:
 
 Legal stuff
 -----------
+- brunsli (https://github.com/google/brunsli) by Google LLC is used for compression/decompression of JPG files.
 - packJPG v2.5k (https://github.com/packjpg/packJPG) by Matthias Stirner is used for compression/decompression of JPG files.
 - packMP3 v1.0g by Matthias Stirner by Matthias Stirner is used for compression/decompression of MP3 files.
 - bZip2 1.0.6 (http://www.bzip.org) by Julian Seward is used for compression/decompression of bZip2 streams.
