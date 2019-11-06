@@ -92,6 +92,7 @@
 
 using namespace std;
 
+
 #include "contrib/bzip2/bzlib.h"
 #include "contrib/giflib/precomp_gif.h"
 #include "contrib/packjpg/precomp_jpg.h"
@@ -6583,6 +6584,57 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 				  } else {
 					  if (jpg_mem_out != NULL) delete[] jpg_mem_out;
 					  jpg_mem_out = NULL;
+				  }
+			  }
+			  else {
+				  if (jpegData.error == brunsli::JPEGReadError::HUFFMAN_TABLE_NOT_FOUND) {
+					  if (DEBUG_MODE) printf("huffman table missing, trying to use Motion JPEG DHT\n");
+					  // search 0xFF 0xDA, insert MJPGDHT (MJPGDHT_LEN bytes)
+					  bool found_ffda = false;
+					  bool found_ff = false;
+					  int ffda_pos = -1;
+
+					  do {
+						  ffda_pos++;
+						  if (ffda_pos >= jpg_length) break;
+						  if (found_ff) {
+							  found_ffda = (jpg_mem_in[ffda_pos] == 0xDA);
+							  if (found_ffda) break;
+							  found_ff = false;
+						  }
+						  else {
+							  found_ff = (jpg_mem_in[ffda_pos] == 0xFF);
+						  }
+					  } while (!found_ffda);
+					  if (found_ffda) {
+						  // reinitialise jpegData
+						  brunsli::JPEGData newJpegData;
+						  jpegData = newJpegData;
+
+						  memmove(jpg_mem_in + (ffda_pos - 1) + MJPGDHT_LEN, jpg_mem_in + (ffda_pos - 1), jpg_length - (ffda_pos - 1));
+						  memcpy(jpg_mem_in + (ffda_pos - 1), MJPGDHT, MJPGDHT_LEN);
+
+						  if (brunsli::ReadJpeg(jpg_mem_in, jpg_length + MJPGDHT_LEN, brunsli::JPEG_READ_ALL, &jpegData)) {
+							  size_t output_size = brunsli::GetMaximumBrunsliEncodedSize(jpegData);
+							  jpg_mem_out = new unsigned char[output_size];
+							  if (brunsli::BrunsliEncodeJpeg(jpegData, jpg_mem_out, &output_size, use_brotli)) {
+								  recompress_success = true;
+								  brunsli_success = true;
+								  brunsli_used = true;
+								  mjpg_dht_used = true;
+								  jpg_mem_out_size = output_size;
+							  }
+							  else {
+								  if (jpg_mem_out != NULL) delete[] jpg_mem_out;
+								  jpg_mem_out = NULL;
+							  }
+						  }
+
+						  if (!brunsli_success) {
+							  // revert DHT insertion
+							  memmove(jpg_mem_in + (ffda_pos - 1), jpg_mem_in + (ffda_pos - 1) + MJPGDHT_LEN, jpg_length - (ffda_pos - 1));
+						  }
+					  }
 				  }
 			  }
 			  if (DEBUG_MODE && !brunsli_success) {
