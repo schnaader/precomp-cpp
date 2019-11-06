@@ -98,6 +98,8 @@ using namespace std;
 #include "contrib/packmp3/precomp_mp3.h"
 #include "contrib/zlib/zlib.h"
 #include "contrib/preflate/preflate.h"
+#include "contrib/brunsli/c/include/brunsli/brunsli_encode.h"
+#include "contrib/brunsli/c/include/brunsli/jpeg_data_reader.h"
 
 #define CHUNK 262144 // 256 KB buffersize
 #define DIV3CHUNK 262143 // DIV3CHUNK is a bit smaller/larger than CHUNK, so that DIV3CHUNK mod 3 = 0
@@ -723,8 +725,8 @@ int init(int argc, char* argv[]) {
 			    brute_mode_depth_limit = parseIntUntilEnd(argv[i] + 6, "brute mode level limit", ERR_BRUTE_MODE_LIMIT_TOO_BIG);
 			  }
 			}
-			else if (!parseSwitch(use_brunsli, argv[i] + 1, "jpgbrunsli")
-				  && !parseSwitch(use_brotli, argv[i] + 1, "jpgbrotli")) {
+			else if (!parseSwitch(use_brunsli, argv[i] + 1, "brunsli")
+				  && !parseSwitch(use_brotli, argv[i] + 1, "brotli")) {
 			  printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
 			  exit(1);
 			}
@@ -6550,6 +6552,8 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
         bool jpg_success = false;
         bool recompress_success = false;
         bool mjpg_dht_used = false;
+		bool brunsli_used = false;
+		bool brotli_used = use_brotli;
         char recompress_msg[256];
         unsigned char* jpg_mem_in = NULL;
         unsigned char* jpg_mem_out = NULL;
@@ -6560,8 +6564,36 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           jpg_mem_in = new unsigned char[jpg_length + MJPGDHT_LEN];
           seek_64(fin, input_file_pos);
           fast_copy(fin, jpg_mem_in, jpg_length);
-          pjglib_init_streams(jpg_mem_in, 1, jpg_length, jpg_mem_out, 1);
-          recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+
+		  bool brunsli_success = false;
+
+		  if (use_brunsli) {
+			  if (DEBUG_MODE) {
+				  printf("Trying to compress using brunsli...\n");
+			  }
+			  brunsli::JPEGData jpegData;
+			  if (brunsli::ReadJpeg(jpg_mem_in, jpg_length, brunsli::JPEG_READ_ALL, &jpegData)) {
+				  size_t output_size = brunsli::GetMaximumBrunsliEncodedSize(jpegData);
+				  jpg_mem_out = new unsigned char[output_size];
+				  if (brunsli::BrunsliEncodeJpeg(jpegData, jpg_mem_out, &output_size, use_brotli)) {
+					  recompress_success = true;
+					  brunsli_success = true;
+					  brunsli_used = true;
+					  jpg_mem_out_size = output_size;
+				  } else {
+					  if (jpg_mem_out != NULL) delete[] jpg_mem_out;
+					  jpg_mem_out = NULL;
+					  printf("Brunsli compression failed, using packJPG fallback...\n");
+				  }
+			  }
+		  }
+
+		  if (!use_brunsli || !brunsli_success) {
+			  pjglib_init_streams(jpg_mem_in, 1, jpg_length, jpg_mem_out, 1);
+			  recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+			  brunsli_used = false;
+			  brotli_used = false;
+		  }
         } else { // large stream => use temporary files
           // try to decompress at current position
           fjpg = tryOpen(tempfile0,"wb");
@@ -6577,6 +6609,8 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           safe_fclose(&fworkaround);
 
           recompress_success = pjglib_convert_file2file(tempfile0, tempfile1, recompress_msg);
+		  brunsli_used = false;
+		  brotli_used = false;
         }
 
         if ((!recompress_success) && (strncmp(recompress_msg, "huffman table missing", 21) == 0) && (use_mjpeg)) {
@@ -6690,11 +6724,11 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 
           // write compressed data header (JPG)
 
-          if (mjpg_dht_used) {
-            fout_fputc(1 + 4); // no penalty bytes, Motion JPG DHT used
-          } else {
-            fout_fputc(1); // no penalty bytes
-          }
+		  char jpg_flags = 1; // no penalty bytes
+		  if (mjpg_dht_used) jpg_flags += 4; // motion JPG DHT used
+		  if (brunsli_used) jpg_flags += 8;
+		  if (brotli_used) jpg_flags += 16;
+		  fout_fputc(jpg_flags);
           fout_fputc(D_JPG); // JPG
 
           fout_fput_vlint(best_identical_bytes);
