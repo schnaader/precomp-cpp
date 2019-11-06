@@ -1336,7 +1336,7 @@ bool BrunsliSerialize(State* state, const JPEGData& jpg, uint32_t skip_sections,
   }
 
   if (!(skip_sections & (1u << kBrunsliMetaDataTag))) {
-    ok = EncodeSection(jpg, NULL, kBrunsliMetaDataTag, EncodeMetaData,
+    ok = EncodeSection(jpg, state, kBrunsliMetaDataTag, EncodeMetaData,
                        Base128Size(*len - pos), *len, data, &pos);
     if (!ok) return false;
   }
