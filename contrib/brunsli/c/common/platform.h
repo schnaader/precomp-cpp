@@ -19,6 +19,8 @@
 #ifndef BRUNSLI_COMMON_PLATFORM_H_
 #define BRUNSLI_COMMON_PLATFORM_H_
 
+#define BRUNSLI_DISABLE_LOG
+
 #include <cstring>  /* memcpy */
 #include <iomanip>
 #include <ios>
