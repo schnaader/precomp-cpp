@@ -305,6 +305,7 @@ bool prog_only = false;
 bool use_mjpeg = true;
 bool use_brunsli = true;
 bool use_brotli = false;
+bool use_packjpg_fallback = true;
 
 int intense_mode_depth_limit = -1;
 int brute_mode_depth_limit = -1;
@@ -364,6 +365,7 @@ void setSwitches(Switches switches) {
   prog_only = switches.prog_only;
   use_brunsli = switches.use_brunsli;
   use_brotli = switches.use_brotli;
+  use_packjpg_fallback = switches.use_packjpg_fallback;
   DEBUG_MODE = switches.debug_mode;
   min_ident_size = switches.min_ident_size;
   compression_otf_max_memory = switches.compression_otf_max_memory;
@@ -876,7 +878,8 @@ int init(int argc, char* argv[]) {
           {
             if (!parseSwitch(pdf_bmp_mode, argv[i] + 1, "pdfbmp")
                 && !parseSwitch(prog_only, argv[i] + 1, "progonly")
-                && !parseSwitch(preflate_verify, argv[i] + 1, "pfverify")) {
+                && !parseSwitch(preflate_verify, argv[i] + 1, "pfverify")
+				&& !parseSwitch(use_packjpg_fallback, argv[i] + 1, "packjpg")) {
               if (parsePrefixText(argv[i] + 1, "pfmeta")) {
                 int mbsize = parseIntUntilEnd(argv[i] + 7, "preflate meta block size");
                 if (mbsize >= INT_MAX / 1024) {
@@ -1233,6 +1236,7 @@ int init(int argc, char* argv[]) {
       printf("  mjpeg[+-]    Insert huffman table for MJPEG recompression <on>\n");
 	  printf("  brunsli[+-]  Prefer brunsli to packJPG for JPG streams <on>\n");
 	  printf("  brotli[+-]   Use brotli to compress metadata in JPG streams <off>\n");
+	  printf("  packjpg[+-]  Use packJPG for JPG streams and fallback if brunsli fails <on>\n");
 	  printf("\n");
       printf("  You can use an optional number following -intense and -brute to set a\n");
       printf("  limit for how deep in recursion they should be used. E.g. -intense0 means\n");
@@ -1437,6 +1441,8 @@ int init_comfort(int argc, char* argv[]) {
 	  fprintf(fnewini, ";; Prefer brunsli to packJPG for JPG streams (on/off)");
 	  fprintf(fnewini, "JPG_brotli=off\n\n");
 	  fprintf(fnewini, ";; Use brotli to compress metadata in JPG streams (on/off)");
+	  fprintf(fnewini, "JPG_packjpg=on\n\n");
+	  fprintf(fnewini, ";; Use packJPG for JPG streams (fallback if brunsli fails) (on/off)");
       fprintf(fnewini,"Minimal_Size=4\n\n");
       fprintf(fnewini,";; Verbose mode (on/off)\n");
       fprintf(fnewini,"Verbose=off\n\n");
@@ -1888,7 +1894,27 @@ int init_comfort(int argc, char* argv[]) {
 			}
 		}
 
-        if (strcmp(param, "compression_types_enable") == 0) {
+		if (strcmp(param, "jpg_packjpg") == 0) {
+			if (strcmp(value, "off") == 0) {
+				printf("INI: Disabled packJPG for JPG compression\n");
+				use_brotli = false;
+				valid_param = true;
+			}
+
+			if (strcmp(value, "on") == 0) {
+				printf("INI: Enabled packJPG for JPG compression\n");
+				use_brotli = true;
+				valid_param = true;
+			}
+
+			if (!valid_param) {
+				printf("ERROR: Invalid packJPG for JPG compression value: %s\n", value);
+				wait_for_key();
+				exit(1);
+			}
+		}
+
+		if (strcmp(param, "compression_types_enable") == 0) {
           if (compression_type_line_used) {
             printf("ERROR: Both Compression_types_enable and Compression_types_disable used.\n");
             wait_for_key();
@@ -6666,17 +6692,21 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 				  }
 			  }
 			  if (DEBUG_MODE && !brunsli_success) {
-				  printf("Brunsli compression failed, using packJPG fallback...\n");
+				  if (use_packjpg_fallback) {
+					  printf("Brunsli compression failed, using packJPG fallback...\n");
+				  } else {
+					  printf("Brunsli compression failed\n");
+				  }
 			  }
 		  }
 
-		  if (!use_brunsli || !brunsli_success) {
+		  if ((!use_brunsli || !brunsli_success) && use_packjpg_fallback) {
 			  pjglib_init_streams(jpg_mem_in, 1, jpg_length, jpg_mem_out, 1);
 			  recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
 			  brunsli_used = false;
 			  brotli_used = false;
 		  }
-        } else { // large stream => use temporary files
+        } else if (use_packjpg_fallback) { // large stream => use temporary files
 		  if (DEBUG_MODE) {
 			printf("JPG too large for brunsli, using packJPG fallback...\n");
 		  }
@@ -6698,7 +6728,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 		  brotli_used = false;
         }
 
-        if ((!recompress_success) && (strncmp(recompress_msg, "huffman table missing", 21) == 0) && (use_mjpeg)) {
+        if ((!recompress_success) && (strncmp(recompress_msg, "huffman table missing", 21) == 0) && (use_mjpeg) && (use_packjpg_fallback)) {
           if (DEBUG_MODE) printf ("huffman table missing, trying to use Motion JPEG DHT\n");
           // search 0xFF 0xDA, insert MJPGDHT (MJPGDHT_LEN bytes)
           bool found_ffda = false;
@@ -6761,7 +6791,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           decompressed_jpg_count++;
         }
 
-        if (!recompress_success) {
+        if ((!recompress_success) && (use_packjpg_fallback)) {
           if (DEBUG_MODE) printf ("packJPG error: %s\n", recompress_msg);
         }
 
