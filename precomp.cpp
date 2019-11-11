@@ -5175,33 +5175,49 @@ while (fin_pos < fin_length) {
       cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
       }
 
-      char recompress_msg[256];
-      unsigned char* mp3_mem_in = NULL;
-      unsigned char* mp3_mem_out = NULL;
-      unsigned int mp3_mem_out_size = -1;
-      bool in_memory = (recompressed_data_length <= MP3_MAX_MEMORY_SIZE);
+	  bool in_memory = (recompressed_data_length <= MP3_MAX_MEMORY_SIZE);
 
-      bool recompress_success = false;
+	  if (in_memory) {
+		  char recompress_msg[256];
+		  bool recompress_success = false;
+		  unsigned char* mp3_mem_in = NULL;
+		  unsigned char* mp3_mem_out = NULL;
+		  unsigned int mp3_mem_out_size = -1;
 
-      if (in_memory) {
-        mp3_mem_in = new unsigned char[decompressed_data_length];
+		  mp3_mem_in = new unsigned char[decompressed_data_length];
 
-        fast_copy(fin, mp3_mem_in, decompressed_data_length);
+		  fast_copy(fin, mp3_mem_in, decompressed_data_length);
 
-        pmplib_init_streams(mp3_mem_in, 1, decompressed_data_length, mp3_mem_out, 1);
-        recompress_success = pmplib_convert_stream2mem(&mp3_mem_out, &mp3_mem_out_size, recompress_msg);
-      } else {
-        remove(tempfile1);
-        ftempout = tryOpen(tempfile1,"wb");
+		  pmplib_init_streams(mp3_mem_in, 1, decompressed_data_length, mp3_mem_out, 1);
+		  recompress_success = pmplib_convert_stream2mem(&mp3_mem_out, &mp3_mem_out_size, recompress_msg);
 
-        fast_copy(fin, ftempout, decompressed_data_length);
+		  if (!recompress_success) {
+			  if (DEBUG_MODE) printf("packMP3 error: %s\n", recompress_msg);
+			  printf("Error recompressing data!");
+			  exit(1);
+		  }
 
-        safe_fclose(&ftempout);
+		  fast_copy(mp3_mem_out, fout, recompressed_data_length);
 
-        remove(tempfile2);
+		  if (mp3_mem_in != NULL) delete[] mp3_mem_in;
+		  if (mp3_mem_out != NULL) delete[] mp3_mem_out;
 
-        recompress_success = pmplib_convert_file2file(tempfile1, tempfile2, recompress_msg);
-      }
+		  break;
+	  }
+
+	  char recompress_msg[256];
+	  bool recompress_success = false;
+
+      remove(tempfile1);
+      ftempout = tryOpen(tempfile1,"wb");
+
+      fast_copy(fin, ftempout, decompressed_data_length);
+
+      safe_fclose(&ftempout);
+
+      remove(tempfile2);
+
+      recompress_success = pmplib_convert_file2file(tempfile1, tempfile2, recompress_msg);
 
       if (!recompress_success) {
         if (DEBUG_MODE) printf ("packMP3 error: %s\n", recompress_msg);
@@ -5209,22 +5225,16 @@ while (fin_pos < fin_length) {
         exit(1);
       }
 
-      if (in_memory) {
-        fast_copy(mp3_mem_out, fout, recompressed_data_length);
+      frecomp = tryOpen(tempfile2,"rb");
 
-        if (mp3_mem_in != NULL) delete[] mp3_mem_in;
-        if (mp3_mem_out != NULL) delete[] mp3_mem_out;
-      } else {
-        frecomp = tryOpen(tempfile2,"rb");
+      fast_copy(frecomp, fout, recompressed_data_length);
 
-        fast_copy(frecomp, fout, recompressed_data_length);
+      safe_fclose(&frecomp);
 
-        safe_fclose(&frecomp);
+      remove(tempfile2);
+      remove(tempfile1);
 
-        remove(tempfile2);
-        remove(tempfile1);
-      }
-      break;
+	  break;
     }
     case D_BRUTE: { // brute mode recompression
       recompress_deflate_result rdres;
