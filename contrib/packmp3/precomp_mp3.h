@@ -3,7 +3,7 @@
 #include "pmp3tbl.h"
 #undef PRECOMP_MP3
 
-#define MP3_MAX_MEMORY_SIZE 64 * 1024 * 1024
+#define MP3_MAX_MEMORY_SIZE 512 * 1024 * 1024
 
 // function to convert MP3 to PMP and vice versa, file to file
 bool pmplib_convert_file2file( char* in, char* out, char* msg );

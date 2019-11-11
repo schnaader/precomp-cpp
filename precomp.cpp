@@ -98,6 +98,10 @@ using namespace std;
 #include "contrib/packmp3/precomp_mp3.h"
 #include "contrib/zlib/zlib.h"
 #include "contrib/preflate/preflate.h"
+#include "contrib/brunsli/c/include/brunsli/brunsli_encode.h"
+#include "contrib/brunsli/c/include/brunsli/brunsli_decode.h"
+#include "contrib/brunsli/c/include/brunsli/jpeg_data_reader.h"
+#include "contrib/brunsli/c/include/brunsli/jpeg_data_writer.h"
 
 #define CHUNK 262144 // 256 KB buffersize
 #define DIV3CHUNK 262143 // DIV3CHUNK is a bit smaller/larger than CHUNK, so that DIV3CHUNK mod 3 = 0
@@ -299,6 +303,9 @@ bool brute_mode = false;
 bool pdf_bmp_mode = false;
 bool prog_only = false;
 bool use_mjpeg = true;
+bool use_brunsli = true;
+bool use_brotli = false;
+bool use_packjpg_fallback = true;
 
 int intense_mode_depth_limit = -1;
 int brute_mode_depth_limit = -1;
@@ -356,6 +363,9 @@ void setSwitches(Switches switches) {
   brute_mode = switches.brute_mode;
   pdf_bmp_mode = switches.pdf_bmp_mode;
   prog_only = switches.prog_only;
+  use_brunsli = switches.use_brunsli;
+  use_brotli = switches.use_brotli;
+  use_packjpg_fallback = switches.use_packjpg_fallback;
   DEBUG_MODE = switches.debug_mode;
   min_ident_size = switches.min_ident_size;
   compression_otf_max_memory = switches.compression_otf_max_memory;
@@ -713,15 +723,17 @@ int init(int argc, char* argv[]) {
           }
         case 'B':
           {
-            if (parsePrefixText(argv[i] + 1, "brute")) { // brute mode
-              brute_mode = true;
-              if (strlen(argv[i]) > 6) {
-                brute_mode_depth_limit = parseIntUntilEnd(argv[i] + 6, "brute mode level limit", ERR_BRUTE_MODE_LIMIT_TOO_BIG);
-              }
-            } else {
-              printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
-              exit(1);
-            }
+			if (parsePrefixText(argv[i] + 1, "brute")) { // brute mode
+			  brute_mode = true;
+			  if (strlen(argv[i]) > 6) {
+			    brute_mode_depth_limit = parseIntUntilEnd(argv[i] + 6, "brute mode level limit", ERR_BRUTE_MODE_LIMIT_TOO_BIG);
+			  }
+			}
+			else if (!parseSwitch(use_brunsli, argv[i] + 1, "brunsli")
+				  && !parseSwitch(use_brotli, argv[i] + 1, "brotli")) {
+			  printf("ERROR: Unknown switch \"%s\"\n", argv[i]);
+			  exit(1);
+			}
             break;
           }
         case 'L':
@@ -866,7 +878,8 @@ int init(int argc, char* argv[]) {
           {
             if (!parseSwitch(pdf_bmp_mode, argv[i] + 1, "pdfbmp")
                 && !parseSwitch(prog_only, argv[i] + 1, "progonly")
-                && !parseSwitch(preflate_verify, argv[i] + 1, "pfverify")) {
+                && !parseSwitch(preflate_verify, argv[i] + 1, "pfverify")
+				&& !parseSwitch(use_packjpg_fallback, argv[i] + 1, "packjpg")) {
               if (parsePrefixText(argv[i] + 1, "pfmeta")) {
                 int mbsize = parseIntUntilEnd(argv[i] + 7, "preflate meta block size");
                 if (mbsize >= INT_MAX / 1024) {
@@ -1221,7 +1234,10 @@ int init(int argc, char* argv[]) {
       printf("  pdfbmp[+-]   Wrap a BMP header around PDF images <off>\n");
       printf("  progonly[+-] Recompress progressive JPGs only (useful for PAQ) <off>\n");
       printf("  mjpeg[+-]    Insert huffman table for MJPEG recompression <on>\n");
-      printf("\n");
+	  printf("  brunsli[+-]  Prefer brunsli to packJPG for JPG streams <on>\n");
+	  printf("  brotli[+-]   Use brotli to compress metadata in JPG streams <off>\n");
+	  printf("  packjpg[+-]  Use packJPG for JPG streams and fallback if brunsli fails <on>\n");
+	  printf("\n");
       printf("  You can use an optional number following -intense and -brute to set a\n");
       printf("  limit for how deep in recursion they should be used. E.g. -intense0 means\n");
       printf("  that intense mode will be used but not in recursion, -intense2 that only\n");
@@ -1421,6 +1437,12 @@ int init_comfort(int argc, char* argv[]) {
       fprintf(fnewini,";; MJPEG recompression (on/off)\n");
       fprintf(fnewini,"MJPEG_recompression=on\n\n");
       fprintf(fnewini,";; Minimal identical byte size\n");
+	  fprintf(fnewini, "JPG_brunsli=on\n\n");
+	  fprintf(fnewini, ";; Prefer brunsli to packJPG for JPG streams (on/off)");
+	  fprintf(fnewini, "JPG_brotli=off\n\n");
+	  fprintf(fnewini, ";; Use brotli to compress metadata in JPG streams (on/off)");
+	  fprintf(fnewini, "JPG_packjpg=on\n\n");
+	  fprintf(fnewini, ";; Use packJPG for JPG streams (fallback if brunsli fails) (on/off)");
       fprintf(fnewini,"Minimal_Size=4\n\n");
       fprintf(fnewini,";; Verbose mode (on/off)\n");
       fprintf(fnewini,"Verbose=off\n\n");
@@ -1832,7 +1854,67 @@ int init_comfort(int argc, char* argv[]) {
           }
         }
 
-        if (strcmp(param, "compression_types_enable") == 0) {
+		if (strcmp(param, "jpg_brunsli") == 0) {
+			if (strcmp(value, "off") == 0) {
+				printf("INI: Disabled brunsli for JPG commpression\n");
+				use_brunsli = false;
+				valid_param = true;
+			}
+
+			if (strcmp(value, "on") == 0) {
+				printf("INI: Enabled brunsli for JPG compression\n");
+				use_brunsli = true;
+				valid_param = true;
+			}
+
+			if (!valid_param) {
+				printf("ERROR: Invalid brunsli compression value: %s\n", value);
+				wait_for_key();
+				exit(1);
+			}
+		}
+
+		if (strcmp(param, "jpg_brotli") == 0) {
+			if (strcmp(value, "off") == 0) {
+				printf("INI: Disabled brotli for JPG metadata compression\n");
+				use_brotli = false;
+				valid_param = true;
+			}
+
+			if (strcmp(value, "on") == 0) {
+				printf("INI: Enabled brotli for JPG metadata compression\n");
+				use_brotli = true;
+				valid_param = true;
+			}
+
+			if (!valid_param) {
+				printf("ERROR: Invalid brotli for metadata compression value: %s\n", value);
+				wait_for_key();
+				exit(1);
+			}
+		}
+
+		if (strcmp(param, "jpg_packjpg") == 0) {
+			if (strcmp(value, "off") == 0) {
+				printf("INI: Disabled packJPG for JPG compression\n");
+				use_brotli = false;
+				valid_param = true;
+			}
+
+			if (strcmp(value, "on") == 0) {
+				printf("INI: Enabled packJPG for JPG compression\n");
+				use_brotli = true;
+				valid_param = true;
+			}
+
+			if (!valid_param) {
+				printf("ERROR: Invalid packJPG for JPG compression value: %s\n", value);
+				wait_for_key();
+				exit(1);
+			}
+		}
+
+		if (strcmp(param, "compression_types_enable") == 0) {
           if (compression_type_line_used) {
             printf("ERROR: Both Compression_types_enable and Compression_types_disable used.\n");
             wait_for_key();
@@ -4491,6 +4573,12 @@ bool compress_file(float min_percent, float max_percent) {
   return (anything_was_used || non_zlib_was_used);
 }
 
+int BrunsliStringWriter(void* data, const uint8_t* buf, size_t count) {
+	std::string* output = reinterpret_cast<std::string*>(data);
+	output->append(reinterpret_cast<const char*>(buf), count);
+	return count;
+}
+
 void decompress_file() {
 
   long long fin_pos;
@@ -4781,6 +4869,8 @@ while (fin_pos < fin_length) {
       }
 
       bool mjpg_dht_used = ((header1 & 4) == 4);
+	  bool brunsli_used = ((header1 & 8) == 8);
+	  bool brotli_used = ((header1 & 16) == 16);
 
       long long recompressed_data_length = fin_fget_vlint();
       long long decompressed_data_length = fin_fget_vlint();
@@ -4793,7 +4883,7 @@ while (fin_pos < fin_length) {
       unsigned char* jpg_mem_in = NULL;
       unsigned char* jpg_mem_out = NULL;
       unsigned int jpg_mem_out_size = -1;
-      bool in_memory = (recompressed_data_length <= MAX_IO_BUFFER_SIZE);
+      bool in_memory = (recompressed_data_length <= JPG_MAX_MEMORY_SIZE);
       bool recompress_success = false;
 
       if (in_memory) {
@@ -4801,8 +4891,27 @@ while (fin_pos < fin_length) {
 
         fast_copy(fin, jpg_mem_in, decompressed_data_length);
 
-        pjglib_init_streams(jpg_mem_in, 1, decompressed_data_length, jpg_mem_out, 1);
-        recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+		if (brunsli_used) {
+			brunsli::JPEGData jpegData;
+			if (brunsli::BrunsliDecodeJpeg(jpg_mem_in, decompressed_data_length, &jpegData, brotli_used) == brunsli::BRUNSLI_OK) {
+				if (mjpg_dht_used) {
+					jpg_mem_out = new unsigned char[recompressed_data_length + MJPGDHT_LEN];
+				}
+				else {
+					jpg_mem_out = new unsigned char[recompressed_data_length];
+				}
+				std::string output;
+				brunsli::JPEGOutput writer(BrunsliStringWriter, &output);
+				if (brunsli::WriteJpeg(jpegData, writer)) {
+					jpg_mem_out_size = output.length();
+					memcpy(jpg_mem_out, output.data(), jpg_mem_out_size);
+					recompress_success = true;
+				}
+			}
+		} else {
+			pjglib_init_streams(jpg_mem_in, 1, decompressed_data_length, jpg_mem_out, 1);
+			recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+		}
       } else {
         remove(tempfile1);
         ftempout = tryOpen(tempfile1,"wb");
@@ -6498,21 +6607,110 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
         bool jpg_success = false;
         bool recompress_success = false;
         bool mjpg_dht_used = false;
+		bool brunsli_used = false;
+		bool brotli_used = use_brotli;
         char recompress_msg[256];
         unsigned char* jpg_mem_in = NULL;
         unsigned char* jpg_mem_out = NULL;
         unsigned int jpg_mem_out_size = -1;
-        bool in_memory = ((jpg_length + MJPGDHT_LEN) <= MAX_IO_BUFFER_SIZE);
+        bool in_memory = ((jpg_length + MJPGDHT_LEN) <= JPG_MAX_MEMORY_SIZE);
 
         if (in_memory) { // small stream => do everything in memory
           jpg_mem_in = new unsigned char[jpg_length + MJPGDHT_LEN];
           seek_64(fin, input_file_pos);
           fast_copy(fin, jpg_mem_in, jpg_length);
 
-          pjglib_init_streams(jpg_mem_in, 1, jpg_length, jpg_mem_out, 1);
-          recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
-        } else { // large stream => use temporary files
-          // try to decompress at current position
+		  bool brunsli_success = false;
+
+		  if (use_brunsli) {
+			  if (DEBUG_MODE) {
+				  printf("Trying to compress using brunsli...\n");
+			  }
+			  brunsli::JPEGData jpegData;
+			  if (brunsli::ReadJpeg(jpg_mem_in, jpg_length, brunsli::JPEG_READ_ALL, &jpegData)) {
+				  size_t output_size = brunsli::GetMaximumBrunsliEncodedSize(jpegData);
+				  jpg_mem_out = new unsigned char[output_size];
+				  if (brunsli::BrunsliEncodeJpeg(jpegData, jpg_mem_out, &output_size, use_brotli)) {
+					  recompress_success = true;
+					  brunsli_success = true;
+					  brunsli_used = true;
+					  jpg_mem_out_size = output_size;
+				  } else {
+					  if (jpg_mem_out != NULL) delete[] jpg_mem_out;
+					  jpg_mem_out = NULL;
+				  }
+			  }
+			  else {
+				  if (jpegData.error == brunsli::JPEGReadError::HUFFMAN_TABLE_NOT_FOUND) {
+					  if (DEBUG_MODE) printf("huffman table missing, trying to use Motion JPEG DHT\n");
+					  // search 0xFF 0xDA, insert MJPGDHT (MJPGDHT_LEN bytes)
+					  bool found_ffda = false;
+					  bool found_ff = false;
+					  int ffda_pos = -1;
+
+					  do {
+						  ffda_pos++;
+						  if (ffda_pos >= jpg_length) break;
+						  if (found_ff) {
+							  found_ffda = (jpg_mem_in[ffda_pos] == 0xDA);
+							  if (found_ffda) break;
+							  found_ff = false;
+						  }
+						  else {
+							  found_ff = (jpg_mem_in[ffda_pos] == 0xFF);
+						  }
+					  } while (!found_ffda);
+					  if (found_ffda) {
+						  // reinitialise jpegData
+						  brunsli::JPEGData newJpegData;
+						  jpegData = newJpegData;
+
+						  memmove(jpg_mem_in + (ffda_pos - 1) + MJPGDHT_LEN, jpg_mem_in + (ffda_pos - 1), jpg_length - (ffda_pos - 1));
+						  memcpy(jpg_mem_in + (ffda_pos - 1), MJPGDHT, MJPGDHT_LEN);
+
+						  if (brunsli::ReadJpeg(jpg_mem_in, jpg_length + MJPGDHT_LEN, brunsli::JPEG_READ_ALL, &jpegData)) {
+							  size_t output_size = brunsli::GetMaximumBrunsliEncodedSize(jpegData);
+							  jpg_mem_out = new unsigned char[output_size];
+							  if (brunsli::BrunsliEncodeJpeg(jpegData, jpg_mem_out, &output_size, use_brotli)) {
+								  recompress_success = true;
+								  brunsli_success = true;
+								  brunsli_used = true;
+								  mjpg_dht_used = true;
+								  jpg_mem_out_size = output_size;
+							  }
+							  else {
+								  if (jpg_mem_out != NULL) delete[] jpg_mem_out;
+								  jpg_mem_out = NULL;
+							  }
+						  }
+
+						  if (!brunsli_success) {
+							  // revert DHT insertion
+							  memmove(jpg_mem_in + (ffda_pos - 1), jpg_mem_in + (ffda_pos - 1) + MJPGDHT_LEN, jpg_length - (ffda_pos - 1));
+						  }
+					  }
+				  }
+			  }
+			  if (DEBUG_MODE && !brunsli_success) {
+				  if (use_packjpg_fallback) {
+					  printf("Brunsli compression failed, using packJPG fallback...\n");
+				  } else {
+					  printf("Brunsli compression failed\n");
+				  }
+			  }
+		  }
+
+		  if ((!use_brunsli || !brunsli_success) && use_packjpg_fallback) {
+			  pjglib_init_streams(jpg_mem_in, 1, jpg_length, jpg_mem_out, 1);
+			  recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+			  brunsli_used = false;
+			  brotli_used = false;
+		  }
+        } else if (use_packjpg_fallback) { // large stream => use temporary files
+		  if (DEBUG_MODE) {
+			printf("JPG too large for brunsli, using packJPG fallback...\n");
+		  }
+		  // try to decompress at current position
           fjpg = tryOpen(tempfile0,"wb");
           seek_64(fin, input_file_pos);
           fast_copy(fin, fjpg, jpg_length);
@@ -6526,9 +6724,11 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           safe_fclose(&fworkaround);
 
           recompress_success = pjglib_convert_file2file(tempfile0, tempfile1, recompress_msg);
+		  brunsli_used = false;
+		  brotli_used = false;
         }
 
-        if ((!recompress_success) && (strncmp(recompress_msg, "huffman table missing", 21) == 0) && (use_mjpeg)) {
+        if ((!recompress_success) && (strncmp(recompress_msg, "huffman table missing", 21) == 0) && (use_mjpeg) && (use_packjpg_fallback)) {
           if (DEBUG_MODE) printf ("huffman table missing, trying to use Motion JPEG DHT\n");
           // search 0xFF 0xDA, insert MJPGDHT (MJPGDHT_LEN bytes)
           bool found_ffda = false;
@@ -6591,7 +6791,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
           decompressed_jpg_count++;
         }
 
-        if (!recompress_success) {
+        if ((!recompress_success) && (use_packjpg_fallback)) {
           if (DEBUG_MODE) printf ("packJPG error: %s\n", recompress_msg);
         }
 
@@ -6639,11 +6839,11 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
 
           // write compressed data header (JPG)
 
-          if (mjpg_dht_used) {
-            fout_fputc(1 + 4); // no penalty bytes, Motion JPG DHT used
-          } else {
-            fout_fputc(1); // no penalty bytes
-          }
+		  char jpg_flags = 1; // no penalty bytes
+		  if (mjpg_dht_used) jpg_flags += 4; // motion JPG DHT used
+		  if (brunsli_used) jpg_flags += 8;
+		  if (brotli_used) jpg_flags += 16;
+		  fout_fputc(jpg_flags);
           fout_fputc(D_JPG); // JPG
 
           fout_fput_vlint(best_identical_bytes);

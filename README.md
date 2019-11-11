@@ -71,8 +71,10 @@ Thanks for support, help and comments:
 
 Legal stuff
 -----------
+- brunsli (https://github.com/google/brunsli) by Google LLC is used for compression/decompression of JPG files.
+- brotli (https://github.com/google/brotli) by the Brotli Authors is used for compression/decompression of JPG metadata.
 - packJPG v2.5k (https://github.com/packjpg/packJPG) by Matthias Stirner is used for compression/decompression of JPG files.
-- packMP3 v1.0g by Matthias Stirner by Matthias Stirner is used for compression/decompression of MP3 files.
+- packMP3 v1.0g by Matthias Stirner is used for compression/decompression of MP3 files.
 - bZip2 1.0.6 (http://www.bzip.org) by Julian Seward is used for compression/decompression of bZip2 streams.
 - zLib 1.2.11 (http://www.zlib.net) by Jean-loup Gailly and Mark Adler is used for compression/decompression of zLib streams.
 - GifLib 4.1.4 (http://sourceforge.net/projects/giflib) is used for compression/decompression of GIF files. The GIFLIB distribution is Copyright (c) 1997 Eric S. Raymond
