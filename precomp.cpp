@@ -183,6 +183,8 @@ FILE* fpng = NULL;
 FILE* fjpg = NULL;
 FILE* fmp3 = NULL;
 
+std::mutex fout_mutex;
+
 long long retval;
 long long input_file_pos;
 
@@ -4595,6 +4597,9 @@ void decompress_file() {
     read_header();
   }
 
+  std::queue<std::future<bool>> recompressionQueue;
+  TaskPool recompressionTaskPool;
+
   fin_pos = tell_64(fin);
 
 while (fin_pos < fin_length) {
@@ -4615,7 +4620,9 @@ while (fin_pos < fin_length) {
     cout << "Uncompressed data, length=" << uncompressed_data_length << endl;
     }
 
+	fout_mutex.lock();
     fast_copy(fin, fout, uncompressed_data_length);
+	fout_mutex.unlock();
 
   } else { // decompressed data, recompress
 
@@ -4626,8 +4633,10 @@ while (fin_pos < fin_length) {
       recompress_deflate_result rdres;
       unsigned hdr_length;
       // restore PDF header
-      fprintf(fout, "/FlateDecode");
-      fin_fget_deflate_hdr(rdres, header1, in, hdr_length, false);
+	  fout_mutex.lock();
+	  fprintf(fout, "/FlateDecode");
+	  fout_mutex.unlock();
+	  fin_fget_deflate_hdr(rdres, header1, in, hdr_length, false);
       fin_fget_recon_data(rdres);
       int bmp_c = (header1 >> 6);
 
@@ -4663,21 +4672,25 @@ while (fin_pos < fin_length) {
         read_part = bmp_width;
         skip_part = (-bmp_width) & 3;
       }
+	  fout_mutex.lock();
       if (!try_reconstructing_deflate_skip(fin, fout, rdres, read_part, skip_part)) {
         printf("Error recompressing data!");
         exit(0);
       }
-      break;
+	  fout_mutex.unlock();
+	  break;
     }     
     case D_ZIP: { // ZIP recompression
       recompress_deflate_result rdres;
       unsigned hdr_length;
       int64_t recursion_data_length;
+	  fout_mutex.lock();
       fputc('P', fout);
       fputc('K', fout);
       fputc(3, fout);
       fputc(4, fout);
-      bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
+	  bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
+	  fout_mutex.unlock();
 
       debug_deflate_reconstruct(rdres, "ZIP", hdr_length, recursion_data_length);
 
@@ -4691,9 +4704,11 @@ while (fin_pos < fin_length) {
       recompress_deflate_result rdres;
       unsigned hdr_length;
       int64_t recursion_data_length;
+	  fout_mutex.lock();
       fputc(31, fout);
       fputc(139, fout);
       bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
+	  fout_mutex.unlock();
 
       debug_deflate_reconstruct(rdres, "GZIP", hdr_length, recursion_data_length);
 
@@ -4707,29 +4722,35 @@ while (fin_pos < fin_length) {
       recompress_deflate_result rdres;
       unsigned hdr_length;
       // restore IDAT
-      fprintf(fout, "IDAT");
+	  fout_mutex.lock();
+	  fprintf(fout, "IDAT");
 
       fin_fget_deflate_hdr(rdres, header1, in, hdr_length, true);
-      fin_fget_recon_data(rdres);
-      debug_sums(rdres);
+	  fout_mutex.unlock();
+	  fin_fget_recon_data(rdres);
+	  debug_sums(rdres);
       debug_pos();
 
-      debug_deflate_reconstruct(rdres, "PNG", hdr_length, 0);
+	  debug_deflate_reconstruct(rdres, "PNG", hdr_length, 0);
 
-      if (!try_reconstructing_deflate(fin, fout, rdres)) {
+	  fout_mutex.lock();
+	  if (!try_reconstructing_deflate(fin, fout, rdres)) {
         printf("Error recompressing data!");
         exit(0);
       }
-      debug_pos();
+	  fout_mutex.unlock();
+	  debug_pos();
       break;
     }
     case D_MULTIPNG: { // PNG multi recompression
       recompress_deflate_result rdres;
       unsigned hdr_length;
       // restore first IDAT
-      fprintf(fout, "IDAT");
-      
+	  fout_mutex.lock();
+	  fprintf(fout, "IDAT");
+
       fin_fget_deflate_hdr(rdres, header1, in, hdr_length, true);
+	  fout_mutex.unlock();
 
       // get IDAT count
       idat_count = fin_fget_vlint() + 1;
@@ -4752,11 +4773,13 @@ while (fin_pos < fin_length) {
 
       debug_deflate_reconstruct(rdres, "PNG multi", hdr_length, 0);
 
-      if (!try_reconstructing_deflate_multipng(fin, fout, rdres, idat_count, idat_crcs, idat_lengths)) {
+	  fout_mutex.lock();
+	  if (!try_reconstructing_deflate_multipng(fin, fout, rdres, idat_count, idat_crcs, idat_lengths)) {
         printf("Error recompressing data!");
         exit(0);
       }
-      debug_pos();
+	  fout_mutex.unlock();
+	  debug_pos();
       free(idat_lengths);
       idat_lengths = NULL;
       free(idat_crcs);
@@ -4829,11 +4852,13 @@ while (fin_pos < fin_length) {
         }
       }
 
+	  fout_mutex.lock();
       long long old_fout_pos = tell_64(fout);
 
       frecomp = tryOpen(tempfile2,"rb");
 
       fast_copy(frecomp, fout, recompressed_data_length);
+	  fout_mutex.unlock();
 
       safe_fclose(&frecomp);
 
@@ -4841,7 +4866,8 @@ while (fin_pos < fin_length) {
       remove(tempfile1);
 
       if (penalty_bytes_stored) {
-        fflush(fout);
+		fout_mutex.lock();
+		fflush(fout);
 
         long long fsave_fout_pos = tell_64(fout);
 
@@ -4857,7 +4883,8 @@ while (fin_pos < fin_length) {
         }
 
         seek_64(fout, fsave_fout_pos);
-      }
+		fout_mutex.unlock();
+	  }
 
       GifDiffFree(&gDiff);
       break;
@@ -4972,7 +4999,8 @@ while (fin_pos < fin_length) {
           exit(1);
         }
 
-        // remove motion JPG huffman table
+		fout_mutex.lock();
+		// remove motion JPG huffman table
         if (in_memory) {
           fast_copy(jpg_mem_out, fout, ffda_pos - 1 - MJPGDHT_LEN);
           fast_copy(jpg_mem_out + (ffda_pos - 1), fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
@@ -4984,12 +5012,15 @@ while (fin_pos < fin_length) {
           seek_64(frecomp, frecomp_pos);
           fast_copy(frecomp, fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
         }
-      } else {
-        if (in_memory) {
+		fout_mutex.unlock();
+	  } else {
+		fout_mutex.lock();
+		if (in_memory) {
           fast_copy(jpg_mem_out, fout, recompressed_data_length);
         } else {
           fast_copy(frecomp, fout, recompressed_data_length);
         }
+		fout_mutex.unlock();
       }
 
       if (in_memory) {
@@ -5007,10 +5038,12 @@ while (fin_pos < fin_length) {
       recompress_deflate_result rdres;
       unsigned hdr_length;
       int64_t recursion_data_length;
+	  fout_mutex.lock();
       fputc('C', fout);
       fputc('W', fout);
       fputc('S', fout);
       bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, true, recursion_data_length);
+	  fout_mutex.unlock();
 
       debug_deflate_reconstruct(rdres, "SWF", hdr_length, recursion_data_length);
 
@@ -5036,8 +5069,10 @@ while (fin_pos < fin_length) {
         printf("Base64 header length: %i\n", base64_header_length);
       }
       own_fread(in, 1, base64_header_length, fin);
+	  fout_mutex.lock();
       fputc(*(in) + 1, fout); // first char was decreased
       own_fwrite(in + 1, 1, base64_header_length - 1, fout);
+	  fout_mutex.unlock();
 
       // read line length list
       int line_count = fin_fget_vlint();
@@ -5076,12 +5111,16 @@ while (fin_pos < fin_length) {
 
       if (recursion_used) {
         recursion_result r = recursion_decompress(recursion_data_length);
+		fout_mutex.lock();
         base64_reencode(r.frecurse, fout, line_count, base64_line_len, r.file_length, decompressed_data_length);
+		fout_mutex.unlock();
         safe_fclose(&r.frecurse);
         remove(r.file_name);
         delete[] r.file_name;
       } else {
+		fout_mutex.lock();
         base64_reencode(fin, fout, line_count, base64_line_len, recompressed_data_length, decompressed_data_length);
+		fout_mutex.unlock();
       }
 
       delete[] base64_line_len;
@@ -5125,16 +5164,22 @@ while (fin_pos < fin_length) {
         }
       }
 
+	  fout_mutex.lock();
       long long old_fout_pos = tell_64(fout);
+	  fout_mutex.unlock();
 
       if (recursion_used) {
         recursion_result r = recursion_decompress(recursion_data_length);
+		fout_mutex.lock();
         retval = def_part_bzip2(r.frecurse, fout, level, decompressed_data_length, recompressed_data_length);
+		fout_mutex.unlock();
         safe_fclose(&r.frecurse);
         remove(r.file_name);
         delete[] r.file_name;
       } else {
+		fout_mutex.lock();
         retval = def_part_bzip2(fin, fout, level, decompressed_data_length, recompressed_data_length);
+		fout_mutex.unlock();
       }
 
       if (retval != BZ_OK) {
@@ -5144,6 +5189,7 @@ while (fin_pos < fin_length) {
       }
 
       if (penalty_bytes_stored) {
+		fout_mutex.lock();
         fflush(fout);
 
         long long fsave_fout_pos = tell_64(fout);
@@ -5159,6 +5205,7 @@ while (fin_pos < fin_length) {
         }
 
         seek_64(fout, fsave_fout_pos);
+		fout_mutex.unlock();
       }
       break;
     }
@@ -5197,7 +5244,9 @@ while (fin_pos < fin_length) {
 			  exit(1);
 		  }
 
+		  fout_mutex.lock();
 		  fast_copy(mp3_mem_out, fout, recompressed_data_length);
+		  fout_mutex.unlock();
 
 		  if (mp3_mem_in != NULL) delete[] mp3_mem_in;
 		  if (mp3_mem_out != NULL) delete[] mp3_mem_out;
@@ -5227,7 +5276,9 @@ while (fin_pos < fin_length) {
 
       frecomp = tryOpen(tempfile2,"rb");
 
+	  fout_mutex.lock();
       fast_copy(frecomp, fout, recompressed_data_length);
+	  fout_mutex.unlock();
 
       safe_fclose(&frecomp);
 
@@ -5277,6 +5328,16 @@ while (fin_pos < fin_length) {
     if (fin_pos >= fin_length) fin_pos = fin_length - 1;
   }
 }
+
+  while (!recompressionQueue.empty()) {
+	auto first = std::move(recompressionQueue.front());
+	recompressionQueue.pop();
+	bool success = first.get();
+	if (!success) {
+		printf("Error recompressing data!");
+		exit(1);
+	}
+  }
 
   denit_decompress();
 }
