@@ -4581,6 +4581,83 @@ int BrunsliStringWriter(void* data, const uint8_t* buf, size_t count) {
 	return count;
 }
 
+bool recompression_jpg_task(unsigned char* jpg_mem_in, long long decompressed_data_length, long long recompressed_data_length, unsigned long long fout_pos, bool brotli_used, bool mjpg_dht_used, FILE* fout) {
+	bool recompress_success = false;
+
+	unsigned char* jpg_mem_out = NULL;
+	unsigned int jpg_mem_out_size = -1;
+	char recompress_msg[256];
+
+	brunsli::JPEGData jpegData;
+	if (brunsli::BrunsliDecodeJpeg(jpg_mem_in, decompressed_data_length, &jpegData, brotli_used) == brunsli::BRUNSLI_OK) {
+		if (mjpg_dht_used) {
+			jpg_mem_out = new unsigned char[recompressed_data_length + MJPGDHT_LEN];
+		}
+		else {
+			jpg_mem_out = new unsigned char[recompressed_data_length];
+		}
+		std::string output;
+		brunsli::JPEGOutput writer(BrunsliStringWriter, &output);
+		if (brunsli::WriteJpeg(jpegData, writer)) {
+			jpg_mem_out_size = output.length();
+			memcpy(jpg_mem_out, output.data(), jpg_mem_out_size);
+			recompress_success = true;
+		}
+	}
+
+	if (!recompress_success) {
+		if (DEBUG_MODE) printf("packJPG error: %s\n", recompress_msg);
+		return false;
+	}
+
+	if (mjpg_dht_used) {
+		long long frecomp_pos = 0;
+		bool found_ffda = false;
+		bool found_ff = false;
+		int ffda_pos = -1;
+
+		do {
+			ffda_pos++;
+			if (ffda_pos >= (int)jpg_mem_out_size) break;
+			if (found_ff) {
+				found_ffda = (jpg_mem_out[ffda_pos] == 0xDA);
+				if (found_ffda) break;
+				found_ff = false;
+			}
+			else {
+				found_ff = (jpg_mem_out[ffda_pos] == 0xFF);
+			}
+		} while (!found_ffda);
+
+		if ((!found_ffda) || ((ffda_pos - 1 - MJPGDHT_LEN) < 0)) {
+			printf("ERROR: Motion JPG stream corrupted\n");
+			return false;
+		}
+
+		// remove motion JPG huffman table
+		fout_mutex.lock();
+		long long fout_pos_save = tell_64(fout);
+		seek_64(fout, fout_pos);
+		fast_copy(jpg_mem_out, fout, ffda_pos - 1 - MJPGDHT_LEN);
+		fast_copy(jpg_mem_out + (ffda_pos - 1), fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
+		seek_64(fout, fout_pos_save);
+		fout_mutex.unlock();
+	}
+	else {
+		fout_mutex.lock();
+		long long fout_pos_save = tell_64(fout);
+		seek_64(fout, fout_pos);
+		fast_copy(jpg_mem_out, fout, recompressed_data_length);
+		seek_64(fout, fout_pos_save);
+		fout_mutex.unlock();
+	}
+
+	if (jpg_mem_in != NULL) delete[] jpg_mem_in;
+	if (jpg_mem_out != NULL) delete[] jpg_mem_out;
+
+	return true;
+}
+
 void decompress_file() {
 
   long long fin_pos;
@@ -4689,8 +4766,8 @@ while (fin_pos < fin_length) {
       fputc('K', fout);
       fputc(3, fout);
       fputc(4, fout);
-	  bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
 	  fout_mutex.unlock();
+	  bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
 
       debug_deflate_reconstruct(rdres, "ZIP", hdr_length, recursion_data_length);
 
@@ -4707,8 +4784,8 @@ while (fin_pos < fin_length) {
 	  fout_mutex.lock();
       fputc(31, fout);
       fputc(139, fout);
-      bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
 	  fout_mutex.unlock();
+	  bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, false, recursion_data_length);
 
       debug_deflate_reconstruct(rdres, "GZIP", hdr_length, recursion_data_length);
 
@@ -4906,12 +4983,10 @@ while (fin_pos < fin_length) {
       cout << "Recompressed length: " << recompressed_data_length << " - decompressed length: " << decompressed_data_length << endl;
       }
 
-      char recompress_msg[256];
       unsigned char* jpg_mem_in = NULL;
-      unsigned char* jpg_mem_out = NULL;
-      unsigned int jpg_mem_out_size = -1;
       bool in_memory = (recompressed_data_length <= JPG_MAX_MEMORY_SIZE);
       bool recompress_success = false;
+	  char recompress_msg[256];
 
       if (in_memory) {
         jpg_mem_in = new unsigned char[decompressed_data_length];
@@ -4919,38 +4994,85 @@ while (fin_pos < fin_length) {
         fast_copy(fin, jpg_mem_in, decompressed_data_length);
 
 		if (brunsli_used) {
-			brunsli::JPEGData jpegData;
-			if (brunsli::BrunsliDecodeJpeg(jpg_mem_in, decompressed_data_length, &jpegData, brotli_used) == brunsli::BRUNSLI_OK) {
-				if (mjpg_dht_used) {
-					jpg_mem_out = new unsigned char[recompressed_data_length + MJPGDHT_LEN];
-				}
-				else {
-					jpg_mem_out = new unsigned char[recompressed_data_length];
-				}
-				std::string output;
-				brunsli::JPEGOutput writer(BrunsliStringWriter, &output);
-				if (brunsli::WriteJpeg(jpegData, writer)) {
-					jpg_mem_out_size = output.length();
-					memcpy(jpg_mem_out, output.data(), jpg_mem_out_size);
-					recompress_success = true;
-				}
-			}
-		} else {
+			fout_mutex.lock();
+			unsigned long long fout_pos = tell_64(fout);
+			fout_mutex.unlock();
+
+			// write placeholder bytes
+			fout_mutex.lock();
+			unsigned char* jpg_mem_out = new unsigned char[recompressed_data_length];
+			fast_copy(jpg_mem_out, fout, recompressed_data_length);
+			fout_mutex.unlock();
+
+			FILE* fout_task = fout;
+			recompressionQueue.push(
+				recompressionTaskPool.addTask(recompression_jpg_task, jpg_mem_in, decompressed_data_length, recompressed_data_length, fout_pos, brotli_used, mjpg_dht_used, fout_task));
+		}
+		else {
+			unsigned char* jpg_mem_out = NULL;
+			unsigned int jpg_mem_out_size = -1;
+
 			pjglib_init_streams(jpg_mem_in, 1, decompressed_data_length, jpg_mem_out, 1);
 			recompress_success = pjglib_convert_stream2mem(&jpg_mem_out, &jpg_mem_out_size, recompress_msg);
+
+			if (!recompress_success) {
+				if (DEBUG_MODE) printf("packJPG error: %s\n", recompress_msg);
+				printf("Error recompressing data!");
+				exit(1);
+			}
+
+			if (mjpg_dht_used) {
+				long long frecomp_pos = 0;
+				bool found_ffda = false;
+				bool found_ff = false;
+				int ffda_pos = -1;
+
+				do {
+					ffda_pos++;
+					if (ffda_pos >= (int)jpg_mem_out_size) break;
+					if (found_ff) {
+						found_ffda = (jpg_mem_out[ffda_pos] == 0xDA);
+						if (found_ffda) break;
+						found_ff = false;
+					}
+					else {
+						found_ff = (jpg_mem_out[ffda_pos] == 0xFF);
+					}
+				} while (!found_ffda);
+
+				if ((!found_ffda) || ((ffda_pos - 1 - MJPGDHT_LEN) < 0)) {
+					printf("ERROR: Motion JPG stream corrupted\n");
+					exit(1);
+				}
+
+				// remove motion JPG huffman table
+				fout_mutex.lock();
+				fast_copy(jpg_mem_out, fout, ffda_pos - 1 - MJPGDHT_LEN);
+				fast_copy(jpg_mem_out + (ffda_pos - 1), fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
+				fout_mutex.unlock();
+			}
+			else {
+				fout_mutex.lock();
+				fast_copy(jpg_mem_out, fout, recompressed_data_length);
+				fout_mutex.unlock();
+			}
+
+			if (jpg_mem_out != NULL) delete[] jpg_mem_out;
 		}
-      } else {
-        remove(tempfile1);
-        ftempout = tryOpen(tempfile1,"wb");
 
-        fast_copy(fin, ftempout, decompressed_data_length);
+		break;
+	  }
 
-        safe_fclose(&ftempout);
+      remove(tempfile1);
+      ftempout = tryOpen(tempfile1,"wb");
 
-        remove(tempfile2);
+      fast_copy(fin, ftempout, decompressed_data_length);
 
-        recompress_success = pjglib_convert_file2file(tempfile1, tempfile2, recompress_msg);
-      }
+      safe_fclose(&ftempout);
+
+      remove(tempfile2);
+
+      recompress_success = pjglib_convert_file2file(tempfile1, tempfile2, recompress_msg);
 
       if (!recompress_success) {
         if (DEBUG_MODE) printf ("packJPG error: %s\n", recompress_msg);
@@ -4968,31 +5090,17 @@ while (fin_pos < fin_length) {
         bool found_ff = false;
         int ffda_pos = -1;
 
-        if (in_memory) {
-          do {
-            ffda_pos++;
-            if (ffda_pos >= (int)jpg_mem_out_size) break;
-            if (found_ff) {
-              found_ffda = (jpg_mem_out[ffda_pos] == 0xDA);
-              if (found_ffda) break;
-              found_ff = false;
-            } else {
-              found_ff = (jpg_mem_out[ffda_pos] == 0xFF);
-            }
-          } while (!found_ffda);
-        } else {
-          do {
-            ffda_pos++;
-            if (fread(in, 1, 1, frecomp) != 1) break;
-            if (found_ff) {
-              found_ffda = (in[0] == 0xDA);
-              if (found_ffda) break;
-              found_ff = false;
-            } else {
-              found_ff = (in[0] == 0xFF);
-            }
-          } while (!found_ffda);
-        }
+        do {
+          ffda_pos++;
+          if (fread(in, 1, 1, frecomp) != 1) break;
+          if (found_ff) {
+            found_ffda = (in[0] == 0xDA);
+            if (found_ffda) break;
+            found_ff = false;
+          } else {
+            found_ff = (in[0] == 0xFF);
+          }
+        } while (!found_ffda);
 
         if ((!found_ffda) || ((ffda_pos - 1 - MJPGDHT_LEN) < 0)) {
           printf("ERROR: Motion JPG stream corrupted\n");
@@ -5001,37 +5109,24 @@ while (fin_pos < fin_length) {
 
 		fout_mutex.lock();
 		// remove motion JPG huffman table
-        if (in_memory) {
-          fast_copy(jpg_mem_out, fout, ffda_pos - 1 - MJPGDHT_LEN);
-          fast_copy(jpg_mem_out + (ffda_pos - 1), fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
-        } else {
-          seek_64(frecomp, frecomp_pos);
-          fast_copy(frecomp, fout, ffda_pos - 1 - MJPGDHT_LEN);
+        seek_64(frecomp, frecomp_pos);
+        fast_copy(frecomp, fout, ffda_pos - 1 - MJPGDHT_LEN);
 
-          frecomp_pos += ffda_pos - 1;
-          seek_64(frecomp, frecomp_pos);
-          fast_copy(frecomp, fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
-        }
+        frecomp_pos += ffda_pos - 1;
+        seek_64(frecomp, frecomp_pos);
+        fast_copy(frecomp, fout, (recompressed_data_length + MJPGDHT_LEN) - (ffda_pos - 1));
 		fout_mutex.unlock();
 	  } else {
 		fout_mutex.lock();
-		if (in_memory) {
-          fast_copy(jpg_mem_out, fout, recompressed_data_length);
-        } else {
-          fast_copy(frecomp, fout, recompressed_data_length);
-        }
+        fast_copy(frecomp, fout, recompressed_data_length);
 		fout_mutex.unlock();
       }
 
-      if (in_memory) {
-        if (jpg_mem_in != NULL) delete[] jpg_mem_in;
-        if (jpg_mem_out != NULL) delete[] jpg_mem_out;
-      } else {
-        safe_fclose(&frecomp);
+      safe_fclose(&frecomp);
 
-        remove(tempfile2);
-        remove(tempfile1);
-      }
+      remove(tempfile2);
+      remove(tempfile1);
+
       break;
     }
     case D_SWF: { // SWF recompression
@@ -5042,8 +5137,8 @@ while (fin_pos < fin_length) {
       fputc('C', fout);
       fputc('W', fout);
       fputc('S', fout);
-      bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, true, recursion_data_length);
 	  fout_mutex.unlock();
+	  bool ok = fin_fget_deflate_rec(rdres, header1, in, hdr_length, true, recursion_data_length);
 
       debug_deflate_reconstruct(rdres, "SWF", hdr_length, recursion_data_length);
 
@@ -6684,7 +6779,7 @@ void try_decompression_jpg (long long jpg_length, bool progressive_jpg) {
         unsigned char* jpg_mem_in = NULL;
         unsigned char* jpg_mem_out = NULL;
         unsigned int jpg_mem_out_size = -1;
-        bool in_memory = ((jpg_length + MJPGDHT_LEN) <= JPG_MAX_MEMORY_SIZE);
+		bool in_memory = ((jpg_length + MJPGDHT_LEN) <= JPG_MAX_MEMORY_SIZE);
 
         if (in_memory) { // small stream => do everything in memory
           jpg_mem_in = new unsigned char[jpg_length + MJPGDHT_LEN];
@@ -8312,8 +8407,10 @@ bool fin_fget_deflate_rec(recompress_deflate_result& rdres, const unsigned char 
     recursion_length = fin_fget_vlint();
     recursion_result r = recursion_decompress(recursion_length);
     debug_pos();
+	fout_mutex.lock();
     bool result = try_reconstructing_deflate(r.frecurse, fout, rdres);
-    debug_pos();
+	fout_mutex.unlock();
+	debug_pos();
     safe_fclose(&r.frecurse);
     remove(r.file_name);
     delete[] r.file_name;
@@ -8321,8 +8418,10 @@ bool fin_fget_deflate_rec(recompress_deflate_result& rdres, const unsigned char 
   } else {
     recursion_length = 0;
     debug_pos();
-    bool result = try_reconstructing_deflate(fin, fout, rdres);
-    debug_pos();
+	fout_mutex.lock();
+	bool result = try_reconstructing_deflate(fin, fout, rdres);
+	fout_mutex.unlock();
+	debug_pos();
     return result;
   }
 }
