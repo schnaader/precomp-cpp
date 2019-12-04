@@ -8351,7 +8351,9 @@ void fin_fget_deflate_hdr(recompress_deflate_result& rdres, const unsigned char 
     own_fread(hdr_data, 1, hdr_length - 1, fin);
     hdr_data[hdr_length - 1] = fin_fgetc() - 1;
   }
+  fout_mutex.lock();
   own_fwrite(hdr_data, 1, hdr_length, fout);
+  fout_mutex.unlock();
 }
 void fout_fput_recon_data(const recompress_deflate_result& rdres) {
   if (!rdres.zlib_perfect) {
