@@ -4801,9 +4801,8 @@ while (fin_pos < fin_length) {
       // restore IDAT
 	  fout_mutex.lock();
 	  fprintf(fout, "IDAT");
-
+    fout_mutex.unlock();
       fin_fget_deflate_hdr(rdres, header1, in, hdr_length, true);
-	  fout_mutex.unlock();
 	  fin_fget_recon_data(rdres);
 	  debug_sums(rdres);
       debug_pos();
@@ -4825,9 +4824,8 @@ while (fin_pos < fin_length) {
       // restore first IDAT
 	  fout_mutex.lock();
 	  fprintf(fout, "IDAT");
-
+    fout_mutex.unlock();
       fin_fget_deflate_hdr(rdres, header1, in, hdr_length, true);
-	  fout_mutex.unlock();
 
       // get IDAT count
       idat_count = fin_fget_vlint() + 1;
