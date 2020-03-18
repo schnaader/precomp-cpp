@@ -3,4 +3,4 @@ build_script:
 - cmd: >-
     cmake --config Release -Bbuild -H. -G"Visual Studio 14 2015 Win64"
 
-    msbuild build\precomp.sln
+    msbuild /p:Configuration=Release build\precomp.sln
