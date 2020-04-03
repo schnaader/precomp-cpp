@@ -18,5 +18,5 @@ before_install:
 - echo $LC_ALL
 
 script:
-- if [ $TRAVIS_OS_NAME == linux ]; then cmake -Bbuild -H. -G"Unix Makefiles"; cd build; make; fi
-- if [ $TRAVIS_OS_NAME == osx ]; then cmake -Bbuild -H. -G"Unix Makefiles"; cd build; make; fi
+- if [ $TRAVIS_OS_NAME == linux ]; then cmake -DCMAKE_BUILD_TYPE=Release -Bbuild -H. -G"Unix Makefiles"; cd build; make; fi
+- if [ $TRAVIS_OS_NAME == osx ]; then cmake -DCMAKE_BUILD_TYPE=Release -Bbuild -H. -G"Unix Makefiles"; cd build; make; fi

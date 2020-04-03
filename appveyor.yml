@@ -1,6 +1,10 @@
 version: 1.0.{build}
+
 build_script:
 - cmd: >-
-    cmake -Bbuild -H. -G"Visual Studio 14 2015 Win64"
+    cmake --config Release -Bbuild -H. -G"Visual Studio 14 2015 Win64"
 
-    msbuild build\precomp.sln
+    msbuild /p:Configuration=Release build\precomp.sln
+
+artifacts:
+- path: build\Release\precomp.exe
