@@ -2790,32 +2790,6 @@ bool check_inf_result(int cb_pos, int windowbits, bool use_brute_parameters = fa
   return false;
 }
 
-/* report a zlib or i/o error */
-void zerr(int ret)
-{
-  fputs("ERROR: ", stdout);
-  switch (ret) {
-    case Z_ERRNO:
-      if (ferror(stdin))
-        fputs("error reading stdin\n", stdout);
-      if (ferror(stdout))
-        fputs("error writing stdout\n", stdout);
-      printf("errno: %i\n", errno);
-      break;
-    case Z_STREAM_ERROR:
-      fputs("invalid compression level\n", stdout);
-      break;
-    case Z_DATA_ERROR:
-      fputs("invalid or incomplete deflate data\n", stdout);
-      break;
-    case Z_MEM_ERROR:
-      fputs("out of memory\n", stdout);
-      break;
-    case Z_VERSION_ERROR:
-      fputs("zlib version mismatch!\n", stdout);
-  }
-}
-
 int inf_bzip2(FILE *source, FILE *dest, long long& compressed_stream_size, long long& decompressed_stream_size) {
   int ret;
   unsigned have;
