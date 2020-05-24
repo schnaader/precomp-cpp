@@ -131,7 +131,7 @@ public:
 struct recompress_deflate_result;
 
 void write_ftempout_if_not_present(long long byte_count, bool in_memory, bool leave_open = false);
-recursion_result recursion_compress(long long compressed_bytes, long long decompressed_bytes);
+recursion_result recursion_compress(long long compressed_bytes, long long decompressed_bytes, bool deflate_type = false);
 recursion_result recursion_decompress(long long recursion_data_length);
 recursion_result recursion_write_file_and_compress(const recompress_deflate_result&);
 
