@@ -7881,7 +7881,7 @@ void write_ftempout_if_not_present(long long byte_count, bool in_memory, bool le
   }
 }
 
-recursion_result recursion_compress(long long compressed_bytes, long long decompressed_bytes) {
+recursion_result recursion_compress(long long compressed_bytes, long long decompressed_bytes, bool deflate_type) {
   FILE* recursion_fout;
   recursion_result tmp_r;
   tmp_r.success = false;
@@ -7897,12 +7897,18 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
     return tmp_r;
   }
 
+  if (deflate_type) {
+    write_ftempout_if_not_present(decompressed_bytes, true);
+  }
+
   recursion_push();
 
-  // shorten tempfile1 to decompressed_bytes
-  FILE* ftempfile1 = fopen(tempfile1, "r+b");
-  ftruncate(fileno(ftempfile1), decompressed_bytes);
-  fclose(ftempfile1);
+  if (!deflate_type) {
+    // shorten tempfile1 to decompressed_bytes
+    FILE* ftempfile1 = fopen(tempfile1, "r+b");
+    ftruncate(fileno(ftempfile1), decompressed_bytes);
+    fclose(ftempfile1);
+  }
 
   fin_length = fileSize64(tempfile1);
   fin = fopen(tempfile1, "rb");
@@ -7995,8 +8001,7 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
   return tmp_r;
 }
 recursion_result recursion_write_file_and_compress(const recompress_deflate_result& rdres) {
-  write_ftempout_if_not_present(rdres.uncompressed_stream_size, rdres.uncompressed_in_memory);
-  recursion_result r = recursion_compress(rdres.compressed_stream_size, rdres.uncompressed_stream_size);
+  recursion_result r = recursion_compress(rdres.compressed_stream_size, rdres.uncompressed_stream_size, true);
   return r;
 }
 
