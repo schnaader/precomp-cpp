@@ -2788,32 +2788,6 @@ bool check_inf_result(int cb_pos, int windowbits, bool use_brute_parameters = fa
   return false;
 }
 
-/* report a zlib or i/o error */
-void zerr(int ret)
-{
-  fputs("ERROR: ", stdout);
-  switch (ret) {
-    case Z_ERRNO:
-      if (ferror(stdin))
-        fputs("error reading stdin\n", stdout);
-      if (ferror(stdout))
-        fputs("error writing stdout\n", stdout);
-      printf("errno: %i\n", errno);
-      break;
-    case Z_STREAM_ERROR:
-      fputs("invalid compression level\n", stdout);
-      break;
-    case Z_DATA_ERROR:
-      fputs("invalid or incomplete deflate data\n", stdout);
-      break;
-    case Z_MEM_ERROR:
-      fputs("out of memory\n", stdout);
-      break;
-    case Z_VERSION_ERROR:
-      fputs("zlib version mismatch!\n", stdout);
-  }
-}
-
 int inf_bzip2(FILE *source, FILE *dest, long long& compressed_stream_size, long long& decompressed_stream_size) {
   int ret;
   unsigned have;
@@ -7907,7 +7881,7 @@ void write_ftempout_if_not_present(long long byte_count, bool in_memory, bool le
   }
 }
 
-recursion_result recursion_compress(long long compressed_bytes, long long decompressed_bytes) {
+recursion_result recursion_compress(long long compressed_bytes, long long decompressed_bytes, bool deflate_type) {
   FILE* recursion_fout;
   recursion_result tmp_r;
   tmp_r.success = false;
@@ -7923,12 +7897,18 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
     return tmp_r;
   }
 
+  if (deflate_type) {
+    write_ftempout_if_not_present(decompressed_bytes, true);
+  }
+
   recursion_push();
 
-  // shorten tempfile1 to decompressed_bytes
-  FILE* ftempfile1 = fopen(tempfile1, "r+b");
-  ftruncate(fileno(ftempfile1), decompressed_bytes);
-  fclose(ftempfile1);
+  if (!deflate_type) {
+    // shorten tempfile1 to decompressed_bytes
+    FILE* ftempfile1 = fopen(tempfile1, "r+b");
+    ftruncate(fileno(ftempfile1), decompressed_bytes);
+    fclose(ftempfile1);
+  }
 
   fin_length = fileSize64(tempfile1);
   fin = fopen(tempfile1, "rb");
@@ -8021,8 +8001,7 @@ recursion_result recursion_compress(long long compressed_bytes, long long decomp
   return tmp_r;
 }
 recursion_result recursion_write_file_and_compress(const recompress_deflate_result& rdres) {
-  write_ftempout_if_not_present(rdres.uncompressed_stream_size, rdres.uncompressed_in_memory);
-  recursion_result r = recursion_compress(rdres.compressed_stream_size, rdres.uncompressed_stream_size);
+  recursion_result r = recursion_compress(rdres.compressed_stream_size, rdres.uncompressed_stream_size, true);
   return r;
 }
 
