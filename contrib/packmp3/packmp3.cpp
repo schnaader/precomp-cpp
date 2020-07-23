@@ -1547,10 +1547,10 @@ INTERN bool read_mp3( void )
 	int main_data_begin;
 	int main_data_end;
 	
-	char mpeg = -1;
-	char layer = -1;
-	char samples = -1;
-	char channels = -1;
+	signed char mpeg = -1;
+	signed char layer = -1;
+	signed char samples = -1;
+	signed char channels = -1;
 	
 	abytewriter* data_writer;
 	mp3Frame* frame = NULL;
