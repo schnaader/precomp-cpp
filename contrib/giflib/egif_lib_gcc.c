@@ -113,7 +113,7 @@ EGifOpenFileName(const char *FileName,
         // TODO: Does this work?
         FileHandle = open(FileName, O_WRONLY | O_CREAT | O_EXCL
         #endif
-	#ifndef S_IREAD
+	#ifdef S_IREAD
                           , S_IREAD | S_IWRITE);
 	#else
 			  , S_IRUSR | S_IWUSR);
@@ -125,7 +125,7 @@ EGifOpenFileName(const char *FileName,
         // TODO: Does this work?
         FileHandle = open(FileName, O_WRONLY | O_CREAT | O_TRUNC
         #endif
-	#ifndef S_IREAD
+	#ifdef S_IREAD
                           , S_IREAD | S_IWRITE);
 	#else
 			  , S_IRUSR | S_IWUSR);
