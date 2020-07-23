@@ -556,7 +556,7 @@ INTERN unsigned int*  scnp             =   NULL;   // scan start positions in hu
 INTERN int            rstc             =    0  ;   // count of restart markers
 INTERN int            scnc             =    0  ;   // count of scans
 INTERN int            rsti             =    0  ;   // restart interval
-INTERN char           padbit           =    -1 ;   // padbit (for huffman coding)
+INTERN signed char    padbit           =    -1 ;   // padbit (for huffman coding)
 INTERN unsigned char* rst_err          =   NULL;   // number of wrong-set RST markers per scan
 
 INTERN unsigned char* zdstdata[4]      = { NULL }; // zero distribution (# of non-zeroes) lists (for higher 7x7 block)
