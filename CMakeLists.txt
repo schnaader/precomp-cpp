@@ -7,6 +7,9 @@ set(OBJDIR ${CMAKE_CURRENT_BINARY_DIR})
 
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
+  message(STATUS "Build type: Release")
+else()
+  message(WARNING "CMake build type is set to ${CMAKE_BUILD_TYPE}! This might result in bad performance!")
 endif()
 
 if (UNIX)
