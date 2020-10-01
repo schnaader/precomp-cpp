@@ -160,7 +160,11 @@ add_executable(precomp ${GIF_SRC} ${BZIP_SRC} ${ZLIB_SRC} ${PACKARI_SRC}
                        ${BRUNSLI_SRC} ${BROTLI_SRC} ${PRECOMP_SRC} ${PRECOMP_HDR})
 
 if (UNIX)
-  target_link_libraries(precomp Threads::Threads)
+  if (NOT APPLE)
+    target_link_libraries(precomp Threads::Threads atomic)
+  else()
+    target_link_libraries(precomp Threads::Threads)
+  endif()
 endif()
 
 install(TARGETS precomp DESTINATION bin)

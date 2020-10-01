@@ -113,7 +113,11 @@ EGifOpenFileName(const char *FileName,
         // TODO: Does this work?
         FileHandle = open(FileName, O_WRONLY | O_CREAT | O_EXCL
         #endif
+	#ifdef S_IREAD
                           , S_IREAD | S_IWRITE);
+	#else
+			  , S_IRUSR | S_IWUSR);
+	#endif
     else
         #ifndef LINUX
         FileHandle = open(FileName, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY 
@@ -121,7 +125,11 @@ EGifOpenFileName(const char *FileName,
         // TODO: Does this work?
         FileHandle = open(FileName, O_WRONLY | O_CREAT | O_TRUNC
         #endif
+	#ifdef S_IREAD
                           , S_IREAD | S_IWRITE);
+	#else
+			  , S_IRUSR | S_IWUSR);
+	#endif
 
     if (FileHandle == -1) {
         _GifError = E_GIF_ERR_OPEN_FAILED;

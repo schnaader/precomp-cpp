@@ -219,29 +219,29 @@ INTERN int  g_bitrate     =   0;  // bit rate - global or zero for vbr
 	global variables: frame analysis info
 	----------------------------------------------- */
 
-INTERN char i_mpeg			= -1; // mpeg - non changing
-INTERN char i_layer			= -1; // layer - non changing
-INTERN char i_samplerate	= -1; // sample rate - non changing
-INTERN char i_bitrate		= -1; // bit rate - value or -1 (variable)
-INTERN char i_protection	= -1; // checksum - for all (1), none (0) or some (-1) frames
-INTERN char i_padding		= -1; // padding - for all (1), none (0) or some (-1) frames
-INTERN char i_privbit		= -1; // private bit - value or -1 (variable)
-INTERN char i_channels		= -1; // channel mode - non changing
-INTERN char i_stereo_ms		= -1; // ms stereo - for all (1), none (0) or some (-1) frames
-INTERN char i_stereo_int	= -1; // int stereo - for all (1), none (0) or some (-1) frames
-INTERN char i_copyright		= -1; // copyright bit - value or -1 (variable)
-INTERN char i_original		= -1; // original bit - value or -1 (variable)
-INTERN char i_emphasis		= -1; // emphasis - value or -1 (variable)
-INTERN char i_padbits		= -1; // side info padding bits - value or -1 (variable)
-INTERN char i_bit_res		= -1; // bit reservoir - is used (1) or not used (0)
-INTERN char i_share			= -1; // scalefactor sharing - is used (1) or not used (0)
-INTERN char i_sblocks		= -1; // special blocks - are used (1) or not used (0)
-INTERN char i_mixed			= -1; // mixed blocks - are used (1) or not used (0)
-INTERN char i_preemphasis	= -1; // preemphasis - value or -1 (variable)
-INTERN char i_coarse		= -1; // coarse scalefactors - value or -1 (variable)
-INTERN char i_sbgain		= -1; // subblock gain - used properly (1), not used (0) or used for non-short (-1)
-INTERN char i_aux_h			= -1; // auxiliary data handling - none (0), at begin and end (1), between frames (-1)
-INTERN char i_sb_diff		= -1; // special blocks diffs between ch0 and ch1 - none (0) or some (-1)
+INTERN signed char i_mpeg		= -1; // mpeg - non changing
+INTERN signed char i_layer		= -1; // layer - non changing
+INTERN signed char i_samplerate		= -1; // sample rate - non changing
+INTERN signed char i_bitrate		= -1; // bit rate - value or -1 (variable)
+INTERN signed char i_protection		= -1; // checksum - for all (1), none (0) or some (-1) frames
+INTERN signed char i_padding		= -1; // padding - for all (1), none (0) or some (-1) frames
+INTERN signed char i_privbit		= -1; // private bit - value or -1 (variable)
+INTERN signed char i_channels		= -1; // channel mode - non changing
+INTERN signed char i_stereo_ms		= -1; // ms stereo - for all (1), none (0) or some (-1) frames
+INTERN signed char i_stereo_int		= -1; // int stereo - for all (1), none (0) or some (-1) frames
+INTERN signed char i_copyright		= -1; // copyright bit - value or -1 (variable)
+INTERN signed char i_original		= -1; // original bit - value or -1 (variable)
+INTERN signed char i_emphasis		= -1; // emphasis - value or -1 (variable)
+INTERN signed char i_padbits		= -1; // side info padding bits - value or -1 (variable)
+INTERN signed char i_bit_res		= -1; // bit reservoir - is used (1) or not used (0)
+INTERN signed char i_share		= -1; // scalefactor sharing - is used (1) or not used (0)
+INTERN signed char i_sblocks		= -1; // special blocks - are used (1) or not used (0)
+INTERN signed char i_mixed		= -1; // mixed blocks - are used (1) or not used (0)
+INTERN signed char i_preemphasis	= -1; // preemphasis - value or -1 (variable)
+INTERN signed char i_coarse		= -1; // coarse scalefactors - value or -1 (variable)
+INTERN signed char i_sbgain		= -1; // subblock gain - used properly (1), not used (0) or used for non-short (-1)
+INTERN signed char i_aux_h		= -1; // auxiliary data handling - none (0), at begin and end (1), between frames (-1)
+INTERN signed char i_sb_diff		= -1; // special blocks diffs between ch0 and ch1 - none (0) or some (-1)
 	
 
 /* -----------------------------------------------
@@ -1547,10 +1547,10 @@ INTERN bool read_mp3( void )
 	int main_data_begin;
 	int main_data_end;
 	
-	char mpeg = -1;
-	char layer = -1;
-	char samples = -1;
-	char channels = -1;
+	signed char mpeg = -1;
+	signed char layer = -1;
+	signed char samples = -1;
+	signed char channels = -1;
 	
 	abytewriter* data_writer;
 	mp3Frame* frame = NULL;
