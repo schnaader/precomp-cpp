@@ -2467,7 +2467,7 @@ void denit_decompress() {
    }
   #endif
 
-  if (recursion_depth == 0)  && (mp3_reconstruction_error_count > 0) {
+  if ((recursion_depth == 0) && (mp3_reconstruction_error_count > 0)) {
 	  printf("\nWARNING: %i packMP3 errors encountered. Those parts of the restored file will be different to the original file.\n", mp3_reconstruction_error_count);
 	  printf("The corrupt packMP3 streams that couldn't be restored were written to corrupt_mp3_xxx.dat starting with xxx=000.\n");
   }
