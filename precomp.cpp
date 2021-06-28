@@ -296,6 +296,7 @@ long long suppress_mp3_inconsistent_original_bit;
 long long mp3_parsing_cache_second_frame;
 long long mp3_parsing_cache_n;
 long long mp3_parsing_cache_mp3_length;
+int mp3_reconstruction_error_count;
 
 bool fast_mode = false;
 bool intense_mode = false;
@@ -656,6 +657,7 @@ int init(int argc, char* argv[]) {
   suppress_mp3_inconsistent_emphasis_sum = -1;
   suppress_mp3_inconsistent_original_bit = -1;
   mp3_parsing_cache_second_frame = -1;
+  mp3_reconstruction_error_count = 0;
   
   // init LZMA filters
   memset(&otf_xz_extra_params, 0, sizeof(otf_xz_extra_params));
@@ -2465,6 +2467,11 @@ void denit_decompress() {
    }
   #endif
 
+  if (recursion_depth == 0)  && (mp3_reconstruction_error_count > 0) {
+	  printf("\nWARNING: %i packMP3 errors encountered. Those parts of the restored file will be different to the original file.\n", mp3_reconstruction_error_count);
+	  printf("The corrupt packMP3 streams that couldn't be restored were written to corrupt_mp3_xxx.dat starting with xxx=000.\n");
+  }
+  
   if (compression_otf_method != OTF_NONE) {
     denit_decompress_otf();
   }
@@ -5178,26 +5185,49 @@ while (fin_pos < fin_length) {
       }
 
       if (!recompress_success) {
-        if (DEBUG_MODE) printf ("packMP3 error: %s\n", recompress_msg);
-        printf("Error recompressing data!");
-        exit(1);
-      }
+        if (DEBUG_MODE) {
+			printf ("packMP3 error: %s\n", recompress_msg);
+			printf("Error when reconstructing MP3, filling with zeroes and resuming.");
+		}
+        mp3_reconstruction_error_count++;
 
-      if (in_memory) {
-        fast_copy(mp3_mem_out, fout, recompressed_data_length);
-
-        if (mp3_mem_in != NULL) delete[] mp3_mem_in;
-        if (mp3_mem_out != NULL) delete[] mp3_mem_out;
+        // Fill with zeroes
+        unsigned char zero_buf[1024];
+        for (int i = 0; i < 1024; i++) zero_buf[i] = 0;
+        for (int i = 0; i < recompressed_data_length / 1024; i++) {
+			fast_copy(zero_buf, fout, 1024);
+		}
+		int remaining = recompressed_data_length % 1024;
+		if (remaining > 0) {
+			fast_copy(zero_buf, fout, remaining);
+		}
+		
+		// TODO: try to write corrupt data to corrupt_mp3_xxx.dat
+		
+		// cleanup
+		if (in_memory) {
+			if (mp3_mem_in != NULL) delete[] mp3_mem_in;
+			if (mp3_mem_out != NULL) delete[] mp3_mem_out;
+		} else {
+			remove(tempfile1);
+		}
       } else {
-        frecomp = tryOpen(tempfile2,"rb");
+		  if (in_memory) {
+			fast_copy(mp3_mem_out, fout, recompressed_data_length);
 
-        fast_copy(frecomp, fout, recompressed_data_length);
+			if (mp3_mem_in != NULL) delete[] mp3_mem_in;
+			if (mp3_mem_out != NULL) delete[] mp3_mem_out;
+		  } else {
+			frecomp = tryOpen(tempfile2,"rb");
 
-        safe_fclose(&frecomp);
+			fast_copy(frecomp, fout, recompressed_data_length);
 
-        remove(tempfile2);
-        remove(tempfile1);
-      }
+			safe_fclose(&frecomp);
+
+			remove(tempfile2);
+			remove(tempfile1);
+		  }
+	  }
       break;
     }
     case D_BRUTE: { // brute mode recompression
@@ -7798,6 +7828,7 @@ void recursion_push() {
   recursion_stack_push(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
   recursion_stack_push(&mp3_parsing_cache_n, sizeof(mp3_parsing_cache_n));
   recursion_stack_push(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
+  recursion_stack_push(&mp3_reconstruction_error_count, sizeof(mp3_reconstruction_error_count));
   recursion_stack_push(&intense_ignore_offsets, sizeof(intense_ignore_offsets));
   recursion_stack_push(&brute_ignore_offsets, sizeof(brute_ignore_offsets));
   recursion_stack_push(&decomp_io_buf, sizeof(decomp_io_buf));
@@ -7813,6 +7844,7 @@ void recursion_pop() {
   recursion_stack_pop(&decomp_io_buf, sizeof(decomp_io_buf));
   recursion_stack_pop(&brute_ignore_offsets, sizeof(brute_ignore_offsets));
   recursion_stack_pop(&intense_ignore_offsets, sizeof(intense_ignore_offsets));
+  recursion_stack_pop(&mp3_reconstruction_error_count, sizeof(mp3_reconstruction_error_count));
   recursion_stack_pop(&mp3_parsing_cache_mp3_length, sizeof(mp3_parsing_cache_mp3_length));
   recursion_stack_pop(&mp3_parsing_cache_n, sizeof(mp3_parsing_cache_n));
   recursion_stack_pop(&mp3_parsing_cache_second_frame, sizeof(mp3_parsing_cache_second_frame));
