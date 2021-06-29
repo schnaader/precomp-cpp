@@ -2469,7 +2469,7 @@ void denit_decompress() {
 
   if ((recursion_depth == 0) && (mp3_reconstruction_error_count > 0)) {
 	  printf("\nWARNING: %i packMP3 errors encountered. Those parts of the restored file will be different to the original file.\n", mp3_reconstruction_error_count);
-	  printf("The corrupt packMP3 streams that couldn't be restored were written to corrupt_mp3_xxx.dat starting with xxx=000.\n");
+	  printf("The corrupt packMP3 streams that couldn't be restored were written to corrupt_pmp_xxx.dat starting with xxx=000.\n");
   }
   
   if (compression_otf_method != OTF_NONE) {
@@ -5189,7 +5189,6 @@ while (fin_pos < fin_length) {
 			printf ("packMP3 error: %s\n", recompress_msg);
 			printf("Error when reconstructing MP3, filling with zeroes and resuming.");
 		}
-        mp3_reconstruction_error_count++;
 
         // Fill with zeroes
         unsigned char zero_buf[1024];
@@ -5202,7 +5201,20 @@ while (fin_pos < fin_length) {
 			fast_copy(zero_buf, fout, remaining);
 		}
 		
-		// TODO: try to write corrupt data to corrupt_mp3_xxx.dat
+		// try to write corrupt data to corrupt_pmp_xxx.dat
+		char corrupt_name[20];
+		sprintf(corrupt_name, "corrupt_pmp_%03i.dat", mp3_reconstruction_error_count);
+		FILE* fcorrupt = tryOpen(corrupt_name, "wb");
+		if (in_memory) {
+			fast_copy(mp3_mem_in, fcorrupt, decompressed_data_length);
+		} else {
+			ftempout = tryOpen(tempfile1,"wb");
+			fast_copy(ftempout, fcorrupt, decompressed_data_length);
+			safe_fclose(&ftempout);
+		}
+		safe_fclose(&fcorrupt);
+
+        mp3_reconstruction_error_count++;
 		
 		// cleanup
 		if (in_memory) {
