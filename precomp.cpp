@@ -5202,17 +5202,19 @@ while (fin_pos < fin_length) {
 		}
 		
 		// try to write corrupt data to corrupt_pmp_xxx.dat
-		char corrupt_name[20];
-		sprintf(corrupt_name, "corrupt_pmp_%03i.dat", mp3_reconstruction_error_count);
-		FILE* fcorrupt = tryOpen(corrupt_name, "wb");
-		if (in_memory) {
-			fast_copy(mp3_mem_in, fcorrupt, decompressed_data_length);
-		} else {
-			ftempout = tryOpen(tempfile1,"wb");
-			fast_copy(ftempout, fcorrupt, decompressed_data_length);
-			safe_fclose(&ftempout);
+		if (mp3_reconstruction_error_count < 1000) {
+			char corrupt_name[20];
+			sprintf(corrupt_name, "corrupt_pmp_%03i.dat", mp3_reconstruction_error_count);
+			FILE* fcorrupt = tryOpen(corrupt_name, "wb");
+			if (in_memory) {
+				fast_copy(mp3_mem_in, fcorrupt, decompressed_data_length);
+			} else {
+				ftempout = tryOpen(tempfile1,"wb");
+				fast_copy(ftempout, fcorrupt, decompressed_data_length);
+				safe_fclose(&ftempout);
+			}
+			safe_fclose(&fcorrupt);
 		}
-		safe_fclose(&fcorrupt);
 
         mp3_reconstruction_error_count++;
 		
