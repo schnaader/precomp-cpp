@@ -4,11 +4,9 @@
 
 #include <inttypes.h>
 
-#ifdef _MSC_VER
 #define HAVE_STDBOOL_H
-#endif
 
-#ifdef UNIX
+#ifdef __unix
   #include <string.h>
   #define MYTHREAD_POSIX
 #else

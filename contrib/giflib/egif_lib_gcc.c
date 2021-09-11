@@ -46,7 +46,7 @@
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif /* HAVE_FCNTL_H */
-#ifndef LINUX
+#ifndef __linux
   #ifdef HAVE_UNISTD_H
   #include <unistd.h>
   #endif /* HAVE_UNISTD_H */
@@ -107,7 +107,7 @@ EGifOpenFileName(const char *FileName,
     GifFileType *GifFile;
 
     if (TestExistance)
-        #ifndef LINUX
+        #ifndef __linux
         FileHandle = open(FileName, O_WRONLY | O_CREAT | O_EXCL | O_BINARY
         #else
         // TODO: Does this work?
@@ -115,7 +115,7 @@ EGifOpenFileName(const char *FileName,
         #endif
                           , S_IREAD | S_IWRITE);
     else
-        #ifndef LINUX
+        #ifndef __linux
         FileHandle = open(FileName, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY 
         #else
         // TODO: Does this work?
@@ -167,7 +167,7 @@ EGifOpenFileHandle(int FileHandle) {
         return NULL;
     }
 
-    #ifndef LINUX
+    #ifndef __linux
     setmode(FileHandle, O_BINARY);    /* Make sure it is in binary mode. */
     #endif
 

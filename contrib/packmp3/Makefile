@@ -1,5 +1,5 @@
 OBJECTS = huffmp3.o packmp3.o
-CFLAGS  = -m64 -O3 -DUNIX -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fomit-frame-pointer
+CFLAGS  = -m64 -O3 -DBUILD_LIB -Wall -pedantic -funroll-loops -ffast-math -fomit-frame-pointer
 
 .PHONY: all
 all: $(OBJECTS)

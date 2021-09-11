@@ -24,7 +24,7 @@
 #define V_STATE "DEVELOPMENT"
 //#define V_MSG "USE FOR TESTING ONLY"
 #define V_MSG "USE AT YOUR OWN RISK!"
-#ifdef UNIX
+#ifdef __unix
   #define V_OS "Unix"
 #else
   #define V_OS "Windows"
@@ -79,7 +79,7 @@
 #include <unistd.h>
 #endif
 
-#ifndef UNIX
+#ifndef __unix
 #include <conio.h>
 #include <windows.h>
 #define PATH_DELIM '\\'
@@ -1262,7 +1262,7 @@ int init(int argc, char* argv[]) {
         printf("\n");
         exit(0);
       } else {
-        #ifndef UNIX
+        #ifndef __unix
         printf("\n\n");
         #else
         printf("\n");
@@ -5794,7 +5794,7 @@ size_t own_fread(void *ptr, size_t size, size_t count, FILE* stream) {
 }
 
 void seek_64(FILE* f, unsigned long long pos) {
-  #ifndef UNIX
+  #ifndef __unix
     fpos_t fpt_pos = pos;
     fsetpos(f, &fpt_pos);
   #else
@@ -5803,7 +5803,7 @@ void seek_64(FILE* f, unsigned long long pos) {
 }
 
 unsigned long long tell_64(FILE* f) {
-  #ifndef UNIX
+  #ifndef __unix
     fpos_t fpt_pos;
     fgetpos(f, &fpt_pos);
     return fpt_pos;
@@ -7629,7 +7629,7 @@ wchar_t* convertCharArrayToLPCWSTR(const char* charArray)
 #endif
 
 long long fileSize64(char* filename) {
-  #ifndef UNIX
+  #ifndef __unix
     unsigned long s1 = 0, s2 = 0;
 
     #ifdef _MSC_VER
@@ -7659,7 +7659,7 @@ long long fileSize64(char* filename) {
     long long result=ftello(f);
     safe_fclose(&f);
     return result;
-  #endif // UNIX
+  #endif // __unix
 }
 
 void init_temp_files() {
@@ -8328,7 +8328,7 @@ int auto_detected_thread_count() {
 // because of the 2 or 3 GiB limit on these systems
 int lzma_max_memory_default() {
   int max_memory = 2048;
-  #ifndef UNIX
+  #ifndef __unix
   #ifndef BIT64
   max_memory = 1024;
   #endif
@@ -8406,7 +8406,7 @@ void denit_decompress_otf() {
 
 // get current time in ms
 long long get_time_ms() {
-  #ifndef UNIX
+  #ifndef __unix
     return GetTickCount();
   #else
     timeval t;
@@ -8433,7 +8433,7 @@ void printf_time(long long t) {
 }
 
 char get_char_with_echo() {
-  #ifndef UNIX
+  #ifndef __unix
     return getche();
   #else
     return fgetc(stdin);
