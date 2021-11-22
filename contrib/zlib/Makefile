@@ -1,5 +1,5 @@
 OBJECTS = adler32.o crc32.o zutil.o trees.o inftrees.o inffast.o inflate.o deflate.o
-CFLAGS  = -m64 -DLINUX -D_FILE_OFFSET_BITS=64 -O2 -Wall
+CFLAGS  = -m64 -D_FILE_OFFSET_BITS=64 -O2 -Wall
 
 .PHONY: all
 all: $(OBJECTS)
