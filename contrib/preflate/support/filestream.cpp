@@ -31,7 +31,7 @@ size_t FileStream::write(const unsigned char* buffer, const size_t size) {
 }
 
 uint64_t FileStream::tell() const {
-  #ifndef UNIX
+  #ifndef __unix
     return _ftelli64(_f);
   #else
     return ftello(_f);
@@ -39,7 +39,7 @@ uint64_t FileStream::tell() const {
 }
 uint64_t FileStream::seek(const uint64_t newPos) {
   uint64_t oldPos = tell();
-  #ifndef UNIX
+  #ifndef __unix
   _fseeki64(_f, newPos, SEEK_SET);
   #else
   fseeko(_f, newPos, SEEK_SET);
