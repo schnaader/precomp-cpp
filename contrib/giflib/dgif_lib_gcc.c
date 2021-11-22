@@ -31,7 +31,7 @@
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif /* HAVE_FCNTL_H */
-#ifndef LINUX
+#ifndef __linux
   #ifdef HAVE_UNISTD_H
   #include <unistd.h>
   #endif /* HAVE_UNISTD_H */
@@ -184,7 +184,7 @@ DGifOpenFileName(const char *FileName) {
     int FileHandle;
     GifFileType *GifFile;
 
-    #ifndef LINUX
+    #ifndef __linux
     if ((FileHandle = open(FileName, O_RDONLY | O_BINARY)) == -1) {
     #else
     // TODO: Does this work?
