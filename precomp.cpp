@@ -4402,6 +4402,15 @@ bool compress_file(float min_percent, float max_percent) {
               break;
             }
           }
+          if ((in_buf[cb + base64_header_length] == 10) && (in_buf[cb + base64_header_length + 1] == 10)) {
+              found_double_crlf = true;
+              base64_header_length += 2;
+              // skip additional LFs
+              while ((in_buf[cb + base64_header_length] == 10)) {
+                base64_header_length += 1;
+              }
+              break;
+          }
           base64_header_length++;
         } while (base64_header_length < (CHECKBUF_SIZE - 2));
 
@@ -7333,7 +7342,7 @@ void try_decompression_base64(int base64_header_length) {
                 continue;
               }
               if ((in[j] == 13) || (in[j] == 10)) {
-                if (in[j] == 13) {
+                if (in[j] == 10) {
                   cr_count++;
                   if (cr_count == 2) { // double CRLF -> base64 end
                     stream_finished = true;
