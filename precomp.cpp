@@ -92,6 +92,18 @@
 
 using namespace std;
 
+// This I shamelessly lifted from https://web.archive.org/web/20090907131154/http://www.cs.toronto.edu:80/~ramona/cosmin/TA/prog/sysconf/
+// (credit to this StackOverflow answer for pointing me to it https://stackoverflow.com/a/1613677)
+// It allows us to portably (at least for Windows/Linux/Mac) set a std stream as binary
+#define STDIN  0
+#define STDOUT 1
+#define STDERR 2
+#ifndef __unix
+# define SET_BINARY_MODE(handle) setmode(handle, O_BINARY)
+#else
+# define SET_BINARY_MODE(handle) ((void)0)
+#endif
+
 #include "contrib/bzip2/bzlib.h"
 #include "contrib/giflib/precomp_gif.h"
 #include "contrib/packjpg/precomp_jpg.h"
@@ -124,6 +136,8 @@ int cb; // "checkbuf"
 
 unsigned char in[CHUNK];
 unsigned char out[CHUNK];
+
+bool header_already_read = false;
 
 // name of temporary files
 char metatempfile[18] = "~temp00000000.dat";
@@ -1090,7 +1104,7 @@ int init(int argc, char* argv[]) {
 
             // dot in output file name? If not, use .pcf extension
             char* dot_at_pos = strrchr(output_file_name, '.');
-            if ((dot_at_pos == NULL) || ((backslash_at_pos != NULL) && (backslash_at_pos > dot_at_pos))) {
+            if (strcmp(output_file_name, "stdout") != 0 && ((dot_at_pos == NULL) || ((backslash_at_pos != NULL) && (backslash_at_pos > dot_at_pos)))) {
               strcpy(output_file_name + strlen(argv[i]) - 2, ".pcf");
               appended_pcf = true;
             }
@@ -1139,13 +1153,24 @@ int init(int argc, char* argv[]) {
       input_file_given = true;
       input_file_name = argv[i];
 
-      fin_length = fileSize64(argv[i]);
+      if (strcmp(input_file_name, "stdin") == 0) {
+        if (operation != P_DECOMPRESS) {
+          print_to_console("ERROR: Reading from stdin only supported for recompressing.\n");
+          exit(1);
+        }
+        // Read binary from stdin
+        SET_BINARY_MODE(STDIN);
+        fin = stdin;
+      }
+      else {
+        fin_length = fileSize64(argv[i]);
 
-      fin = fopen(argv[i],"rb");
-      if (fin == NULL) {
-        printf("ERROR: Input file \"%s\" doesn't exist\n", input_file_name);
+        fin = fopen(argv[i], "rb");
+        if (fin == NULL) {
+          printf("ERROR: Input file \"%s\" doesn't exist\n", input_file_name);
 
-        exit(1);
+          exit(1);
+        }
       }
 
       // output file given? If not, use input filename with .pcf extension
@@ -1255,24 +1280,31 @@ int init(int argc, char* argv[]) {
       read_header();
     }
 
-    if (file_exists(output_file_name)) {
-      printf("Output file \"%s\" exists. Overwrite (y/n)? ", output_file_name);
-      char ch = get_char_with_echo();
-      if ((ch != 'Y') && (ch != 'y')) {
-        printf("\n");
-        exit(0);
-      } else {
-        #ifndef __unix
-        printf("\n\n");
-        #else
-        printf("\n");
-        #endif
-      }
+    if (output_file_given && strcmp(output_file_name, "stdout") == 0) {
+      // Write binary to stdout
+      SET_BINARY_MODE(STDOUT);
+      fout = stdout;
     }
-    fout = fopen(output_file_name,"wb");
-    if (fout == NULL) {
-      printf("ERROR: Can't create output file \"%s\"\n", output_file_name);
-      exit(1);
+    else {
+      if (file_exists(output_file_name)) {
+        printf("Output file \"%s\" exists. Overwrite (y/n)? ", output_file_name);
+        char ch = get_char_with_echo();
+        if ((ch != 'Y') && (ch != 'y')) {
+          printf("\n");
+          exit(0);
+        } else {
+          #ifndef __unix
+          printf("\n\n");
+          #else
+          printf("\n");
+          #endif
+        }
+      }
+      fout = fopen(output_file_name,"wb");
+      if (fout == NULL) {
+        printf("ERROR: Can't create output file \"%s\"\n", output_file_name);
+        exit(1);
+      }
     }
 
     printf("Input file: %s\n",input_file_name);
@@ -2374,14 +2406,17 @@ void denit_compress() {
   }
 
   #ifndef PRECOMPDLL
-   long long fout_length = fileSize64(output_file_name);
-   if (recursion_depth == 0) {
-    if (!DEBUG_MODE) {
-    printf("%s", string(14,'\b').c_str());
-    cout << "100.00% - New size: " << fout_length << " instead of " << fin_length << "     " << endl;
-    } else {
-    cout << "New size: " << fout_length << " instead of " << fin_length << "     " << endl;
-    }
+   if (strcmp(output_file_name, "stdout") != 0) {
+     long long fout_length = fileSize64(output_file_name);
+     if (recursion_depth == 0) {
+       if (!DEBUG_MODE) {
+         printf("%s", string(14, '\b').c_str());
+         cout << "100.00% - New size: " << fout_length << " instead of " << fin_length << "     " << endl;
+       }
+       else {
+         cout << "New size: " << fout_length << " instead of " << fin_length << "     " << endl;
+       }
+     }
    }
   #else
    if (recursion_depth == 0) {
@@ -4571,7 +4606,9 @@ void decompress_file() {
 
   fin_pos = tell_64(fin);
 
-while (fin_pos < fin_length) {
+  auto otf_none_end_check = [](){ return compression_otf_method == OTF_NONE && (feof(fin) || ferror(fin)); };
+
+while (!otf_none_end_check() || compression_otf_method != OTF_NONE && decompress_otf_end) {
 
   if ((recursion_depth == 0) && (!DEBUG_MODE)) {
     float percent = (fin_pos / (float)fin_length) * 100;
@@ -4579,6 +4616,7 @@ while (fin_pos < fin_length) {
   }
 
   unsigned char header1 = fin_fgetc();
+  if (otf_none_end_check()) break;
   if (header1 == 0) { // uncompressed data
     long long uncompressed_data_length;
     uncompressed_data_length = fin_fget_vlint();
@@ -5390,6 +5428,7 @@ void write_header() {
 
 #ifdef COMFORT
 bool check_for_pcf_file() {
+  if (header_already_read) return true;
   seek_64(fin, 0);
 
   fread(in, 1, 3, fin);
@@ -5429,12 +5468,13 @@ bool check_for_pcf_file() {
     strcpy(output_file_name, header_filename.c_str());
   }
 
+  header_already_read = true;
   return true;
 }
 #endif
 
 void read_header() {
-  seek_64(fin, 0);
+  if (header_already_read) return;
 
   fread(in, 1, 3, fin);
   if ((in[0] == 'P') && (in[1] == 'C') && (in[2] == 'F')) {
@@ -5465,6 +5505,8 @@ void read_header() {
     output_file_name = new char[strlen(header_filename.c_str()) + 1];
     strcpy(output_file_name, header_filename.c_str());
   }
+
+  header_already_read = true;
 }
 
 void convert_header() {
