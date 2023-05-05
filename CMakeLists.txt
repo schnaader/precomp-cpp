@@ -161,4 +161,8 @@ if (UNIX)
   target_link_libraries(precomp Threads::Threads)
 endif()
 
+if (${CMAKE_SYSTEM_NAME} MATCHES "^MINGW")
+  target_link_libraries(precomp stdc++ winpthread)
+endif()
+
 install(TARGETS precomp DESTINATION bin)
