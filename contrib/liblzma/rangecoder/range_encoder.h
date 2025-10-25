@@ -14,6 +14,7 @@
 #ifndef LZMA_RANGE_ENCODER_H
 #define LZMA_RANGE_ENCODER_H
 
+#include <assert.h>
 #include "range_common.h"
 #include "price.h"
 
